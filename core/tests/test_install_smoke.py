@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pytest
 
+from versionbar.models import ScanResult
+
 CORE_DIR = Path(__file__).resolve().parents[1]
 
 
@@ -36,6 +38,25 @@ def test_installed_help_works(installed_command: Path) -> None:
     )
     assert result.returncode == 0
     assert "versionbar" in result.stdout.lower()
+
+
+def test_installed_list_json_finds_git_on_the_real_machine(installed_command: Path) -> None:
+    # git is preinstalled on contributor machines and both CI runner images.
+    result = subprocess.run(
+        [str(installed_command), "list", "--json"], capture_output=True, text=True, check=False
+    )
+    assert result.returncode == 0, result.stderr
+    scan = ScanResult.model_validate_json(result.stdout)
+    git = next(tool for tool in scan.tools if tool.id == "git")
+    assert git.status == "found"
+    assert git.active is not None
+    assert Path(git.active.path).is_file()
+
+
+def test_installed_bare_command_prints_a_table(installed_command: Path) -> None:
+    result = subprocess.run([str(installed_command)], capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr
+    assert any(line.startswith("git") for line in result.stdout.splitlines())
 
 
 def test_installed_version_matches_package_metadata(installed_command: Path) -> None:

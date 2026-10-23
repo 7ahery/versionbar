@@ -6,7 +6,7 @@ readme = "README.md"
 license = "MIT"
 authors = [{ name = "Michael Tahery" }]
 requires-python = ">=3.14"
-dependencies = ["typer>=0.12", "rich>=13"]
+dependencies = ["typer>=0.12", "rich>=13", "pydantic>=2.11"]
 
 [project.scripts]
 versionbar = "versionbar.cli:main"
@@ -23,6 +23,10 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+# Test helpers imported from the tests directory (pytest puts it on sys.path).
+known-local-folder = ["fakes"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
