@@ -6,6 +6,7 @@ import json
 from typer.testing import CliRunner
 
 from versionbar.cli import app
+from versionbar.definition import ToolDefinition
 from versionbar.system import ProcessResult
 
 from fakes import (
@@ -109,29 +110,95 @@ def test_a_failing_command_is_captured_with_its_true_exit_status() -> None:
     assert base64.b64decode(record["stderr_b64"]) == b"usage: boom\n"
 
 
+TEXT = "git version 9.9.9\r\n"
+UTF16_FILE = OUT + r"\windows-git-9.9.9.json"
+
+
 def test_utf16_output_is_preserved_as_bytes() -> None:
     system = windows_with_git()
-    raw = b"\xff\xfe" + "git version 9.9.9\r\n".encode("utf-16-le")
+    raw = b"\xff\xfe" + TEXT.encode("utf-16-le")
     add_tool(system, ProcessResult(exit_code=0, stdout=raw, stderr=b""))
 
     capture(system)
 
-    record = written(system, OUT + r"\windows-git-9.9.9.json")
+    record = written(system, UTF16_FILE)
     assert base64.b64decode(record["stdout_b64"]) == raw
     assert record["encoding"] == "utf-16"
-    assert record["stdout_text"] == "git version 9.9.9\r\n"
+    assert record["stdout_text"] == TEXT
+    assert capture_from_bytes(system.files[UTF16_FILE]).result.stdout == raw
 
 
-def test_unknown_tool_fails_without_writing_a_fixture() -> None:
+def test_bom_less_utf16_output_is_preserved_as_bytes() -> None:
+    system = windows_with_git()
+    raw = TEXT.encode("utf-16-le")
+    add_tool(system, ProcessResult(exit_code=0, stdout=raw, stderr=b""))
+
+    capture(system)
+
+    record = written(system, UTF16_FILE)
+    assert record["encoding"] == "utf-16-le"
+    assert record["stdout_text"] == TEXT
+    assert capture_from_bytes(system.files[UTF16_FILE]).result.stdout == raw
+
+
+def test_utf16_on_stderr_alone_is_preserved_as_bytes() -> None:
+    system = windows_with_git()
+    raw = TEXT.encode("utf-16-le")
+    add_tool(system, ProcessResult(exit_code=1, stdout=b"", stderr=raw))
+
+    capture(system)
+
+    record = written(system, UTF16_FILE)
+    assert record["encoding"] == "utf-16-le"
+    assert record["stderr_text"] == TEXT
+    replayed = capture_from_bytes(system.files[UTF16_FILE]).result
+    assert (replayed.stdout, replayed.stderr, replayed.exit_code) == (b"", raw, 1)
+
+
+def test_unknown_tool_is_a_usage_error_and_writes_nothing() -> None:
     system = windows_with_git()
 
     result = capture(system, "nosuchtool", "--json")
 
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     failure = json.loads(result.stdout)
     assert failure["outcome"] == "unknown-tool"
     assert "nosuchtool" in failure["message"]
     assert system.files == {}
+
+
+def test_tool_without_a_definition_for_this_os_is_a_usage_error(monkeypatch) -> None:
+    windows_only = ToolDefinition(
+        id="winonly",
+        name="Win only",
+        os=["windows"],
+        binaries=["winonly"],
+        version_args=["--version"],
+        version_regex=r"(?P<version>\d+)",
+    )
+    monkeypatch.setattr("versionbar.cli.builtin_definitions", lambda: [windows_only])
+    system = FakeSystem(os="linux", env={"PATH": "/usr/bin"})
+
+    result = run_cli(system, "debug", "capture", "winonly", "--out", "/tmp/caps", "--json")
+
+    assert result.exit_code == 2
+    failure = json.loads(result.stdout)
+    assert failure["outcome"] == "unsupported-os"
+    assert failure["message"] == "winonly is not available on linux"
+    assert system.files == {}
+
+
+def test_missing_exit_status_is_not_reported_as_none() -> None:
+    system = windows_with_git()
+    add_tool(system, ProcessResult(exit_code=None, stdout=b"", stderr=b""))
+
+    result = capture(system, "git", "--json")
+
+    assert result.exit_code == 1
+    failure = json.loads(result.stdout)
+    assert failure["outcome"] == "launch-error"
+    assert "None" not in failure["message"]
+    assert "no exit status" in failure["message"]
 
 
 def test_tool_missing_from_path_fails_without_writing_a_fixture() -> None:

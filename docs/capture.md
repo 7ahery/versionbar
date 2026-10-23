@@ -13,7 +13,9 @@ uv run --project core versionbar debug capture <tool> [--out <folder>] [--json]
 - `<tool>` is a tool id from a built-in definition (for example `git`). It runs exactly the definition's version command for the current OS, on the first match found on `PATH`. Nothing is installed or modified.
 - The file is written to `--out` (default `versionbar-captures/`) as `<os>-<tool>-<version>.json`, for example `windows-git-2.55.0.windows.2.json`. The command prints the destination; with `--json` it prints `{"outcome": "captured", "tool", "destination", "exit_code"}`.
 - A command that runs but fails (non-zero exit) is still captured, with its true exit status. That is evidence too.
-- Failures exit with status 1 and write no file, so a failed capture never looks like a fixture. With `--json` the error is `{"outcome", "tool", "message"}`. Outcomes: `unknown-tool`, `not-found` (not on `PATH`), `timeout`, `launch-error`, `write-failed`.
+- Failures write no file, so a failed capture never looks like a fixture. With `--json` the error is `{"outcome", "tool", "message"}`.
+  - Exit status 2 (usage error, like `show`): `unknown-tool`, and `unsupported-os` for a known tool with no definition for this OS (message: `<id> is not available on <os>`).
+  - Exit status 1: `not-found` (not on `PATH`), `timeout`, `launch-error` (including no exit status), `write-failed`.
 
 ## File format (version 1)
 
@@ -46,6 +48,10 @@ gh run list --workflow capture.yml --limit 1               # find the run id
 gh run watch <run-id>
 gh run download <run-id> -n captures-<run-id>
 ```
+
+GitHub only lets you dispatch a workflow that exists on the default branch, or on the branch you pass with `gh workflow run --ref <branch>` (which then uses that branch's copy of the workflow). Separately, the `ref` input chooses which code is checked out and run, so it is how a branch of draft definitions gets captured.
+
+The job stays green whatever the capture outcomes are; read `outcomes/` rather than the job status. Only rejected inputs (no ids, or a malformed id) fail the job.
 
 Tool ids must match `[a-z0-9][a-z0-9-]*`; anything else is rejected before any command runs. The artifact `captures-<run-id>` holds:
 

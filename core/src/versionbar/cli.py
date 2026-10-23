@@ -105,7 +105,10 @@ def debug_capture(
             typer.echo(json.dumps(failure, indent=2))
         else:
             typer.echo(f"capture failed ({error.outcome}): {error.message}", err=True)
-        raise typer.Exit(1) from error
+        # Asking for a tool this build cannot capture is a usage error (2),
+        # like `show`; a capture that was attempted and failed is exit 1.
+        usage_error = error.outcome in ("unknown-tool", "unsupported-os")
+        raise typer.Exit(2 if usage_error else 1) from error
     if json_output:
         typer.echo(outcome.model_dump_json(indent=2))
     else:

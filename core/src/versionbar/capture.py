@@ -90,7 +90,7 @@ def capture_tool(
         raise CaptureError("unknown-tool", f"unknown tool {tool_id!r} (known tools: {known})")
     definition = matching[0]
     if system.os not in definition.os:
-        raise CaptureError("unknown-tool", f"{tool_id} is not defined for {system.os}")
+        raise CaptureError("unsupported-os", f"{tool_id} is not available on {system.os}")
     definition = definition.for_os(system.os)
 
     path = next((hit for binary in definition.binaries for hit in path_hits(system, binary)), None)
@@ -105,7 +105,8 @@ def capture_tool(
     if process.timed_out:
         raise CaptureError("timeout", f"{path} did not answer within {DEFAULT_TIMEOUT_SECONDS:g} s")
     if process.launch_error is not None or process.exit_code is None:
-        raise CaptureError("launch-error", f"could not run {path}: {process.launch_error}")
+        reason = process.launch_error or "no exit status"
+        raise CaptureError("launch-error", f"could not run {path}: {reason}")
 
     encoding = _guess_encoding(process.stdout, process.stderr)
     stdout_text = process.stdout.decode(encoding, errors="replace")
