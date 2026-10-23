@@ -39,7 +39,7 @@ Everything runs through `uv`, so one prerequisite covers Python and the non-Node
 
 - ruff and ty are dev dependencies of `core/` (`uv.lock`).
 - taplo runs from PyPI (`uvx taplo==<pin>`). The npm `@taplo/cli` was rejected because under Node 24 on Windows it silently finds zero TOML files.
-- actionlint runs from PyPI (`uvx --from actionlint-py==<pin> actionlint`), a wrapper that downloads the official release binary.
+- actionlint runs from PyPI (`uvx --from actionlint-py==<pin> actionlint`), a third-party wrapper ([Mateusz-Grzelinski/actionlint-py](https://github.com/Mateusz-Grzelinski/actionlint-py)) that downloads the official rhysd/actionlint release binary.
 
 ## Updating pins
 

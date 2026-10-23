@@ -2,6 +2,8 @@ name: CI
 
 on:
   pull_request:
+    # `edited` re-runs the PR title check after a title fix.
+    types: [opened, edited, synchronize, reopened]
   push:
     branches: [main]
 

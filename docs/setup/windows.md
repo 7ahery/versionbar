@@ -88,7 +88,6 @@ To be filled in by the human who performs the setup (ticket 02 / issue #3).
 | `uv --version` | TODO |
 | Notes (UAC, errors, workarounds) | TODO |
 
-
 ## Pins
 
 Pins now in the repo, and how this page matches them:
