@@ -11,3 +11,5 @@ Five canonical triage labels plus type (`bug`, `feature`, ...) and priority (`pr
 ### Domain docs
 
 Single-context: one `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+@AGENTS.md
