@@ -52,13 +52,13 @@ A scan always completes and always lists every tool; one broken or slow tool nev
 | What happened | `status` | `active`, `installs` | `notes` |
 | --- | --- | --- | --- |
 | No binary on PATH | `missing` | `null`, `[]` | `not found on PATH (looked for: …)` |
-| Active install did not answer within 5 s | `timeout` | `null`, `[]` | `<path> did not answer within 5 s` |
+| Active install did not answer within 5 s | `timeout` | `null`, `[]` | `<path> did not answer within 5 s`, plus `: <its output>` if it printed anything before it was killed |
 | Active install could not be started | `error` | `null`, `[]` | `could not run <path>: <OS error>` |
 | Active install exited non-zero | `error` | `null`, `[]` | `<path> exited with code <n>: <its output>` |
 | Active install printed no recognisable version | `error` | `null`, `[]` | `<path> printed no version: <its output>` |
 | An other install failed in any of these ways | `found` | that install left out | one note per failed install, same wording |
 
-"Its output" is everything the command printed, stdout then stderr, decoded. Version commands run in parallel (up to 16 at once), each with a 5-second timeout; when one times out, its whole process tree is killed. Output is decoded per stream: UTF-16 (with a BOM, or detected by its NUL bytes, as `wsl --version` prints it) or UTF-8, with Windows line endings normalised to `\n`; a version printed only on stderr (as `ssh -V` does) is found too. Captures keep the raw bytes, so every decoding case replays exactly in tests.
+"Its output" is everything the command printed, stdout then stderr, decoded. Version commands run in parallel (up to 16 at once), each with a 5-second timeout; when one times out, its whole process tree is killed (so a hung program started by a `.cmd` shim cannot stall the scan). Output is decoded per stream: UTF-16 (with a BOM, or detected by its NUL bytes, as `wsl --version` prints it) or UTF-8, with Windows line endings normalised to `\n`; a version printed only on stderr (as `ssh -V` does) is found too. Captures keep the raw bytes, so every decoding case replays exactly in tests.
 
 ### Scan timing
 

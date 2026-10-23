@@ -61,6 +61,7 @@ class _LocalSystem:
                 # Something outside the tree still holds the pipes; the
                 # partial output is not worth waiting for.
                 stdout, stderr = b"", b""
+                self._abandon_pipes(process)
             return ProcessResult(
                 exit_code=None, stdout=stdout or b"", stderr=stderr or b"", timed_out=True
             )
@@ -82,10 +83,29 @@ class _LocalSystem:
                     check=False,
                 )
         else:
-            with contextlib.suppress(ProcessLookupError):
+            # OSError covers a group that is already gone and one we may not
+            # signal; neither may stop the scan.
+            with contextlib.suppress(OSError):
                 os.killpg(process.pid, signal.SIGKILL)
         # Covers a taskkill that could not run; harmless if the child is gone.
-        process.kill()
+        with contextlib.suppress(OSError):
+            process.kill()
+
+    @staticmethod
+    def _abandon_pipes(process: subprocess.Popen[bytes]) -> None:
+        if sys.platform == "win32":
+            # Not closed here: communicate() reads on Windows in daemon threads
+            # that hold each pipe's buffer lock, so close() would block until
+            # the stray holder exits, which is the very stall this avoids
+            # (measured: 28 s for a 30 s sleeper). Those threads end, and the
+            # handles are released, when the holder does.
+            return
+        # On POSIX communicate() reads on this thread, so nothing else holds
+        # the pipes and closing them now stops the descriptors leaking.
+        for stream in (process.stdout, process.stderr):
+            if stream is not None:
+                with contextlib.suppress(OSError):
+                    stream.close()
 
     @property
     def platform_description(self) -> str:

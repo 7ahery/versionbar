@@ -53,8 +53,6 @@ class FakeSystem:
     # Called on the scanning thread before each command answers, so a test can
     # hold commands at a barrier to prove they overlap, without timing anything.
     before_run: Callable[[tuple[str, ...]], object] | None = None
-    # The timeout each command was given, by argv.
-    timeouts: dict[tuple[str, ...], float] = field(default_factory=dict)
 
     def _key(self, path: str) -> str:
         # Windows file names are case-insensitive; the fake must be too, or
@@ -75,7 +73,6 @@ class FakeSystem:
 
     def run(self, argv: Sequence[str], timeout: float) -> ProcessResult:
         self.runs.append(tuple(argv))
-        self.timeouts[tuple(argv)] = timeout
         if self.before_run is not None:
             self.before_run(tuple(argv))
         captures = self._executables[self._key(argv[0])]

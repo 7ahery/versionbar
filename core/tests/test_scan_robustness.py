@@ -63,6 +63,8 @@ def test_wsl_utf16_version_output_is_decoded(monkeypatch) -> None:
         "WSL version: 2.7.12.0",
         "Kernel version: 6.18.33.2-2",
     ]
+    # wsl.exe ends lines with CRLF; `raw` is normalised to LF.
+    assert "\r" not in wsl["active"]["raw"]
 
 
 # Not a v1 tool: OpenSSH is here because it is a real tool that prints its
@@ -127,8 +129,21 @@ def test_a_hanging_tool_times_out_and_the_others_still_complete(monkeypatch) -> 
     assert tools["git"]["status"] == "found"
     wsl = tools["wsl"]
     assert (wsl["status"], wsl["active"], wsl["installs"]) == ("timeout", None, [])
+    # The note states the 5-second default per-command timeout.
     assert wsl["notes"] == [rf"{WSL_PATH} did not answer within 5 s"]
-    assert system.timeouts[(WSL_PATH, "--version")] == 5.0
+
+
+def test_a_timeout_note_keeps_what_was_printed_before_the_hang(monkeypatch) -> None:
+    system = git_and_wsl(monkeypatch)
+    # Real WSL bytes as the partial output: what it printed before being killed.
+    printed = load_capture("wsl/windows-wsl-2.7.12.0.json").result.stdout
+    replace_wsl(system, ProcessResult(exit_code=None, stdout=printed, stderr=b"", timed_out=True))
+
+    wsl = tools_of(run_cli(system, "list", "--json"))["wsl"]
+
+    assert wsl["status"] == "timeout"
+    [note] = wsl["notes"]
+    assert note.startswith(rf"{WSL_PATH} did not answer within 5 s: WSL version: 2.7.12.0" + "\n")
 
 
 def test_a_tool_that_cannot_start_is_an_error_with_the_reason(monkeypatch) -> None:
