@@ -32,6 +32,23 @@ const REOPEN_GRACE: Duration = Duration::from_millis(300);
 #[derive(Default)]
 struct LastBlurHide(Mutex<Option<Instant>>);
 
+impl LastBlurHide {
+    fn record_now(&self) {
+        *self.0.lock().unwrap() = Some(Instant::now());
+    }
+
+    fn hid_recently(&self) -> bool {
+        self.0
+            .lock()
+            .unwrap()
+            .is_some_and(|at| at.elapsed() < REOPEN_GRACE)
+    }
+}
+
+// Window calls below use `let _ =` deliberately: showing, hiding and moving the popup are
+// best-effort. If one fails (for example while the window is being torn down at exit) there
+// is nothing useful to do, and the tray must keep working regardless (ADR-0009).
+
 pub fn run() {
     tauri::Builder::default()
         // Must be the first plugin: a second launch exits before anything else starts and
@@ -52,7 +69,7 @@ pub fn run() {
             match event {
                 WindowEvent::Focused(false) => {
                     if window.is_visible().unwrap_or(false) {
-                        *window.state::<LastBlurHide>().0.lock().unwrap() = Some(Instant::now());
+                        window.state::<LastBlurHide>().record_now();
                         let _ = window.hide();
                     }
                 }
@@ -117,13 +134,7 @@ fn toggle_popup<R: Runtime>(app: &AppHandle<R>) {
         let _ = window.hide();
         return;
     }
-    let hid_just_now = app
-        .state::<LastBlurHide>()
-        .0
-        .lock()
-        .unwrap()
-        .is_some_and(|at| at.elapsed() < REOPEN_GRACE);
-    if !hid_just_now {
+    if !app.state::<LastBlurHide>().hid_recently() {
         show_popup(app);
     }
 }
@@ -146,6 +157,8 @@ fn place_near_tray<R: Runtime>(window: &WebviewWindow<R>) {
     {
         let _ = window.move_window(Position::BottomRight);
     }
+    // Second pass: positioner 2.4.0 keeps the window on the monitor, not inside the work
+    // area, and its BottomRight fallback ignores the taskbar, so either can overlap it.
     let (Ok(Some(monitor)), Ok(pos), Ok(size)) = (
         window.current_monitor(),
         window.outer_position(),

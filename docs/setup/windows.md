@@ -105,11 +105,16 @@ cannot fail `clippy -D warnings` without a code change.
 
 ## After cloning
 
+Keep the checkout at a short path (for example `C:\src\versionbar`). Tauri's Rust build
+creates deeply nested files under `app\src-tauri\target`, and a long checkout path can push
+them past Windows' 260-character MAX_PATH limit, which shows up as linker error `LNK1104`
+(cannot open file).
+
 Once per checkout:
 
 ```powershell
-npm install                         # UI and Tauri CLI (npm workspace app/)
-cargo install cargo-deny --locked   # dependency licence and advisory checks in `npm run lint`
+npm install                                # UI and Tauri CLI (npm workspace app/)
+cargo install cargo-deny@0.20.2 --locked   # licence/advisory checks in `npm run lint` (CI's version)
 ```
 
 Then `npm run dev` launches the tray app with hot reload (see README).

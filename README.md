@@ -58,9 +58,9 @@ Prerequisites: [uv](https://docs.astral.sh/uv/) and Node.js 24+ with npm 11. uv 
 ```sh
 git clone https://github.com/7ahery/versionbar
 cd versionbar
-npm install                         # UI and Tauri CLI dependencies (npm workspace `app/`)
-npm run cli -- --help               # first run creates core/.venv
-cargo install cargo-deny --locked   # once, for `npm run lint`
+npm install                                # UI and Tauri CLI dependencies (npm workspace `app/`)
+npm run cli -- --help                      # first run creates core/.venv
+cargo install cargo-deny@0.20.2 --locked   # once, for `npm run lint` (same version as CI)
 ```
 
 Install the CLI from a checkout:
@@ -74,7 +74,7 @@ versionbar --help
 
 `app/` holds the Windows tray app: the React/TS popup UI in `app/src/` (Vite, React 19, strict TypeScript, Tailwind, shadcn/ui, lucide icons) and the Tauri Rust shell in `app/src-tauri/`. The root `package.json` is an npm workspace whose only member is `app`, so one `npm install` at the root covers it, and the root scripts delegate to `app`'s own scripts.
 
-`npm run dev` starts Vite with hot reload and runs the shell. The app lives in the system tray: left-click the icon to toggle the popup, or use the tray menu (Show versions, Quit). Launching it a second time shows the running instance's popup instead of adding a second icon. UI edits reload in place; Rust edits make `tauri dev` rebuild and restart the app.
+`npm run dev` starts Vite with hot reload and runs the shell. The app lives in the system tray: left-click the icon to toggle the popup, or use the tray menu (Show versions, Quit). Launching it a second time shows the running instance's popup instead of adding a second icon. UI edits reload in place; Rust edits make `tauri dev` rebuild and restart the app. What has been verified on a real machine is recorded in [docs/app/native-observations.md](docs/app/native-observations.md).
 
 `npm run build` produces an NSIS installer under `app/src-tauri/target/release/bundle/` for local testing only. Published installers are built by CI from a release tag (the release workflow arrives with the release tickets), never on a contributor's machine.
 
@@ -114,7 +114,7 @@ Everything runs through `uv`, so one prerequisite covers Python and the non-Node
 | taplo, actionlint | the `lint:repo` script in `package.json` |
 | GitHub Actions | exact tags in `.github/workflows/ci.yml` |
 
-The product name lives in `core/pyproject.toml`, `productName` in `app/src-tauri/tauri.conf.json` and `PRODUCT_NAME` in `app/src/product.ts`. The app version is `version` in `app/src-tauri/Cargo.toml` (Tauri reads it from there) and must match the core's.
+The product name lives in `core/pyproject.toml` (package and command name), `productName` and the popup window `title` in `app/src-tauri/tauri.conf.json`, and `PRODUCT_NAME` in `app/src/product.ts`. The app version is `version` in `app/src-tauri/Cargo.toml` (Tauri reads it from there). `app/src-tauri/tests/product_identity.rs` fails if the app version differs from the core's, or if the window title or `PRODUCT_NAME` differs from `productName`, the canonical display name.
 
 ## Licence
 

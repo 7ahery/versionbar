@@ -1,6 +1,7 @@
 [package]
-# Neutral crate name: the product name lives only in tauri.conf.json (and core/pyproject.toml),
-# which also names the built executable.
+# Neutral crate name so a rename never touches Rust. The display name comes from `productName`
+# in tauri.conf.json (which also names the installed executable); README lists every place the
+# name is defined, and tests/product_identity.rs keeps them in sync.
 name = "tray-shell"
 # The app version. tauri.conf.json has no version of its own, so Tauri reads this one.
 version = "0.1.0"
