@@ -1,6 +1,6 @@
 # VersionBar
 
-VersionBar inventories the developer tools on a machine and reports which copy of each one runs.
+VersionBar inventories the developer tools on a machine and reports which installation of each one runs.
 
 ## Language
 
