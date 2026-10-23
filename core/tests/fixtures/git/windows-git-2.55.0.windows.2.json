@@ -1,16 +1,27 @@
 {
+  "format": 1,
   "tool": "git",
-  "args": ["--version"],
+  "args": [
+    "--version"
+  ],
   "exit_code": 0,
-  "stdout": "git version 2.55.0.windows.2\n",
-  "stderr": "",
+  "stdout_b64": "Z2l0IHZlcnNpb24gMi41NS4wLndpbmRvd3MuMgo=",
+  "stderr_b64": "",
   "encoding": "utf-8",
+  "stdout_text": "git version 2.55.0.windows.2\n",
+  "stderr_text": "",
   "provenance": {
-    "method": "hand-seeded before `versionbar debug capture` existed (ticket 05 re-records it)",
-    "machine": "Jupiter (maintainer's dev machine)",
-    "os": "Windows-11-10.0.26200-SP0",
-    "resolved_path": "C:\\Program Files\\Git\\cmd\\git.EXE",
-    "command": "subprocess.run([shutil.which('git'), '--version'], capture_output=True) under uv-managed CPython 3.14.8; stdout bytes decoded as UTF-8",
-    "captured_at": "2026-10-23T21:04:52Z"
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-11-10.0.26200-SP0",
+    "resolved_path": "C:\\Program Files\\Git\\mingw64\\bin\\git.exe",
+    "command": [
+      "C:\\Program Files\\Git\\mingw64\\bin\\git.exe",
+      "--version"
+    ],
+    "captured_at": "2026-10-23T21:33:58.974841Z",
+    "runner": null,
+    "notes": null
   }
 }

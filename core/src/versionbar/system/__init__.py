@@ -34,6 +34,15 @@ class System(Protocol):
 
     def run(self, argv: Sequence[str], timeout: float) -> ProcessResult: ...
 
+    @property
+    def platform_description(self) -> str:
+        """Human-readable OS name and version, recorded as capture provenance."""
+        ...
+
+    def write_file(self, path: str, data: bytes) -> None:
+        """Write `data` to `path`, creating missing parent folders. Raises OSError on failure."""
+        ...
+
     def now(self) -> datetime:
         """Current time, timezone-aware. Behind the seam so scans are reproducible in tests."""
         ...

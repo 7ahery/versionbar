@@ -23,7 +23,7 @@ Three-part monorepo with one shared version number (the core's package metadata 
 1. **Rust does lifecycle and narrowly scoped commands only.** Each new capability gets its own scoped command.
 2. **Rust treats scan JSON as opaque.** It checks `schema_version` only and never reads deeper. All meaning (parsing, diffing, sorting, search) lives in the React UI.
 3. **No shell plugin.** The webview must not be able to spawn arbitrary processes.
-4. **Every tool and provider needs a captured-output fixture** recorded with `versionbar debug capture`. Until that command exists (ticket 05), a real capture seeded by hand is acceptable if it is attributable (which machine and command produced it, recorded next to the fixture). Do not invent output strings. Nothing ships without real captured output.
+4. **Every tool and provider needs a captured-output fixture** recorded with `versionbar debug capture`. See `docs/capture.md` for the command, file format and the shared Windows capture workflow. Do not invent output strings. Nothing ships without real captured output.
 5. **Never install anything for the user.** VersionBar reports; it does not install, upgrade or switch tools, including uv. The app shows a copyable command instead.
 6. **The core never caches.** Every CLI invocation scans live. Only the Rust shell stores scan results.
 7. **uv is a hard prerequisite.** The core runs on a uv-managed Python, never the system Python it reports on.
