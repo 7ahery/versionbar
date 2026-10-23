@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "tool": "git-badflag",
+  "args": [
+    "--no-such-flag"
+  ],
+  "exit_code": 129,
+  "stdout_b64": "",
+  "stderr_b64": "dW5rbm93biBvcHRpb246IC0tbm8tc3VjaC1mbGFnCnVzYWdlOiBnaXQgWy12IHwgLS12ZXJzaW9uXSBbLWggfCAtLWhlbHBdIFstQyA8cGF0aD5dIFstYyA8bmFtZT49PHZhbHVlPl0KICAgICAgICAgICBbLS1leGVjLXBhdGhbPTxwYXRoPl1dIFstLWh0bWwtcGF0aF0gWy0tbWFuLXBhdGhdIFstLWluZm8tcGF0aF0KICAgICAgICAgICBbLXAgfCAtLXBhZ2luYXRlIHwgLVAgfCAtLW5vLXBhZ2VyXSBbLS1uby1yZXBsYWNlLW9iamVjdHNdIFstLW5vLWxhenktZmV0Y2hdCiAgICAgICAgICAgWy0tbm8tb3B0aW9uYWwtbG9ja3NdIFstLW5vLWFkdmljZV0gWy0tYmFyZV0gWy0tZ2l0LWRpcj08cGF0aD5dCiAgICAgICAgICAgWy0td29yay10cmVlPTxwYXRoPl0gWy0tbmFtZXNwYWNlPTxuYW1lPl0gWy0tY29uZmlnLWVudj08bmFtZT49PGVudnZhcj5dCiAgICAgICAgICAgPGNvbW1hbmQ+IFs8YXJncz5dCg==",
+  "encoding": "utf-8",
+  "stdout_text": "",
+  "stderr_text": "unknown option: --no-such-flag\nusage: git [-v | --version] [-h | --help] [-C <path>] [-c <name>=<value>]\n           [--exec-path[=<path>]] [--html-path] [--man-path] [--info-path]\n           [-p | --paginate | -P | --no-pager] [--no-replace-objects] [--no-lazy-fetch]\n           [--no-optional-locks] [--no-advice] [--bare] [--git-dir=<path>]\n           [--work-tree=<path>] [--namespace=<name>] [--config-env=<name>=<envvar>]\n           <command> [<args>]\n",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-11-10.0.26200-SP0",
+    "resolved_path": "C:\\Program Files\\Git\\cmd\\git.exe",
+    "command": [
+      "C:\\Program Files\\Git\\cmd\\git.exe",
+      "--no-such-flag"
+    ],
+    "captured_at": "2026-10-23T21:44:30.637816Z",
+    "runner": null,
+    "notes": "Deliberate failure capture for ticket 07 (#8): git run with an unknown flag (--no-such-flag) through a draft definition `git-badflag` in a scratch fixture-authoring copy, to record a real non-zero exit with its usage message. Not a version capture."
+  }
+}

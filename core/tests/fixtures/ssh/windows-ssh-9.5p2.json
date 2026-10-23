@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "tool": "ssh",
+  "args": [
+    "-V"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "",
+  "stderr_b64": "T3BlblNTSF9mb3JfV2luZG93c185LjVwMiwgTGlicmVTU0wgMy44LjINCg==",
+  "encoding": "utf-8",
+  "stdout_text": "",
+  "stderr_text": "OpenSSH_for_Windows_9.5p2, LibreSSL 3.8.2\r\n",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-11-10.0.26200-SP0",
+    "resolved_path": "C:\\WINDOWS\\System32\\OpenSSH\\ssh.exe",
+    "command": [
+      "C:\\WINDOWS\\System32\\OpenSSH\\ssh.exe",
+      "-V"
+    ],
+    "captured_at": "2026-10-23T21:44:21.015713Z",
+    "runner": null,
+    "notes": null
+  }
+}

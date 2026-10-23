@@ -2,8 +2,10 @@
 that touches processes, the environment or the machine's filesystem directly
 (reading the package's own bundled data is not machine access)."""
 
+import contextlib
 import os
 import platform
+import signal
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -11,6 +13,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from versionbar.system import OsName, ProcessResult, System
+
+# How long a timed-out command's tree gets to die and release its pipes.
+_DRAIN_SECONDS = 1.0
 
 
 class _LocalSystem:
@@ -31,26 +36,76 @@ class _LocalSystem:
         return os.path.isfile(path) and os.access(path, os.X_OK)
 
     def run(self, argv: Sequence[str], timeout: float) -> ProcessResult:
+        # Not subprocess.run: after a timeout it kills only the direct child
+        # and then, on Windows, waits without limit for the pipes to close. A
+        # `.cmd` shim whose hung grandchild inherited them would then stall the
+        # scan for as long as the grandchild lives.
         try:
-            completed = subprocess.run(
+            process = subprocess.Popen(
                 list(argv),
-                capture_output=True,
                 stdin=subprocess.DEVNULL,
-                timeout=timeout,
-                check=False,
-            )
-        except subprocess.TimeoutExpired as expired:
-            return ProcessResult(
-                exit_code=None,
-                stdout=expired.stdout or b"",
-                stderr=expired.stderr or b"",
-                timed_out=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                # Its own process group, so a timeout can kill the whole tree.
+                start_new_session=sys.platform != "win32",
             )
         except OSError as error:
             return ProcessResult(exit_code=None, stdout=b"", stderr=b"", launch_error=str(error))
-        return ProcessResult(
-            exit_code=completed.returncode, stdout=completed.stdout, stderr=completed.stderr
-        )
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            self._kill_tree(process)
+            try:
+                stdout, stderr = process.communicate(timeout=_DRAIN_SECONDS)
+            except subprocess.TimeoutExpired:
+                # Something outside the tree still holds the pipes; the
+                # partial output is not worth waiting for.
+                stdout, stderr = b"", b""
+                self._abandon_pipes(process)
+            return ProcessResult(
+                exit_code=None, stdout=stdout or b"", stderr=stderr or b"", timed_out=True
+            )
+        return ProcessResult(exit_code=process.returncode, stdout=stdout, stderr=stderr)
+
+    def _kill_tree(self, process: subprocess.Popen[bytes]) -> None:
+        if sys.platform == "win32":
+            # taskkill walks the tree by parent id, so it must run before the
+            # child dies. Full path: a scan must not run whatever `taskkill`
+            # the PATH under inspection happens to offer.
+            system_root = os.environ.get("SYSTEMROOT", r"C:\Windows")
+            taskkill = os.path.join(system_root, "System32", "taskkill.exe")
+            with contextlib.suppress(OSError, subprocess.TimeoutExpired):
+                subprocess.run(
+                    [taskkill, "/F", "/T", "/PID", str(process.pid)],
+                    stdin=subprocess.DEVNULL,
+                    capture_output=True,
+                    timeout=_DRAIN_SECONDS,
+                    check=False,
+                )
+        else:
+            # OSError covers a group that is already gone and one we may not
+            # signal; neither may stop the scan.
+            with contextlib.suppress(OSError):
+                os.killpg(process.pid, signal.SIGKILL)
+        # Covers a taskkill that could not run; harmless if the child is gone.
+        with contextlib.suppress(OSError):
+            process.kill()
+
+    @staticmethod
+    def _abandon_pipes(process: subprocess.Popen[bytes]) -> None:
+        if sys.platform == "win32":
+            # Not closed here: communicate() reads on Windows in daemon threads
+            # that hold each pipe's buffer lock, so close() would block until
+            # the stray holder exits, which is the very stall this avoids
+            # (measured: 28 s for a 30 s sleeper). Those threads end, and the
+            # handles are released, when the holder does.
+            return
+        # On POSIX communicate() reads on this thread, so nothing else holds
+        # the pipes and closing them now stops the descriptors leaking.
+        for stream in (process.stdout, process.stderr):
+            if stream is not None:
+                with contextlib.suppress(OSError):
+                    stream.close()
 
     @property
     def platform_description(self) -> str:
