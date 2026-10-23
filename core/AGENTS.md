@@ -10,5 +10,5 @@ Applies to everything under `core/`. Root rules in `../AGENTS.md` also apply.
 - **CLI:** Typer plus Rich. Rich is for human output only; `--json` works on every command and must never import Rich or emit colour or decoration.
 - **CLI output is UTF-8 for all commands**, whatever the console code page or redirect (set once in `main()`).
 - **JSON contract:** Pydantic models are the source of truth. Regenerate the committed schema and TS types with `npm run gen`.
-- **Tests:** drive the CLI entry point over the fake system. Every tool and provider needs a captured fixture from `versionbar debug capture`. Until that command exists (ticket 05), a hand-seeded real capture is acceptable if attributable (machine and command recorded beside it); never invent output.
+- **Tests:** drive the CLI entry point over the fake system. Every tool and provider needs a captured fixture from `versionbar debug capture`. Format and workflow: `../docs/capture.md`. Never invent output. Captures keep raw bytes (base64), so tests of decoding replay exactly what the tool printed.
 - The CLI never installs, upgrades or switches anything.

@@ -1,9 +1,12 @@
 import io
+import json
 import sys
+from typing import Annotated
 
 import typer
 
 from versionbar import __version__
+from versionbar.capture import DEFAULT_OUT_DIR, CaptureError, capture_tool
 from versionbar.definition import builtin_definitions
 from versionbar.models import ScanResult
 from versionbar.scan import scan
@@ -59,17 +62,52 @@ def list_command(
     _list(ctx, json_output)
 
 
+@app.command("show")
+def show_command(
+    ctx: typer.Context,
+    tools: Annotated[list[str], typer.Argument(metavar="TOOL...", help="Tool ids.")],
+    json_output: bool = typer.Option(False, "--json", help=_JSON_HELP),
+) -> None:
+    """Show every install of the given tools found on PATH.
+
+    The active install (the one that runs when you type the command) comes
+    first; the rest are other installs it shadows.
+    """
+    system = _system(ctx)
+    every = builtin_definitions()
+    definitions = [d for d in every if system.os in d.os]
+    known = [d.id for d in definitions]
+    elsewhere = [d.id for d in every if system.os not in d.os]
+    problems = [
+        f"{name} is not available on {system.os}" if name in elsewhere else f"Unknown tool: {name}"
+        for name in tools
+        if name not in known
+    ]
+    if problems:
+        # Usage-error exit code, plain stderr: Click's own error box would pull
+        # Rich into a `--json` run.
+        typer.echo("\n".join(problems) + f"\nknown tools: {', '.join(known)}", err=True)
+        raise typer.Exit(2)
+    # Requested order, each tool once.
+    wanted = list(dict.fromkeys(tools))
+    by_id = {d.id: d for d in definitions}
+    _emit(system, scan(system, [by_id[name] for name in wanted]), json_output, show=True)
+
+
 def _list(ctx: typer.Context, json_output: bool) -> None:
     system = _system(ctx)
-    result = scan(system, builtin_definitions())
+    _emit(system, scan(system, builtin_definitions()), json_output, show=False)
+
+
+def _emit(system: System, result: ScanResult, json_output: bool, *, show: bool) -> None:
     if json_output:
         typer.echo(result.model_dump_json(indent=2))
     else:
-        _print_human(system, result)
+        _print_human(system, result, show=show)
 
 
-def _print_human(system: System, result: ScanResult) -> None:
-    from versionbar.human import print_list
+def _print_human(system: System, result: ScanResult, *, show: bool) -> None:
+    from versionbar.human import print_list, print_show
 
     # Styling and width are decided here, from the system seam and stdout,
     # rather than by Rich reading the process environment on its own.
@@ -78,7 +116,41 @@ def _print_human(system: System, result: ScanResult) -> None:
 
     terminal = sys.stdout.isatty()
     color = (terminal or is_set("FORCE_COLOR")) and not is_set("NO_COLOR")
-    print_list(result, terminal=terminal, color=color)
+    (print_show if show else print_list)(result, terminal=terminal, color=color)
+
+
+# Contributor tooling, not product surface: hidden from help so the public
+# command list stays `list` (and what later tickets add).
+debug_app = typer.Typer(hidden=True, help="Contributor diagnostics.", rich_markup_mode=None)
+app.add_typer(debug_app, name="debug")
+
+
+@debug_app.command("capture")
+def debug_capture(
+    ctx: typer.Context,
+    tool: str = typer.Argument(help="Tool id, e.g. git."),
+    out: str = typer.Option(DEFAULT_OUT_DIR, "--out", help="Folder to write the capture file to."),
+    json_output: bool = typer.Option(False, "--json", help=_JSON_HELP),
+) -> None:
+    """Run a tool's version command and record its raw output as a replayable fixture."""
+    try:
+        outcome = capture_tool(_system(ctx), builtin_definitions(), tool, out)
+    except CaptureError as error:
+        if json_output:
+            failure = {"outcome": error.outcome, "tool": tool, "message": error.message}
+            typer.echo(json.dumps(failure, indent=2))
+        else:
+            typer.echo(f"capture failed ({error.outcome}): {error.message}", err=True)
+        # Asking for a tool this build cannot capture is a usage error (2),
+        # like `show`; a capture that was attempted and failed is exit 1.
+        usage_error = error.outcome in ("unknown-tool", "unsupported-os")
+        raise typer.Exit(2 if usage_error else 1) from error
+    if json_output:
+        typer.echo(outcome.model_dump_json(indent=2))
+    else:
+        typer.echo(
+            f"captured {outcome.tool} (exit code {outcome.exit_code}) to {outcome.destination}"
+        )
 
 
 def main(system: System | None = None) -> None:

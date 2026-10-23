@@ -2,13 +2,14 @@
 
 Inventories the dev tools installed on a machine. The `versionbar` CLI (Python core) is the product; a Windows tray app is one consumer of it.
 
-**Status: early M1.** The CLI detects one tool (git) live. More tools, `show`, `check`, `tools` and `schema` arrive in later slices. The tray app launches and opens its popup, which does not show scan results yet.
+**Status: early M1.** The CLI detects one tool (git) live. More tools, `check`, `tools` and `schema` arrive in later slices. The tray app launches and opens its popup, which does not show scan results yet.
 
 ## Usage
 
 ```sh
 versionbar               # same as `versionbar list`
-versionbar list          # table: each tool's active version and path
+versionbar list          # table: each tool's active version, path and count of other installs
+versionbar show git ...  # every install of the given tools, the active one first (also: `--json`)
 versionbar list --json   # machine-readable ScanResult (also: `versionbar --json`)
 versionbar --help        # every command has --help
 ```
@@ -38,6 +39,9 @@ Every run scans the machine live; nothing is cached. Human output uses colour on
 - `schema_version` is an integer bumped only on breaking changes. `scanned_at` is an RFC 3339 UTC timestamp. `platform` is the OS id (`windows`, `linux`).
 - `status` is one of `found`, `missing`, `error`, `timeout`. A missing tool is still listed, with `active: null` and no installs.
 - `active` is the install that runs when you type the command: the first PATH hit, following PATHEXT on Windows (PATH order first, then PATHEXT order; extensionless files are never run). `installs` lists every install found, the active one included.
+- Active versus other installs: the active install is the first hit, and it is also `installs[0]`. Every other entry in `installs` is an *other install*: a different file on PATH that the active one shadows. `list` shows how many (`len(installs) - 1`). A binary reached through several PATH entries (different case on Windows, trailing separators, `.`/`..`, quotes) counts once; genuinely different files, such as `git.exe` and `git.cmd` in one folder or two folders, stay separate. Symlinks are not resolved.
+- An other install whose version command fails is left out of `installs` and explained in `notes`; if the active install fails, the tool's `status` is `error` or `timeout`.
+- `versionbar show <tool>...` prints the same `ScanResult`, limited to the requested tools (in the order given, repeats dropped). An unknown id exits with code 2 and lists the known ids on stderr; nothing is written to stdout.
 - `source` is `path` for installs found on PATH. `via` and `raw` are optional (`null` when absent); `raw` is the version output the version was read from.
 - `notes` are human-readable diagnostics explaining a status (for example why a tool is missing, or the captured message of a failed version command). They are for people and logs, not for parsing.
 
@@ -45,7 +49,7 @@ Every run scans the machine live; nothing is cached. Human output uses colour on
 
 Built-in tools are TOML files in `core/src/versionbar/definitions/` (keys: `id`, `name`, `os`, `binaries`, `version_args`, `version_regex` with a named `version` group, and optional per-OS `overrides.<os>` replacing `binaries`, `version_args` or `version_regex`). The engine has no per-tool code.
 
-Tests run the CLI over a fake system (`core/tests/fakes.py`) whose command output comes only from real captures in `core/tests/fixtures/<tool>/`. Each capture records its provenance (machine, OS, command, date) beside the output.
+Tests run the CLI over a fake system (`core/tests/fakes.py`) whose command output comes only from real captures in `core/tests/fixtures/<tool>/`. Each capture records its provenance (OS, resolved path, exact command, date) beside the output; see `docs/capture.md` to record one.
 
 ## Setup
 

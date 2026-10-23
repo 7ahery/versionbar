@@ -3,10 +3,12 @@ that touches processes, the environment or the machine's filesystem directly
 (reading the package's own bundled data is not machine access)."""
 
 import os
+import platform
 import subprocess
 import sys
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from pathlib import Path
 
 from versionbar.system import OsName, ProcessResult, System
 
@@ -49,6 +51,15 @@ class _LocalSystem:
         return ProcessResult(
             exit_code=completed.returncode, stdout=completed.stdout, stderr=completed.stderr
         )
+
+    @property
+    def platform_description(self) -> str:
+        return platform.platform()
+
+    def write_file(self, path: str, data: bytes) -> None:
+        target = Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
 
     def now(self) -> datetime:
         return datetime.now(UTC)

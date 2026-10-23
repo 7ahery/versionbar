@@ -123,7 +123,7 @@ def test_bare_json_flag_matches_list_json() -> None:
     assert bare == listed
 
 
-@pytest.mark.parametrize("args", [["list", "--json"], ["--json"]])
+@pytest.mark.parametrize("args", [["list", "--json"], ["--json"], ["show", "git", "--json"]])
 def test_json_runs_never_import_rich(args: list[str]) -> None:
     # A fresh interpreter, because this test session has already imported Rich.
     completed = run_entry_point(args, "fakes.FakeSystem(env={'PATH': ''})")
@@ -131,6 +131,14 @@ def test_json_runs_never_import_rich(args: list[str]) -> None:
     assert completed.returncode == 0, completed.stderr
     assert json.loads(completed.stdout)["tools"]
     assert completed.stderr == b"rich absent"
+
+
+def test_unknown_tool_error_never_imports_rich() -> None:
+    completed = run_entry_point(["show", "nope", "--json"], "fakes.FakeSystem(env={'PATH': ''})")
+
+    assert completed.returncode == 2
+    assert completed.stdout == b""
+    assert completed.stderr.endswith(b"rich absent")
 
 
 def test_list_json_envelope_carries_schema_version_time_and_platform() -> None:
@@ -177,8 +185,13 @@ def test_resolution_follows_path_order_then_pathext_and_skips_extensionless_file
     result = run_cli(system, "list", "--json")
 
     tool = next(t for t in json.loads(result.stdout)["tools"] if t["id"] == "git")
-    assert tool["active"]["path"] == r"C:\Program Files\Git\cmd\git.exe"
-    assert system.runs == [(r"C:\Program Files\Git\cmd\git.exe", "--version")]
+    # Every runnable hit is an install, in the order the OS would try them.
+    assert [i["path"] for i in tool["installs"]] == [
+        r"C:\Program Files\Git\cmd\git.exe",
+        r"C:\Program Files\Git\cmd\git.cmd",
+        r"C:\Program Files\Git\bin\git.exe",
+    ]
+    assert tool["active"] == tool["installs"][0]
 
 
 def test_pathext_entries_with_stray_spaces_still_resolve() -> None:
