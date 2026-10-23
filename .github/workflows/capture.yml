@@ -70,8 +70,13 @@ jobs:
             $code = $LASTEXITCODE
             # Every tool gets a valid JSON outcome file, even if the CLI died or
             # printed something that is not JSON.
+            # ConvertFrom-Json accepts an empty string without error, so silence is checked separately.
             $valid = $true
-            try { $null = $stdout | ConvertFrom-Json -ErrorAction Stop } catch { $valid = $false }
+            if ([string]::IsNullOrWhiteSpace($stdout)) {
+              $valid = $false
+            } else {
+              try { $null = $stdout | ConvertFrom-Json -ErrorAction Stop } catch { $valid = $false }
+            }
             if (-not $valid) {
               $stdout = [ordered]@{
                 outcome   = 'invalid-output'
