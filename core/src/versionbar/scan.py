@@ -3,6 +3,7 @@ tool-specific knowledge comes from definitions."""
 
 import re
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from versionbar.definition import ToolDefinition
 from versionbar.models import Install, ScanResult, Tool, ToolStatus
@@ -22,30 +23,61 @@ def scan(system: System, definitions: list[ToolDefinition]) -> ScanResult:
 
 
 def _detect(system: System, definition: ToolDefinition) -> Tool:
-    def result(
-        status: ToolStatus, active: Install | None = None, notes: Sequence[str] = ()
-    ) -> Tool:
-        return Tool(
-            id=definition.id,
-            name=definition.name,
-            status=status,
-            active=active,
-            installs=[active] if active else [],
-            notes=list(notes),
-        )
-
-    path = _first_hit(system, definition.binaries)
-    if path is None:
+    paths = _all_hits(system, definition.binaries)
+    if not paths:
         names = ", ".join(definition.binaries)
-        return result("missing", notes=[f"not found on PATH (looked for: {names})"])
+        return _tool(definition, "missing", notes=[f"not found on PATH (looked for: {names})"])
 
+    # The first hit is what runs when the command is typed. If it cannot
+    # report a version the tool is in error; the other installs are not probed
+    # because there is no active install to put them beside.
+    active = _probe(system, definition, paths[0])
+    if isinstance(active, _Failed):
+        return _tool(definition, active.status, notes=[active.note])
+
+    installs = [active]
+    notes: list[str] = []
+    for path in paths[1:]:
+        other = _probe(system, definition, path)
+        if isinstance(other, _Failed):
+            # Not the active install, so it cannot make the whole tool fail;
+            # it stays visible as a note instead of silently vanishing.
+            notes.append(other.note)
+        else:
+            installs.append(other)
+    return _tool(definition, "found", active=active, installs=installs, notes=notes)
+
+
+def _tool(
+    definition: ToolDefinition,
+    status: ToolStatus,
+    *,
+    active: Install | None = None,
+    installs: Sequence[Install] = (),
+    notes: Sequence[str] = (),
+) -> Tool:
+    return Tool(
+        id=definition.id,
+        name=definition.name,
+        status=status,
+        active=active,
+        installs=list(installs),
+        notes=list(notes),
+    )
+
+
+@dataclass(frozen=True)
+class _Failed:
+    status: ToolStatus
+    note: str
+
+
+def _probe(system: System, definition: ToolDefinition, path: str) -> Install | _Failed:
     process = system.run([path, *definition.version_args], DEFAULT_TIMEOUT_SECONDS)
     if process.timed_out:
-        return result(
-            "timeout", notes=[f"{path} did not answer within {DEFAULT_TIMEOUT_SECONDS:g} s"]
-        )
+        return _Failed("timeout", f"{path} did not answer within {DEFAULT_TIMEOUT_SECONDS:g} s")
     if process.launch_error is not None:
-        return result("error", notes=[f"could not run {path}: {process.launch_error}"])
+        return _Failed("error", f"could not run {path}: {process.launch_error}")
 
     output = _decode(process)
     match = re.search(definition.version_regex, output)
@@ -56,18 +88,19 @@ def _detect(system: System, definition: ToolDefinition) -> Tool:
             else "printed no version"
         )
         captured = output.strip()
-        note = f"{path} {problem}" + (f": {captured}" if captured else "")
-        return result("error", notes=[note])
+        return _Failed("error", f"{path} {problem}" + (f": {captured}" if captured else ""))
 
-    install = Install(version=match["version"], path=path, source="path", raw=output.strip())
-    return result("found", active=install)
+    return Install(version=match["version"], path=path, source="path", raw=output.strip())
 
 
-def _first_hit(system: System, binaries: list[str]) -> str | None:
-    for binary in binaries:
-        for hit in path_hits(system, binary):
-            return hit
-    return None
+def _all_hits(system: System, binaries: list[str]) -> list[str]:
+    # Binaries keep their declared order, so an earlier name outranks a later one.
+    # Two names can match one file (`git` and `git.exe`); path_hits already
+    # normalised the spelling, so exact equality collapses those. Case-folding
+    # is not repeated here: it only matters across PATH entries, which
+    # path_hits handles per name.
+    hits = dict.fromkeys(hit for binary in binaries for hit in path_hits(system, binary))
+    return list(hits)
 
 
 def _decode(process: ProcessResult) -> str:
