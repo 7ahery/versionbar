@@ -1,0 +1,9 @@
+# Exact stable release, not the floating `stable` channel: clippy runs with `-D warnings`,
+# so a new Rust release with new lints would otherwise break CI without any code change.
+# Bump deliberately (see "Updating pins" in README.md).
+[toolchain]
+channel = "1.99.1"
+components = ["rustfmt", "clippy"]
+# Tauri on Windows links with the MSVC linker, never GNU.
+targets = ["x86_64-pc-windows-msvc"]
+profile = "minimal"

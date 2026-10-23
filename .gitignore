@@ -20,7 +20,7 @@ build/
 
 # Rust / Tauri
 target/
-src-tauri/gen/
+app/src-tauri/gen/
 
 # Node / React
 node_modules/
