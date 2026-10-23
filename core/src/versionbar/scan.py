@@ -95,7 +95,12 @@ def _probe(system: System, definition: ToolDefinition, path: str) -> Install | _
 
 def _all_hits(system: System, binaries: list[str]) -> list[str]:
     # Binaries keep their declared order, so an earlier name outranks a later one.
-    return [hit for binary in binaries for hit in path_hits(system, binary)]
+    # Two names can match one file (`git` and `git.exe`); path_hits already
+    # normalised the spelling, so exact equality collapses those. Case-folding
+    # is not repeated here: it only matters across PATH entries, which
+    # path_hits handles per name.
+    hits = dict.fromkeys(hit for binary in binaries for hit in path_hits(system, binary))
+    return list(hits)
 
 
 def _decode(process: ProcessResult) -> str:

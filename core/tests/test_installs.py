@@ -133,6 +133,54 @@ def test_unknown_tool_ids_fail_with_the_known_ids_listed() -> None:
     assert system.runs == []
 
 
+def test_tool_known_only_for_another_os_is_not_called_unknown(monkeypatch) -> None:
+    linux_only = definition.builtin_definitions()[0].model_copy(
+        update={"id": "linuxonly", "os": ["linux"]}
+    )
+    # Remove once real definitions (ticket 08, #9) include a per-OS tool.
+    monkeypatch.setattr(
+        cli, "builtin_definitions", lambda: [*definition.builtin_definitions(), linux_only]
+    )
+
+    result = run_cli(windows_with_two_gits(), "show", "linuxonly")
+
+    assert result.exit_code == 2
+    assert "linuxonly is not available on windows" in result.stderr
+    assert "Unknown" not in result.stderr
+
+
+def test_relative_path_entries_are_skipped_not_reported_as_bare_names() -> None:
+    # `.` and `..\x` mean "relative to the cwd", which a scan does not have.
+    system = windows_with_two_gits(r".;.\;..\bin;C:\Program Files\Git\cmd;C:\Users\dev\scoop\shims")
+    system.add_executable("git.exe", load_capture(GIT_LINUX))
+    system.add_executable(r"..\bin\git.exe", load_capture(GIT_LINUX))
+
+    git = git_of(run_cli(system, "list", "--json"))
+
+    assert [i["path"] for i in git["installs"]] == [WIN_GIT, SCOOP_GIT]
+
+
+def test_relative_posix_path_entries_are_skipped() -> None:
+    system = FakeSystem(os="linux", env={"PATH": ".:bin:/usr/bin"})
+    system.add_executable("git", load_capture(GIT_LINUX))
+    system.add_executable("bin/git", load_capture(GIT_LINUX))
+    system.add_executable("/usr/bin/git", load_capture(GIT_LINUX))
+
+    git = git_of(run_cli(system, "list", "--json"))
+
+    assert [i["path"] for i in git["installs"]] == ["/usr/bin/git"]
+
+
+def test_a_binary_matched_by_two_declared_names_is_one_install(monkeypatch) -> None:
+    both = definition.builtin_definitions()[0].model_copy(update={"binaries": ["git", "git.exe"]})
+    # Remove once real definitions (ticket 08, #9) can show this on their own.
+    monkeypatch.setattr(cli, "builtin_definitions", lambda: [both])
+
+    git = git_of(run_cli(windows_with_two_gits(), "list", "--json"))
+
+    assert [i["path"] for i in git["installs"]] == [WIN_GIT, SCOOP_GIT]
+
+
 def test_show_requires_at_least_one_tool() -> None:
     result = run_cli(windows_with_two_gits(), "show")
 
@@ -140,7 +188,8 @@ def test_show_requires_at_least_one_tool() -> None:
 
 
 def test_show_with_several_tools_keeps_found_and_missing_visible(monkeypatch) -> None:
-    # Only git is defined so far, so a second tool is injected. Its version
+    # Only git is defined so far, so extra tools are injected; replace this with
+    # real definitions once ticket 08 (#9) adds node, python and uv. Their version
     # output is the real git capture, run through a differently named binary.
     other = definition.ToolDefinition(
         id="gitlike",

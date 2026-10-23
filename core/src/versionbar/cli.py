@@ -72,17 +72,19 @@ def show_command(
     first; the rest are other installs it shadows.
     """
     system = _system(ctx)
-    definitions = [d for d in builtin_definitions() if system.os in d.os]
+    every = builtin_definitions()
+    definitions = [d for d in every if system.os in d.os]
     known = [d.id for d in definitions]
-    unknown = [name for name in tools if name not in known]
-    if unknown:
+    elsewhere = [d.id for d in every if system.os not in d.os]
+    problems = [
+        f"{name} is not available on {system.os}" if name in elsewhere else f"Unknown tool: {name}"
+        for name in tools
+        if name not in known
+    ]
+    if problems:
         # Usage-error exit code, plain stderr: Click's own error box would pull
         # Rich into a `--json` run.
-        typer.echo(
-            f"Unknown tool{'s' if len(unknown) > 1 else ''}: {', '.join(unknown)}\n"
-            f"known tools: {', '.join(known)}",
-            err=True,
-        )
+        typer.echo("\n".join(problems) + f"\nknown tools: {', '.join(known)}", err=True)
         raise typer.Exit(2)
     # Requested order, each tool once.
     wanted = list(dict.fromkeys(tools))

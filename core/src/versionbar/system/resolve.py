@@ -8,7 +8,7 @@ so Windows rules are exercised on Linux CI too.
 
 import ntpath
 import posixpath
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 from versionbar.system import System
 
@@ -52,21 +52,26 @@ def _windows_hits(system: System, command: str) -> Iterator[str]:
         names = [command]
     else:
         names = [command + ext for ext in extensions]
-    for directory in _entries(system.getenv("PATH"), ";"):
+    for directory in _entries(system.getenv("PATH"), ";", ntpath.isabs):
         for name in names:
-            candidate = ntpath.normpath(ntpath.join(directory.strip('"'), name))
+            candidate = ntpath.normpath(ntpath.join(directory, name))
             if system.is_executable(candidate):
                 yield candidate
 
 
 def _posix_hits(system: System, command: str) -> Iterator[str]:
-    for directory in _entries(system.getenv("PATH"), ":"):
+    for directory in _entries(system.getenv("PATH"), ":", posixpath.isabs):
         candidate = posixpath.normpath(posixpath.join(directory, command))
         if system.is_executable(candidate):
             yield candidate
 
 
-def _entries(path: str | None, separator: str) -> Iterator[str]:
-    # Empty entries mean "current directory" to a shell; a scan has no
-    # meaningful current directory, so they are skipped.
-    return (entry for entry in (path or "").split(separator) if entry.strip())
+def _entries(path: str | None, separator: str, is_absolute: Callable[[str], bool]) -> Iterator[str]:
+    # Empty entries and relative ones (`.`, `..\bin`, `bin`) mean "relative to
+    # the current directory" to a shell. A scan has no meaningful cwd, and
+    # reporting such a hit would give a bare name that is not the file that
+    # was detected, so they are skipped.
+    for entry in (path or "").split(separator):
+        entry = entry.strip().strip('"')
+        if entry and is_absolute(entry):
+            yield entry
