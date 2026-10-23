@@ -79,14 +79,14 @@ To be filled in by the human who performs the setup (ticket 02 / issue #3).
 
 | Item | Result |
 | --- | --- |
-| Date | TODO |
-| Machine (OS build, CPU arch) | TODO |
-| `rustc --version` | TODO |
-| `cargo --version` | TODO |
-| `cargo run` output of `hello` | TODO |
-| `npm --version` | TODO |
-| `uv --version` | TODO |
-| Notes (UAC, errors, workarounds) | TODO |
+| Date | 2026-10-24 |
+| Machine (OS build, CPU arch) | Windows 11 Pro 10.0.26200, x64 |
+| `rustc --version` | rustc 1.99.1 (58cf8f9c3 2026-10-13) |
+| `cargo --version` | cargo 1.99.1 (5f94df478 2026-08-27) |
+| `cargo run` output of `hello` | Compiled, linked and printed `Hello, world!` |
+| `npm --version` | 11.19.0 (Node v24.21.0) |
+| `uv --version` | uv 0.12.23 (x86_64-pc-windows-msvc) |
+| Notes (UAC, errors, workarounds) | No UAC prompts, no errors, no workarounds. |
 
 ## Pins
 
