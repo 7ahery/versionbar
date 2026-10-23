@@ -1,0 +1,16 @@
+{
+  "tool": "git",
+  "args": ["--version"],
+  "exit_code": 0,
+  "stdout": "git version 2.43.0\n",
+  "stderr": "",
+  "encoding": "utf-8",
+  "provenance": {
+    "method": "hand-seeded before `versionbar debug capture` existed (ticket 05 re-records it)",
+    "machine": "Jupiter (maintainer's dev machine), WSL2 distro `Ubuntu`",
+    "os": "Ubuntu 24.04.4 LTS, kernel 6.18.33.2-microsoft-standard-WSL2",
+    "resolved_path": "/usr/bin/git",
+    "command": "wsl -d Ubuntu -e sh -c 'git --version >out 2>err; echo $?; od -An -c out' (exit 0, stdout bytes as recorded, stderr empty)",
+    "captured_at": "2026-10-23T21:15:30Z"
+  }
+}

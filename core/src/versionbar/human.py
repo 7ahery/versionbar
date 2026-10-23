@@ -6,12 +6,21 @@ from rich.text import Text
 
 from versionbar.models import ScanResult
 
+# Wide enough that no real path wraps; the table still shrinks to its content.
+_PIPE_WIDTH = 10_000
 
-def print_list(result: ScanResult, *, no_color: bool) -> None:
-    # Rich already drops styling when stdout is not a terminal; NO_COLOR is
-    # passed explicitly because the environment is read through the system seam.
-    # It drops bold/dim too, so NO_COLOR output matches piped output exactly.
-    console = Console(color_system=None if no_color else "auto", highlight=False)
+
+def print_list(result: ScanResult, *, terminal: bool, color: bool) -> None:
+    console = Console(
+        force_terminal=color,
+        no_color=not color,
+        color_system="auto" if color else None,
+        # On a terminal Rich measures the real window (honouring COLUMNS, the
+        # standard override). Piped output has no width, so lines never wrap
+        # and each tool stays on one greppable line.
+        width=None if terminal else _PIPE_WIDTH,
+        highlight=False,
+    )
     table = Table(box=None, pad_edge=False)
     table.add_column("Tool", style="bold")
     table.add_column("Version")

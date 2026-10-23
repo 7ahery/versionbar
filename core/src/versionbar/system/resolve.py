@@ -28,7 +28,7 @@ def _windows_hits(system: System, command: str) -> Iterator[str]:
     # Lowercased so reported paths match how the files are normally named on
     # disk (PATHEXT itself is conventionally uppercase).
     extensions = [
-        ext.lower()
+        ext.strip().lower()
         for ext in (system.getenv("PATHEXT") or _DEFAULT_PATHEXT).split(";")
         if ext.strip()
     ]

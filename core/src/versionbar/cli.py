@@ -1,3 +1,6 @@
+import io
+import sys
+
 import typer
 
 from versionbar import __version__
@@ -68,8 +71,22 @@ def _list(ctx: typer.Context, json_output: bool) -> None:
 def _print_human(system: System, result: ScanResult) -> None:
     from versionbar.human import print_list
 
-    print_list(result, no_color=system.getenv("NO_COLOR") not in (None, ""))
+    # Styling and width are decided here, from the system seam and stdout,
+    # rather than by Rich reading the process environment on its own.
+    def is_set(name: str) -> bool:
+        return system.getenv(name) not in (None, "")
+
+    terminal = sys.stdout.isatty()
+    color = (terminal or is_set("FORCE_COLOR")) and not is_set("NO_COLOR")
+    print_list(result, terminal=terminal, color=color)
 
 
-def main() -> None:
-    app()
+def main(system: System | None = None) -> None:
+    """Console-script entry point. `system` lets tests run the real entry point over a fake."""
+    # Output is UTF-8 for every command. Windows otherwise encodes redirected
+    # output with the ANSI code page (cp1252), which cannot represent many
+    # real install paths and would crash mid-print.
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(encoding="utf-8")
+    app(obj=system)

@@ -12,11 +12,11 @@ SCHEMA_VERSION = 1
 type ToolStatus = Literal["found", "missing", "error", "timeout"]
 
 
-class _Model(BaseModel):
+class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-class Install(_Model):
+class Install(StrictModel):
     version: str
     path: str
     # `path`, or the id of the Provider that reported the install.
@@ -26,7 +26,7 @@ class Install(_Model):
     raw: str | None = None
 
 
-class Tool(_Model):
+class Tool(StrictModel):
     id: str
     name: str
     status: ToolStatus
@@ -37,7 +37,7 @@ class Tool(_Model):
     notes: list[str] = []
 
 
-class ScanResult(_Model):
+class ScanResult(StrictModel):
     schema_version: int = SCHEMA_VERSION
     scanned_at: AwareDatetime
     platform: OsName

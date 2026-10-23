@@ -7,42 +7,39 @@ replace top-level detection fields on that OS only.
 import re
 import tomllib
 from importlib.resources import files
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import AfterValidator
 
+from versionbar.models import StrictModel
 from versionbar.system import OsName
 
 
-class _Strict(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-
-def _check_regex(pattern: str | None) -> str | None:
-    if pattern is not None and "version" not in re.compile(pattern).groupindex:
+def _check_regex(pattern: str) -> str:
+    if "version" not in re.compile(pattern).groupindex:
         raise ValueError("version_regex needs a named group `(?P<version>...)`")
     return pattern
 
 
-class Detection(_Strict):
+type VersionRegex = Annotated[str, AfterValidator(_check_regex)]
+
+
+class Detection(StrictModel):
     """The fields an OS override may replace."""
 
     binaries: list[str] | None = None
     version_args: list[str] | None = None
-    version_regex: str | None = None
-
-    _regex = field_validator("version_regex")(_check_regex)
+    version_regex: VersionRegex | None = None
 
 
-class ToolDefinition(_Strict):
+class ToolDefinition(StrictModel):
     id: str
     name: str
     os: list[OsName]
     binaries: list[str]
     version_args: list[str]
-    version_regex: str
+    version_regex: VersionRegex
     overrides: dict[OsName, Detection] = {}
-
-    _regex = field_validator("version_regex")(_check_regex)
 
     def for_os(self, os: OsName) -> ToolDefinition:
         override = self.overrides.get(os)

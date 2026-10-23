@@ -72,3 +72,19 @@ class FakeSystem:
 
     def now(self) -> datetime:
         return self.clock
+
+
+GIT_WINDOWS = "git/windows-git-2.55.0.windows.2.json"
+GIT_LINUX = "git/linux-git-2.43.0.json"
+
+
+def windows_with_git(git_dir: str = r"C:\Program Files\Git\cmd") -> FakeSystem:
+    system = FakeSystem(
+        os="windows",
+        env={
+            "PATH": rf"C:\WINDOWS\system32;{git_dir};C:\Users\dev\bin",
+            "PATHEXT": WINDOWS_PATHEXT,
+        },
+    )
+    system.add_executable(rf"{git_dir}\git.exe", load_capture(GIT_WINDOWS))
+    return system

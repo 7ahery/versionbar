@@ -1,5 +1,6 @@
 """The real machine, behind the platform boundary. The only module in the core
-that touches processes, the environment or the filesystem directly."""
+that touches processes, the environment or the machine's filesystem directly
+(reading the package's own bundled data is not machine access)."""
 
 import os
 import subprocess

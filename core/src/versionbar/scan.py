@@ -2,9 +2,10 @@
 tool-specific knowledge comes from definitions."""
 
 import re
+from collections.abc import Sequence
 
 from versionbar.definition import ToolDefinition
-from versionbar.models import Install, ScanResult, Tool
+from versionbar.models import Install, ScanResult, Tool, ToolStatus
 from versionbar.system import ProcessResult, System
 from versionbar.system.resolve import path_hits
 
@@ -21,7 +22,9 @@ def scan(system: System, definitions: list[ToolDefinition]) -> ScanResult:
 
 
 def _detect(system: System, definition: ToolDefinition) -> Tool:
-    def result(status, active=None, notes=()) -> Tool:
+    def result(
+        status: ToolStatus, active: Install | None = None, notes: Sequence[str] = ()
+    ) -> Tool:
         return Tool(
             id=definition.id,
             name=definition.name,
@@ -48,7 +51,9 @@ def _detect(system: System, definition: ToolDefinition) -> Tool:
     match = re.search(definition.version_regex, output)
     if process.exit_code != 0 or match is None:
         problem = (
-            f"exited with code {process.exit_code}" if process.exit_code else "printed no version"
+            f"exited with code {process.exit_code}"
+            if process.exit_code != 0
+            else "printed no version"
         )
         captured = output.strip()
         note = f"{path} {problem}" + (f": {captured}" if captured else "")

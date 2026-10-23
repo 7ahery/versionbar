@@ -8,6 +8,7 @@ Applies to everything under `core/`. Root rules in `../AGENTS.md` also apply.
 - **Detection rules:** follow PATHEXT; report Microsoft Store `python.exe`/`python3.exe` placeholders as missing with a note; tag shim-served installs with `via`; detect output encoding per tool (UTF-16 for WSL); de-duplicate PATH entries; find managers through environment variables (e.g. `NVM_HOME`), not fixed paths.
 - **No caching.** Scan live, in parallel on a thread pool, with a per-command timeout (5 s default) that yields status `timeout`.
 - **CLI:** Typer plus Rich. Rich is for human output only; `--json` works on every command and must never import Rich or emit colour or decoration.
+- **CLI output is UTF-8 for all commands**, whatever the console code page or redirect (set once in `main()`).
 - **JSON contract:** Pydantic models are the source of truth. Regenerate the committed schema and TS types with `npm run gen`.
 - **Tests:** drive the CLI entry point over the fake system. Every tool and provider needs a captured fixture from `versionbar debug capture`. Until that command exists (ticket 05), a hand-seeded real capture is acceptable if attributable (machine and command recorded beside it); never invent output.
 - The CLI never installs, upgrades or switches anything.

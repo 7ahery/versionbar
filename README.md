@@ -13,7 +13,7 @@ versionbar list --json   # machine-readable ScanResult (also: `versionbar --json
 versionbar --help        # every command has --help
 ```
 
-Every run scans the machine live; nothing is cached. Human output uses colour only on a terminal; it is plain when piped or when `NO_COLOR` is set. `--json` output never contains colour or decoration.
+Every run scans the machine live; nothing is cached. Human output uses colour only on a terminal (or when `FORCE_COLOR` is set); it is plain when piped or when `NO_COLOR` is set, and piped tables never wrap, so each tool stays on one line. `--json` output never contains colour or decoration. All output is UTF-8.
 
 ### JSON output
 
