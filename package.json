@@ -1,0 +1,15 @@
+{
+  "name": "versionbar-workspace",
+  "private": true,
+  "description": "Root task runner for the VersionBar monorepo. The product name and version live in core/pyproject.toml.",
+  "license": "MIT",
+  "packageManager": "npm@11.19.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "cli": "uv run --project core versionbar",
+    "test": "uv run --project core --group dev pytest core",
+    "lint": "uv run --project core --group dev ruff check core && uv run --project core --group dev ruff format --check core && uv run --project core --group dev ty check --project core && uvx taplo==0.9.3 check && uvx taplo==0.9.3 fmt --check && uvx --from actionlint-py==1.7.12.24 actionlint"
+  }
+}
