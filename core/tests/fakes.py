@@ -5,7 +5,7 @@ test; command output only ever comes from captured fixtures, never invented
 strings.
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -50,6 +50,11 @@ class FakeSystem:
     files: dict[str, bytes] = field(default_factory=dict)
     # Lets a test make the destination unwritable without touching a real disk.
     write_error: str | None = None
+    # Called on the scanning thread before each command answers, so a test can
+    # hold commands at a barrier to prove they overlap, without timing anything.
+    before_run: Callable[[tuple[str, ...]], object] | None = None
+    # The timeout each command was given, by argv.
+    timeouts: dict[tuple[str, ...], float] = field(default_factory=dict)
 
     def _key(self, path: str) -> str:
         # Windows file names are case-insensitive; the fake must be too, or
@@ -70,6 +75,9 @@ class FakeSystem:
 
     def run(self, argv: Sequence[str], timeout: float) -> ProcessResult:
         self.runs.append(tuple(argv))
+        self.timeouts[tuple(argv)] = timeout
+        if self.before_run is not None:
+            self.before_run(tuple(argv))
         captures = self._executables[self._key(argv[0])]
         for capture in captures:
             if capture.args == tuple(argv[1:]):
