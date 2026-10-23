@@ -97,6 +97,19 @@ Pins now in the repo, and how this page matches them:
 | npm | 11.19.0 | `packageManager` in `package.json`; step 3 installs npm 11 |
 | Node.js | `>=24` | `engines.node` in `package.json`; the LTS in step 3 satisfies this |
 | Python | 3.14 | `core/.python-version`; uv downloads it, so step 4 installs no Python |
+| Rust | 1.99.1 stable, `x86_64-pc-windows-msvc`, with rustfmt and clippy | `rust-toolchain.toml`; rustup (step 1) downloads it on the first `cargo` command in the repo |
 
-Still to reconcile: `rust-toolchain.toml` (ticket 20) will pin the stable Rust channel
-used in step 1.
+Step 1's `rustup default` only sets the machine-wide fallback; inside the repo
+`rust-toolchain.toml` wins. The pin is an exact stable release so that a new Rust release
+cannot fail `clippy -D warnings` without a code change.
+
+## After cloning
+
+Once per checkout:
+
+```powershell
+npm install                         # UI and Tauri CLI (npm workspace app/)
+cargo install cargo-deny --locked   # dependency licence and advisory checks in `npm run lint`
+```
+
+Then `npm run dev` launches the tray app with hot reload (see README).

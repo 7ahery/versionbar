@@ -12,4 +12,6 @@ Applies to everything under `app/src-tauri/`. Root rules in `../../AGENTS.md` al
 - **Two fixed core invocations only:** the scan above and the preferences query (added by ticket 12a). Rust never parses TOML and never accepts arbitrary arguments. The update-check flag and the config file path come from the preferences query, not from Rust reading config.
 - **Never install anything** (including uv) on the user's behalf.
 - **Updater:** check at startup and every 24 h unless disabled (the flag comes from the preferences query); install only after the user confirms. Update metadata is signed with the Tauri updater key; the installer itself is unsigned in v1.
-- **Checks:** rustfmt, `clippy -D warnings`, cargo-deny, tests. Test scan and state commands with a fake `uv`; do not unit test tray or window behaviour.
+- **Checks:** rustfmt, `clippy -D warnings`, cargo-deny, tests (`npm run lint:rust`, `npm run test:rust`). Test scan and state commands with a fake `uv`; do not unit test tray or window behaviour.
+- **Capabilities:** `capabilities/default.json` grants the popup webview one permission per scoped command, nothing else. `tests/capabilities.rs` fails on any permission not in its reviewed list, and `deny.toml` bans `tauri-plugin-shell`; widen either only deliberately and explain it in the PR.
+- **Names:** the crate is deliberately called `tray-shell`; the product name comes from `productName` in `tauri.conf.json` (read at runtime via `package_info()`), and the app version from `version` in `Cargo.toml`.

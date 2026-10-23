@@ -1,0 +1,33 @@
+[package]
+# Neutral crate name: the product name lives only in tauri.conf.json (and core/pyproject.toml),
+# which also names the built executable.
+name = "tray-shell"
+# The app version. tauri.conf.json has no version of its own, so Tauri reads this one.
+version = "0.1.0"
+description = "VersionBar tray shell: app lifecycle and narrowly scoped commands only"
+authors = ["Michael Tahery"]
+license = "MIT"
+edition = "2024"
+publish = false
+
+[lib]
+name = "tray_shell"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+tauri = { version = "2.12.5", features = ["tray-icon"] }
+tauri-plugin-positioner = { version = "2.4.0", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2.5.4"
+
+[dev-dependencies]
+serde_json = "1"
+
+[profile.release]
+# Smaller installer; the shell does little work, so speed optimisations buy nothing.
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

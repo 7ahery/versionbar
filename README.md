@@ -1,8 +1,8 @@
 # VersionBar
 
-Inventories the dev tools installed on a machine. The `versionbar` CLI (Python core) is the product; a Windows tray app will be one consumer of it.
+Inventories the dev tools installed on a machine. The `versionbar` CLI (Python core) is the product; a Windows tray app is one consumer of it.
 
-**Status: early M1.** The CLI detects one tool (git) live. More tools, `show`, `check`, `tools` and `schema` arrive in later slices.
+**Status: early M1.** The CLI detects one tool (git) live. More tools, `show`, `check`, `tools` and `schema` arrive in later slices. The tray app launches and opens its popup, which does not show scan results yet.
 
 ## Usage
 
@@ -49,12 +49,14 @@ Tests run the CLI over a fake system (`core/tests/fakes.py`) whose command outpu
 
 ## Setup
 
-Prerequisites: [uv](https://docs.astral.sh/uv/) and Node.js 24+ with npm 11. uv downloads the pinned Python (3.14) itself, so do not install a system Python. Windows contributors: see [docs/setup/windows.md](docs/setup/windows.md).
+Prerequisites: [uv](https://docs.astral.sh/uv/) and Node.js 24+ with npm 11. uv downloads the pinned Python (3.14) itself, so do not install a system Python. The tray app also needs Rust (rustup; `rust-toolchain.toml` selects the exact toolchain) and, on Windows, the MSVC Build Tools. Windows contributors: see [docs/setup/windows.md](docs/setup/windows.md).
 
 ```sh
 git clone https://github.com/7ahery/versionbar
 cd versionbar
-npm run cli -- --help     # first run creates core/.venv
+npm install                         # UI and Tauri CLI dependencies (npm workspace `app/`)
+npm run cli -- --help               # first run creates core/.venv
+cargo install cargo-deny --locked   # once, for `npm run lint`
 ```
 
 Install the CLI from a checkout:
@@ -64,17 +66,27 @@ uv tool install ./core
 versionbar --help
 ```
 
+## Tray app
+
+`app/` holds the Windows tray app: the React/TS popup UI in `app/src/` (Vite, React 19, strict TypeScript, Tailwind, shadcn/ui, lucide icons) and the Tauri Rust shell in `app/src-tauri/`. The root `package.json` is an npm workspace whose only member is `app`, so one `npm install` at the root covers it, and the root scripts delegate to `app`'s own scripts.
+
+`npm run dev` starts Vite with hot reload and runs the shell. The app lives in the system tray: left-click the icon to toggle the popup, or use the tray menu (Show versions, Quit). Launching it a second time shows the running instance's popup instead of adding a second icon. UI edits reload in place; Rust edits make `tauri dev` rebuild and restart the app.
+
+`npm run build` produces an NSIS installer under `app/src-tauri/target/release/bundle/` for local testing only. Published installers are built by CI from a release tag (the release workflow arrives with the release tickets), never on a contributor's machine.
+
 ## Commands
 
-All work goes through root npm scripts (there are no npm dependencies, so no `npm install` is needed):
+All work goes through root npm scripts. `lint` and `test` run every part; the `:core`, `:repo`, `:ui` and `:rust` variants run one part each.
 
 | Script | What it does |
 | --- | --- |
 | `npm run cli -- <args>` | Run the `versionbar` CLI from the checkout |
-| `npm test` | pytest: CLI tests over the fake system, plus an install smoke test (`uv tool install` of `core/`, then run the installed command, including a live `list --json` that must find git) |
-| `npm run lint` | ruff check and format check, ty, taplo (check and format), actionlint |
+| `npm run dev` | Run the tray app with hot reload |
+| `npm run build` | Local test build of the installer (releases come from CI) |
+| `npm test` | `test:core`: pytest, CLI tests over the fake system plus an install smoke test (`uv tool install` of `core/`, then run the installed command, including a live `list --json` that must find git). `test:ui`: Vitest, the popup rendered with Tauri's IPC mock. `test:rust`: `cargo test` for the shell |
+| `npm run lint` | `lint:core`: ruff check and format check, ty. `lint:repo`: taplo (check and format), actionlint. `lint:ui`: `tsc --noEmit`, ESLint (typescript-eslint, react-hooks), Prettier. `lint:rust`: rustfmt, clippy `-D warnings`, cargo-deny |
 
-More scripts (`dev`, `gen`, `doctor`, `build`) arrive with the slices that need them. CI runs `lint` and `test` on Windows and Ubuntu, and checks that PR titles follow Conventional Commits.
+More scripts (`gen`, `doctor`) arrive with the slices that need them. CI runs the core, repo and UI checks on Windows and Ubuntu and the Rust checks on Windows only (the shell ships only for Windows, and building Tauri on Linux needs extra system packages). It also checks that PR titles follow Conventional Commits.
 
 ## Tooling choices
 
@@ -90,11 +102,15 @@ Everything runs through `uv`, so one prerequisite covers Python and the non-Node
 | --- | --- |
 | Python 3.14 | `core/.python-version` and `requires-python` in `core/pyproject.toml` |
 | npm 11 / Node | `packageManager` and `engines.node` in `package.json`; Node in `.github/workflows/ci.yml` |
+| Rust toolchain | `rust-toolchain.toml`: an exact stable release, so new clippy lints never break CI unannounced |
 | Python dependencies | `core/pyproject.toml`, then `uv lock --project core` (commit `core/uv.lock`) |
-| taplo, actionlint | the `lint` script in `package.json` |
+| UI and Tauri CLI dependencies | exact versions in `app/package.json`, then `npm install` (commit `package-lock.json`) |
+| Rust dependencies | `app/src-tauri/Cargo.toml`, then `cargo update` (commit `app/src-tauri/Cargo.lock`). Keep the `tauri` crate and `@tauri-apps/api`/`@tauri-apps/cli` on the same minor version |
+| cargo-deny | `tool:` in `.github/workflows/ci.yml`; policy in `app/src-tauri/deny.toml` |
+| taplo, actionlint | the `lint:repo` script in `package.json` |
 | GitHub Actions | exact tags in `.github/workflows/ci.yml` |
 
-The product name and version live only in `core/pyproject.toml`.
+The product name lives in `core/pyproject.toml`, `productName` in `app/src-tauri/tauri.conf.json` and `PRODUCT_NAME` in `app/src/product.ts`. The app version is `version` in `app/src-tauri/Cargo.toml` (Tauri reads it from there) and must match the core's.
 
 ## Licence
 
