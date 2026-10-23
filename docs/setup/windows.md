@@ -28,7 +28,7 @@ prompt. The install is large (several GB) and can take a while.
 
 ## 3. Node.js and npm
 
-npm 11 is required (it must match the `packageManager` pin once it lands, see below).
+npm 11 is required (it matches the `packageManager` pin in `package.json`, see Pins).
 
 ```powershell
 winget install --id OpenJS.NodeJS.LTS --exact
@@ -88,9 +88,16 @@ To be filled in by the human who performs the setup (ticket 02 / issue #3).
 | `uv --version` | TODO |
 | Notes (UAC, errors, workarounds) | TODO |
 
-## Pins to reconcile
 
-The repo does not yet pin tool versions. `rust-toolchain.toml`, `.python-version`
-and `packageManager`/`engines` in `package.json` arrive with tickets 03 and 20. When
-they land, update this page so the versions above match the pins (notably npm 11 and
-the stable Rust channel).
+## Pins
+
+Pins now in the repo, and how this page matches them:
+
+| Pin | Value | Where |
+| --- | --- | --- |
+| npm | 11.19.0 | `packageManager` in `package.json`; step 3 installs npm 11 |
+| Node.js | `>=24` | `engines.node` in `package.json`; the LTS in step 3 satisfies this |
+| Python | 3.14 | `core/.python-version`; uv downloads it, so step 4 installs no Python |
+
+Still to reconcile: `rust-toolchain.toml` (ticket 20) will pin the stable Rust channel
+used in step 1.
