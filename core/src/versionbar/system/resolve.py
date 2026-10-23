@@ -17,11 +17,25 @@ _DEFAULT_PATHEXT = ".COM;.EXE;.BAT;.CMD"
 
 
 def path_hits(system: System, command: str) -> Iterator[str]:
-    """Yield every PATH match for `command`, in the order the OS would try them."""
+    """Yield every PATH match for `command`, in the order the OS would try them.
+
+    A binary reached through several PATH entries is yielded once, at its first
+    position. Candidates are normalised before the executable check (so `.`, `..`
+    and repeated separators never reach the system), and equality is then only
+    case on Windows. Symlinks are not resolved: that would need the machine.
+    """
     if system.os == "windows":
-        yield from _windows_hits(system, command)
+        hits = _windows_hits(system, command)
+        fold = ntpath.normcase
     else:
-        yield from _posix_hits(system, command)
+        hits = _posix_hits(system, command)
+        fold = str
+    seen: set[str] = set()
+    for hit in hits:
+        key = fold(hit)
+        if key not in seen:
+            seen.add(key)
+            yield hit
 
 
 def _windows_hits(system: System, command: str) -> Iterator[str]:
@@ -40,14 +54,14 @@ def _windows_hits(system: System, command: str) -> Iterator[str]:
         names = [command + ext for ext in extensions]
     for directory in _entries(system.getenv("PATH"), ";"):
         for name in names:
-            candidate = ntpath.join(directory.strip('"'), name)
+            candidate = ntpath.normpath(ntpath.join(directory.strip('"'), name))
             if system.is_executable(candidate):
                 yield candidate
 
 
 def _posix_hits(system: System, command: str) -> Iterator[str]:
     for directory in _entries(system.getenv("PATH"), ":"):
-        candidate = posixpath.join(directory, command)
+        candidate = posixpath.normpath(posixpath.join(directory, command))
         if system.is_executable(candidate):
             yield candidate
 

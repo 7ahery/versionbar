@@ -177,8 +177,13 @@ def test_resolution_follows_path_order_then_pathext_and_skips_extensionless_file
     result = run_cli(system, "list", "--json")
 
     tool = next(t for t in json.loads(result.stdout)["tools"] if t["id"] == "git")
-    assert tool["active"]["path"] == r"C:\Program Files\Git\cmd\git.exe"
-    assert system.runs == [(r"C:\Program Files\Git\cmd\git.exe", "--version")]
+    # Every runnable hit is an install, in the order the OS would try them.
+    assert [i["path"] for i in tool["installs"]] == [
+        r"C:\Program Files\Git\cmd\git.exe",
+        r"C:\Program Files\Git\cmd\git.cmd",
+        r"C:\Program Files\Git\bin\git.exe",
+    ]
+    assert tool["active"] == tool["installs"][0]
 
 
 def test_pathext_entries_with_stray_spaces_still_resolve() -> None:

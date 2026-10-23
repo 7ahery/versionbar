@@ -10,8 +10,8 @@ from versionbar.models import ScanResult
 _PIPE_WIDTH = 10_000
 
 
-def print_list(result: ScanResult, *, terminal: bool, color: bool) -> None:
-    console = Console(
+def _console(*, terminal: bool, color: bool) -> Console:
+    return Console(
         force_terminal=color,
         no_color=not color,
         color_system="auto" if color else None,
@@ -21,13 +21,49 @@ def print_list(result: ScanResult, *, terminal: bool, color: bool) -> None:
         width=None if terminal else _PIPE_WIDTH,
         highlight=False,
     )
+
+
+def print_list(result: ScanResult, *, terminal: bool, color: bool) -> None:
     table = Table(box=None, pad_edge=False)
     table.add_column("Tool", style="bold")
     table.add_column("Version")
     table.add_column("Path", overflow="fold")
+    table.add_column("Others", justify="right")
     for tool in result.tools:
         if tool.active is not None:
-            table.add_row(tool.id, tool.active.version, tool.active.path)
+            others = len(tool.installs) - 1
+            table.add_row(
+                tool.id, tool.active.version, tool.active.path, str(others) if others else ""
+            )
         else:
-            table.add_row(Text(tool.id, style="dim"), Text(tool.status, style="dim red"), "")
+            table.add_row(Text(tool.id, style="dim"), Text(tool.status, style="dim red"), "", "")
+    _console(terminal=terminal, color=color).print(table)
+
+
+def print_show(result: ScanResult, *, terminal: bool, color: bool) -> None:
+    """One row per install, the active one first, so `grep git` shows them all."""
+    table = Table(box=None, pad_edge=False)
+    table.add_column("Tool", style="bold")
+    table.add_column("")
+    table.add_column("Version")
+    table.add_column("Path", overflow="fold")
+    table.add_column("Source")
+    notes: list[str] = []
+    for tool in result.tools:
+        if not tool.installs:
+            table.add_row(
+                Text(tool.id, style="dim"), Text(tool.status, style="dim red"), "", "", ""
+            )
+        for index, install in enumerate(tool.installs):
+            role = Text("active", style="green") if index == 0 else Text("other", style="dim")
+            source = (
+                install.source if install.via is None else f"{install.source} via {install.via}"
+            )
+            table.add_row(
+                tool.id if index == 0 else "", role, install.version, install.path, source
+            )
+        notes.extend(f"{tool.id}: {note}" for note in tool.notes)
+    console = _console(terminal=terminal, color=color)
     console.print(table)
+    for note in notes:
+        console.print(Text(note, style="dim"))
