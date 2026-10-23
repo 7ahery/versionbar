@@ -43,7 +43,26 @@ Every run scans the machine live; nothing is cached. Human output uses colour on
 - An other install whose version command fails is left out of `installs` and explained in `notes`; if the active install fails, the tool's `status` is `error` or `timeout`.
 - `versionbar show <tool>...` prints the same `ScanResult`, limited to the requested tools (in the order given, repeats dropped). An unknown id exits with code 2 and lists the known ids on stderr; nothing is written to stdout.
 - `source` is `path` for installs found on PATH. `via` and `raw` are optional (`null` when absent); `raw` is the version output the version was read from.
-- `notes` are human-readable diagnostics explaining a status (for example why a tool is missing, or the captured message of a failed version command). They are for people and logs, not for parsing.
+- `notes` are human-readable diagnostics explaining a status (for example why a tool is missing, or the captured message of a failed version command). They are for people and logs, not for parsing. They are the only diagnostic field; see below for what each status puts there.
+
+### Failures and partial results
+
+A scan always completes and always lists every tool; one broken or slow tool never stops the others from being reported. The exit code of `list` and `show` does not depend on tool statuses.
+
+| What happened | `status` | `active`, `installs` | `notes` |
+| --- | --- | --- | --- |
+| No binary on PATH | `missing` | `null`, `[]` | `not found on PATH (looked for: …)` |
+| Active install did not answer within 5 s | `timeout` | `null`, `[]` | `<path> did not answer within 5 s`, plus `: <its output>` if it printed anything before it was killed |
+| Active install could not be started | `error` | `null`, `[]` | `could not run <path>: <OS error>` |
+| Active install exited non-zero | `error` | `null`, `[]` | `<path> exited with code <n>: <its output>` |
+| Active install printed no recognisable version | `error` | `null`, `[]` | `<path> printed no version: <its output>` |
+| An other install failed in any of these ways | `found` | that install left out | one note per failed install, same wording |
+
+"Its output" is everything the command printed, stdout then stderr, decoded. Version commands run in parallel (up to 16 at once), each with a 5-second timeout; when one times out, its whole process tree is killed (so a hung program started by a `.cmd` shim cannot stall the scan). Output is decoded per stream: UTF-16 (with a BOM, or detected by its NUL bytes, as `wsl --version` prints it) or UTF-8, with Windows line endings normalised to `\n`; a version printed only on stderr (as `ssh -V` does) is found too. Captures keep the raw bytes, so every decoding case replays exactly in tests.
+
+### Scan timing
+
+The target is a full scan in about a second. Typical timing on the development machine (Windows 11, 2026-10-24), scanning 15 real tools (18 version commands, including `npm.cmd` and `code.cmd`) in-process, median of five runs: **0.35 s** in parallel versus 0.90 s one at a time. Python and uv start-up add to this for a CLI invocation. This is a measurement, not a test: the suite proves parallelism with synchronisation in the fake system rather than with wall-clock thresholds.
 
 ## Tool definitions and fixtures
 

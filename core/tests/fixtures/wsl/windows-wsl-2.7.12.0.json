@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "tool": "wsl",
+  "args": [
+    "--version"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "VwBTAEwAIAB2AGUAcgBzAGkAbwBuADoAIAAyAC4ANwAuADEAMgAuADAADQAKAEsAZQByAG4AZQBsACAAdgBlAHIAcwBpAG8AbgA6ACAANgAuADEAOAAuADMAMwAuADIALQAyAA0ACgBXAFMATABnACAAdgBlAHIAcwBpAG8AbgA6ACAAMQAuADAALgA3ADMALgAyAA0ACgBNAFMAUgBEAEMAIAB2AGUAcgBzAGkAbwBuADoAIAAxAC4AMgAuADcAMgAxADQADQAKAEQAaQByAGUAYwB0ADMARAAgAHYAZQByAHMAaQBvAG4AOgAgADEALgA2ADEAMQAuADEALQA4ADEANQAyADgANQAxADEADQAKAEQAWABDAG8AcgBlACAAdgBlAHIAcwBpAG8AbgA6ACAAMQAwAC4AMAAuADIANgAxADAAMAAuADEALQAyADQAMAAzADMAMQAtADEANAAzADUALgBnAGUALQByAGUAbABlAGEAcwBlAA0ACgBXAGkAbgBkAG8AdwBzACAAdgBlAHIAcwBpAG8AbgA6ACAAMQAwAC4AMAAuADIANgAyADAAMAAuADkANAA1ADcADQAKAA==",
+  "stderr_b64": "",
+  "encoding": "utf-16-le",
+  "stdout_text": "WSL version: 2.7.12.0\r\nKernel version: 6.18.33.2-2\r\nWSLg version: 1.0.73.2\r\nMSRDC version: 1.2.7214\r\nDirect3D version: 1.611.1-81528511\r\nDXCore version: 10.0.26100.1-240331-1435.ge-release\r\nWindows version: 10.0.26200.9457\r\n",
+  "stderr_text": "",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-11-10.0.26200-SP0",
+    "resolved_path": "C:\\WINDOWS\\system32\\wsl.exe",
+    "command": [
+      "C:\\WINDOWS\\system32\\wsl.exe",
+      "--version"
+    ],
+    "captured_at": "2026-10-23T21:43:59.081263Z",
+    "runner": null,
+    "notes": null
+  }
+}

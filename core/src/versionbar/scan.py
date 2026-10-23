@@ -3,42 +3,62 @@ tool-specific knowledge comes from definitions."""
 
 import re
 from collections.abc import Sequence
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 
+from versionbar.decoding import decode_output
 from versionbar.definition import ToolDefinition
 from versionbar.models import Install, ScanResult, Tool, ToolStatus
 from versionbar.system import ProcessResult, System
 from versionbar.system.resolve import path_hits
 
 DEFAULT_TIMEOUT_SECONDS = 5.0
+# Version commands mostly wait on process start-up, so overlapping them is what
+# keeps a full scan near a second. The cap keeps a long PATH from launching
+# dozens of processes at once.
+MAX_PARALLEL_COMMANDS = 16
 
 
 def scan(system: System, definitions: list[ToolDefinition]) -> ScanResult:
-    tools = [
-        _detect(system, definition.for_os(system.os))
-        for definition in definitions
-        if system.os in definition.os
+    applicable = [
+        definition.for_os(system.os) for definition in definitions if system.os in definition.os
     ]
+    # Every version command of every tool shares one pool, so a slow tool
+    # delays nothing else; results are collected in definition order.
+    with ThreadPoolExecutor(max_workers=MAX_PARALLEL_COMMANDS) as pool:
+        jobs = [_submit(pool, system, definition) for definition in applicable]
+        tools = [
+            _detect(definition, paths, [future.result() for future in futures])
+            for definition, paths, futures in jobs
+        ]
     return ScanResult(scanned_at=system.now(), platform=system.os, tools=tools)
 
 
-def _detect(system: System, definition: ToolDefinition) -> Tool:
+def _submit(
+    pool: ThreadPoolExecutor, system: System, definition: ToolDefinition
+) -> tuple[ToolDefinition, list[str], list[Future[Install | _Failed]]]:
+    # Resolution only checks files, so it stays on this thread; a tool's
+    # commands start as soon as its paths are known.
     paths = _all_hits(system, definition.binaries)
+    return definition, paths, [pool.submit(_probe, system, definition, path) for path in paths]
+
+
+def _detect(definition: ToolDefinition, paths: list[str], probes: list[Install | _Failed]) -> Tool:
     if not paths:
         names = ", ".join(definition.binaries)
         return _tool(definition, "missing", notes=[f"not found on PATH (looked for: {names})"])
 
     # The first hit is what runs when the command is typed. If it cannot
-    # report a version the tool is in error; the other installs are not probed
-    # because there is no active install to put them beside.
-    active = _probe(system, definition, paths[0])
+    # report a version the tool is in error; the other installs are dropped
+    # because there is no active install to put them beside. (They were probed
+    # anyway: waiting for the active result first would double the scan time.)
+    active = probes[0]
     if isinstance(active, _Failed):
         return _tool(definition, active.status, notes=[active.note])
 
     installs = [active]
     notes: list[str] = []
-    for path in paths[1:]:
-        other = _probe(system, definition, path)
+    for other in probes[1:]:
         if isinstance(other, _Failed):
             # Not the active install, so it cannot make the whole tool fail;
             # it stays visible as a note instead of silently vanishing.
@@ -74,12 +94,16 @@ class _Failed:
 
 def _probe(system: System, definition: ToolDefinition, path: str) -> Install | _Failed:
     process = system.run([path, *definition.version_args], DEFAULT_TIMEOUT_SECONDS)
-    if process.timed_out:
-        return _Failed("timeout", f"{path} did not answer within {DEFAULT_TIMEOUT_SECONDS:g} s")
     if process.launch_error is not None:
         return _Failed("error", f"could not run {path}: {process.launch_error}")
 
-    output = _decode(process)
+    # Even a timed-out command keeps what it printed before it was killed,
+    # which is often the best clue to why it hung (a prompt, a warning).
+    output = _decode(process).strip()
+    if process.timed_out:
+        return _failed(
+            "timeout", f"{path} did not answer within {DEFAULT_TIMEOUT_SECONDS:g} s", output
+        )
     match = re.search(definition.version_regex, output)
     if process.exit_code != 0 or match is None:
         problem = (
@@ -87,10 +111,13 @@ def _probe(system: System, definition: ToolDefinition, path: str) -> Install | _
             if process.exit_code != 0
             else "printed no version"
         )
-        captured = output.strip()
-        return _Failed("error", f"{path} {problem}" + (f": {captured}" if captured else ""))
+        return _failed("error", f"{path} {problem}", output)
 
-    return Install(version=match["version"], path=path, source="path", raw=output.strip())
+    return Install(version=match["version"], path=path, source="path", raw=output)
+
+
+def _failed(status: ToolStatus, message: str, output: str) -> _Failed:
+    return _Failed(status, message + (f": {output}" if output else ""))
 
 
 def _all_hits(system: System, binaries: list[str]) -> list[str]:
@@ -104,6 +131,7 @@ def _all_hits(system: System, binaries: list[str]) -> list[str]:
 
 
 def _decode(process: ProcessResult) -> str:
-    # Per-tool encoding detection (UTF-16 for WSL) arrives with ticket 07.
+    # Each stream is decoded on its own: a tool may print UTF-16 on one and
+    # UTF-8 on the other. Some tools print their version on stderr only.
     parts = (process.stdout, process.stderr)
-    return "\n".join(part.decode("utf-8", errors="replace") for part in parts if part)
+    return "\n".join(decode_output(part) for part in parts if part)

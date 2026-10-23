@@ -15,6 +15,7 @@ from typing import Literal
 from pydantic import AwareDatetime, Base64Bytes
 
 from versionbar import __version__
+from versionbar.decoding import detect_encoding
 from versionbar.definition import ToolDefinition
 from versionbar.models import StrictModel
 from versionbar.scan import DEFAULT_TIMEOUT_SECONDS
@@ -53,8 +54,8 @@ class CaptureFile(StrictModel):
     # Arguments after the executable; this is what the fake system matches on.
     args: list[str]
     exit_code: int
-    # The raw bytes are authoritative. Decoding them (including picking the
-    # encoding) is the engine's job and what ticket 07 tests.
+    # The raw bytes are authoritative: the engine decodes them itself
+    # (versionbar.decoding) and never trusts the `encoding` guess below.
     stdout_b64: Base64Bytes
     stderr_b64: Base64Bytes
     # Capture-time best guess, used only for the readable *_text fields below.
@@ -144,14 +145,10 @@ def capture_tool(
 
 
 def _guess_encoding(*streams: bytes) -> str:
-    # Only a hint for the readable text fields: WSL's UTF-16 output is the
-    # known case, and it is recognisable by its BOM or interleaved NULs.
-    for data in streams:
-        if data.startswith((b"\xff\xfe", b"\xfe\xff")):
-            return "utf-16"
-        if b"\x00" in data:
-            return "utf-16-le"
-    return "utf-8"
+    # Only a hint for the readable text fields, so one name covers the file:
+    # the first stream that is not plain UTF-8 decides.
+    guesses = [detect_encoding(data) for data in streams if data]
+    return next((guess for guess in guesses if guess != "utf-8"), "utf-8")
 
 
 def _runner(system: System) -> RunnerInfo | None:
