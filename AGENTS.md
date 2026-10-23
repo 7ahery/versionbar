@@ -23,13 +23,13 @@ Three-part monorepo with one shared version number (the core's package metadata 
 1. **Rust does lifecycle and narrowly scoped commands only.** Each new capability gets its own scoped command.
 2. **Rust treats scan JSON as opaque.** It checks `schema_version` only and never reads deeper. All meaning (parsing, diffing, sorting, search) lives in the React UI.
 3. **No shell plugin.** The webview must not be able to spawn arbitrary processes.
-4. **Every tool and provider needs a captured-output fixture** recorded with `versionbar debug capture`. Do not invent output strings. Nothing ships without real captured output.
+4. **Every tool and provider needs a captured-output fixture** recorded with `versionbar debug capture`. Until that command exists (ticket 05), a real capture seeded by hand is acceptable if it is attributable (which machine and command produced it, recorded next to the fixture). Do not invent output strings. Nothing ships without real captured output.
 5. **Never install anything for the user.** VersionBar reports; it does not install, upgrade or switch tools, including uv. The app shows a copyable command instead.
 6. **The core never caches.** Every CLI invocation scans live. Only the Rust shell stores scan results.
 7. **uv is a hard prerequisite.** The core runs on a uv-managed Python, never the system Python it reports on.
 8. **Pydantic models are the single source of truth for the JSON contract.** Change the models, then run `npm run gen`; CI fails on stale schema or TS types. `schema_version` is bumped only for breaking changes.
 9. **All machine access goes through the injectable system interface** in the core. No direct process, environment or filesystem calls elsewhere.
-10. **No telemetry.** The app goes online only for update checks (disableable in config) and uv's own downloads. The CLI never uses the network.
+10. **No telemetry.** The app goes online only for update checks (disableable in config; the flag reaches Rust through the core's preferences query) and uv's own downloads. Do not add any other network access anywhere.
 
 ## Testing
 
@@ -42,6 +42,7 @@ Three-part monorepo with one shared version number (the core's package metadata 
 ## Install and scan rules
 
 - The scan command finds uv on PATH, then `UV_INSTALL_DIR`, then the default user-local bin, and keeps the Python environment in the app data folder (not the install folder).
+- The app may run exactly two fixed core invocations: the scan (`list --json`) and the preferences query (added by ticket 12a). Rust never parses TOML and never accepts arbitrary arguments; config values it needs (update-check flag, config file path) come from the preferences query.
 - VersionBar never installs uv or anything else on its own.
 
 ## Distribution and signing
@@ -55,7 +56,7 @@ Releases come from CI only (release-please, Conventional Commit PR titles, tag-t
 
 ## Workflow
 
-- Conventional Commits for commits and PR titles.
+- PR titles must follow Conventional Commits (CI-enforced); commit messages should too.
 - Root npm scripts are the one interface: `dev`, `cli`, `test`, `lint`, `gen`, `doctor`, `build`. Run `lint` and `test` before finishing.
 - Windows setup: see `docs/setup/windows.md`.
 - Every PR touching Rust must include a plain-English "what and why" section (see `.github/pull_request_template.md`). The maintainer does not know Rust and reviews behaviour from that explanation.

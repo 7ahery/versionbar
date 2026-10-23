@@ -9,7 +9,7 @@ Something VersionBar detects, such as git, node or nvm. Defined declaratively.
 _Avoid_: Program, app, package
 
 **Install**:
-One concrete copy of a Tool, with a version, path and Source, and optionally a Via and the raw version output.
+One concrete installation of a Tool on the machine, with a version, path and Source, and optionally a Via and the raw version output.
 _Avoid_: Instance, copy, binary
 
 **Active install**:
@@ -30,7 +30,8 @@ _Avoid_: Plugin, adapter, manager integration
 
 **Scan**:
 One complete, live run of detection over all Tools, producing a ScanResult.
-_Avoid_: Check, refresh, poll
+Refresh is the user action that triggers a Scan; `check` is the separate command that tests requirements against one.
+_Avoid_: Poll, run
 
 **ScanResult**:
 The versioned JSON document a Scan produces: `schema_version`, `scanned_at`, `platform` and the Tools with their Installs.
