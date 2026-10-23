@@ -1,0 +1,38 @@
+tickets/
+.scratch/
+prototypes/
+.claude/*
+!.claude/settings.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.import_linter_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Rust / Tauri
+target/
+src-tauri/gen/
+
+# Node / React
+node_modules/
+*.tsbuildinfo
+.vite/
+coverage/
+
+# Env, logs, OS, editors
+.env
+.env.*
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
