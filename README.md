@@ -45,7 +45,7 @@ Every run scans the machine live; nothing is cached. Human output uses colour on
 
 Built-in tools are TOML files in `core/src/versionbar/definitions/` (keys: `id`, `name`, `os`, `binaries`, `version_args`, `version_regex` with a named `version` group, and optional per-OS `overrides.<os>` replacing `binaries`, `version_args` or `version_regex`). The engine has no per-tool code.
 
-Tests run the CLI over a fake system (`core/tests/fakes.py`) whose command output comes only from real captures in `core/tests/fixtures/<tool>/`. Each capture records its provenance (machine, OS, command, date) beside the output.
+Tests run the CLI over a fake system (`core/tests/fakes.py`) whose command output comes only from real captures in `core/tests/fixtures/<tool>/`. Each capture records its provenance (OS, resolved path, exact command, date) beside the output; see `docs/capture.md` to record one.
 
 ## Setup
 
