@@ -1,0 +1,16 @@
+{
+  "tool": "git",
+  "args": ["--version"],
+  "exit_code": 0,
+  "stdout": "git version 2.55.0.windows.2\n",
+  "stderr": "",
+  "encoding": "utf-8",
+  "provenance": {
+    "method": "hand-seeded before `versionbar debug capture` existed (ticket 05 re-records it)",
+    "machine": "Jupiter (maintainer's dev machine)",
+    "os": "Windows-11-10.0.26200-SP0",
+    "resolved_path": "C:\\Program Files\\Git\\cmd\\git.EXE",
+    "command": "subprocess.run([shutil.which('git'), '--version'], capture_output=True) under uv-managed CPython 3.14.8; stdout bytes decoded as UTF-8",
+    "captured_at": "2026-10-23T21:04:52Z"
+  }
+}

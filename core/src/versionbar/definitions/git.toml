@@ -1,0 +1,7 @@
+id = "git"
+name = "Git"
+os = ["windows", "linux"]
+binaries = ["git"]
+version_args = ["--version"]
+# Keeps vendor suffixes such as `.windows.2`: the version is reported as the tool prints it.
+version_regex = 'git version (?P<version>\d+\.\d+\.\d+\S*)'
