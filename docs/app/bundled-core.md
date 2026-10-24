@@ -41,7 +41,7 @@ uv run --frozen --no-dev --managed-python --project <resources>\core -- versionb
 with `UV_PROJECT_ENVIRONMENT=<core-env>` and `PYTHONPYCACHEPREFIX=<core-env>\pycache` set and
 `VIRTUAL_ENV` removed. The arguments are fixed; the webview cannot change them.
 
-### Inherited uv settings
+### Inherited uv and Python settings
 
 The app inherits the user's environment, and uv reads many settings from `UV_*` variables. The
 ones that would change which project, Python, environment or dependency set this invocation
@@ -55,6 +55,13 @@ uses, or contradict its flags, are removed before uv starts (`OVERRIDDEN_UV_VARI
 | How the environment is synced | `UV_LOCKED` (clashes with `--frozen`), `UV_FROZEN`, `UV_NO_SYNC`, `UV_NO_DEV`, `UV_NO_DEFAULT_GROUPS`, `UV_NO_GROUP`, `UV_NO_EDITABLE`, `UV_NO_SOURCES`, `UV_NO_SOURCES_PACKAGE` |
 | Extra variables | `UV_ENV_FILE` (a dotenv file would load arbitrary variables into the core) |
 
+Python reads a few variables of its own that would point the core's interpreter at another
+standard library or other package folders, or run extra code in it. These are removed too
+(`OVERRIDDEN_PYTHON_VARIABLES`): `PYTHONHOME`, `PYTHONPATH`, `PYTHONPLATLIBDIR`,
+`PYTHONUSERBASE`, `PYTHONEXECUTABLE`, `PYTHONSTARTUP` and `PYTHONINSPECT`. Variables that only
+tune behaviour (`PYTHONIOENCODING`, `PYTHONUTF8`, `PYTHONWARNINGS`, ...) are passed on; the
+core sets its own output encoding.
+
 Everything else is passed on, on purpose: index and mirror settings (`UV_INDEX_URL`,
 `UV_DEFAULT_INDEX`, `UV_PYTHON_INSTALL_MIRROR`, ...), proxies and TLS (`HTTPS_PROXY`,
 `UV_NATIVE_TLS`, ...), cache and install locations (`UV_CACHE_DIR`, `UV_PYTHON_INSTALL_DIR`),
@@ -63,8 +70,11 @@ mirror or proxy needs them for the first-run download. uv config files (`uv.toml
 usual for the same reason; the command-line flags above take precedence over them.
 
 The removed variables are also absent for the core and the tools it runs. Today the core only
-runs `--version` commands, which ignore them; a future provider that asks uv itself about
-Pythons would not see the user's `UV_PYTHON` and similar settings.
+runs `--version` commands, which ignore the `UV_*` ones; a future provider that asks uv itself
+about Pythons would not see the user's `UV_PYTHON` and similar settings. The `PYTHON*` ones
+do matter for one case: a user Python that only works with the user's `PYTHONHOME` (or breaks
+because of it) is checked without it, so the scan reports it as it runs in a clean
+environment.
 
 - `--frozen` installs exactly the bundled lock file and never rewrites it.
 - `--no-dev` leaves out the contributor tools (pytest, ruff, ty).
@@ -97,7 +107,7 @@ The scan fails (`kind: "failed"`) with one of these reasons, and keeps the last 
 | Reason | When |
 |---|---|
 | `launch` | uv could not be started. |
-| `timeout` | No exit within the timeout. uv and everything it started are killed (`taskkill /F /T`). |
+| `timeout` | No exit within the timeout. uv and everything it started are killed (`taskkill /F /T`, given at most one second like the core's own; then uv itself is killed directly). |
 | `exit` | Nonzero exit code (stderr is attached), or the operating system could not report whether uv was still running; uv is then stopped like a timed-out scan and the message carries the error. |
 | `malformed` | stdout is not a JSON object. |
 | `incompatible` | A JSON object whose `schema_version` is missing or not the one this build supports (`SUPPORTED_SCHEMA_VERSION`, checked against `schema/output.schema.json` by `tests/schema_version.rs`). |

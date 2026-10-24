@@ -92,13 +92,16 @@ invocation are described in `docs/app/bundled-core.md`.
   --managed-python --project <bundled core> -- versionbar list --json`). The Python
   environment and Python's bytecode files go in the app data folder, never in the install
   folder. No console window flashes. If the scan takes longer than 30 seconds, it kills uv
-  and everything uv started. If Windows cannot say whether uv is still running, it also
+  and everything uv started; the Windows tool that does this (taskkill) gets at most one
+  second, so it can never hold up the scan. If Windows cannot say whether uv is still running, it also
   kills it and reports a failure with Windows' error, rather than calling it a timeout.
-- **Ignoring stray uv settings.** uv also reads settings from `UV_...` environment
-  variables. The shell removes the ones that would make uv pick a different Python, project
-  or environment, or install a different set of packages than the shipped lock file (the
-  full list is in `docs/app/bundled-core.md`). Settings for mirrors, proxies, the download
-  cache and offline mode are kept, because some users need them to download anything.
+- **Ignoring stray uv and Python settings.** uv also reads settings from `UV_...`
+  environment variables. The shell removes the ones that would make uv pick a different
+  Python, project or environment, or install a different set of packages than the shipped
+  lock file. It also removes the `PYTHON...` variables that would make the core's Python load
+  code from other folders or run extra code at start (the full lists are in
+  `docs/app/bundled-core.md`). Settings for mirrors, proxies, the download cache and offline
+  mode are kept, because some users need them to download anything.
 - **Leftover readers.** After uv exits or is killed, the shell waits at most one more second
   for its output. If some other program still holds the output open, the scan goes on and a
   small background reader is left waiting until that program lets go. The core accepts the

@@ -1,12 +1,13 @@
-//! Which inherited `UV_*` variables reach the fixed core invocation. A test binary of its own
-//! because it sets variables on the test process, which would leak into the other scan tests.
+//! Which inherited `UV_*` and `PYTHON*` variables reach the fixed core invocation. A test
+//! binary of its own because it sets variables on the test process, which would leak into the
+//! other scan tests.
 
 use std::{fs, path::PathBuf, time::Duration};
 
 use tray_shell::scan::{ScanConfig, Scanner, ShellState};
 
-/// Variables that would change which project, Python, environment or dependency set the scan
-/// uses. The shell must not pass them on.
+/// Variables that would change which project, Python, environment or dependency set the scan,
+/// or redirect or inject code into the core's interpreter. The shell must not pass them on.
 const OVERRIDES: &[&str] = &[
     "UV_PYTHON",
     "UV_MANAGED_PYTHON",
@@ -27,6 +28,13 @@ const OVERRIDES: &[&str] = &[
     "UV_NO_SOURCES",
     "UV_NO_SOURCES_PACKAGE",
     "UV_ENV_FILE",
+    "PYTHONHOME",
+    "PYTHONPATH",
+    "PYTHONSTARTUP",
+    "PYTHONINSPECT",
+    "PYTHONUSERBASE",
+    "PYTHONPLATLIBDIR",
+    "PYTHONEXECUTABLE",
 ];
 
 /// Network, cache and index settings a user may need (a company mirror, a proxy, an offline
@@ -56,7 +64,7 @@ fn settings_that_would_redirect_the_scan_are_not_passed_to_uv() {
         fs::write(
             &path,
             format!(
-                "@echo off\r\nset UV_ > \"{}\"\r\nexit /b 1\r\n",
+                "@echo off\r\nset > \"{}\"\r\nexit /b 1\r\n",
                 record.display()
             ),
         )
@@ -94,20 +102,13 @@ fn settings_that_would_redirect_the_scan_are_not_passed_to_uv() {
         .filter_map(|line| line.split_once('=').map(|(name, _)| name.to_owned()))
         .collect();
     for name in OVERRIDES {
-        assert!(
-            !seen.iter().any(|s| s == name),
-            "{name} reached uv: {seen:?}"
-        );
+        assert!(!seen.iter().any(|s| s == name), "{name} reached uv");
     }
     for name in KEPT {
-        assert!(
-            seen.iter().any(|s| s == name),
-            "{name} did not reach uv: {seen:?}"
-        );
+        assert!(seen.iter().any(|s| s == name), "{name} did not reach uv");
     }
-    // Set by the shell itself, so the environment is the app's own.
-    assert!(
-        seen.iter().any(|s| s == "UV_PROJECT_ENVIRONMENT"),
-        "{seen:?}"
-    );
+    // Set by the shell itself, so the environment and bytecode cache are the app's own.
+    for name in ["UV_PROJECT_ENVIRONMENT", "PYTHONPYCACHEPREFIX"] {
+        assert!(seen.iter().any(|s| s == name), "{name} was not set");
+    }
 }

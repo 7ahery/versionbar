@@ -72,6 +72,19 @@ const OVERRIDDEN_UV_VARIABLES: &[&str] = &[
     "UV_ENV_FILE",
 ];
 
+/// Inherited Python settings that would point the core's interpreter at other standard
+/// library or package folders, or run extra code in it. Settings that only tune behaviour
+/// (encoding, warnings, optimisation) are left alone: the core sets its own output encoding.
+const OVERRIDDEN_PYTHON_VARIABLES: &[&str] = &[
+    "PYTHONHOME",
+    "PYTHONPATH",
+    "PYTHONPLATLIBDIR",
+    "PYTHONUSERBASE",
+    "PYTHONEXECUTABLE",
+    "PYTHONSTARTUP",
+    "PYTHONINSPECT",
+];
+
 /// Finds uv afresh for every scan, so installing uv while the app runs needs no restart.
 pub type FindUv = Box<dyn Fn() -> Option<PathBuf> + Send + Sync>;
 
@@ -295,7 +308,10 @@ fn core_command(uv: &Path, config: &ScanConfig) -> Command {
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    for name in OVERRIDDEN_UV_VARIABLES {
+    for name in OVERRIDDEN_UV_VARIABLES
+        .iter()
+        .chain(OVERRIDDEN_PYTHON_VARIABLES)
+    {
         command.env_remove(name);
     }
     #[cfg(windows)]
@@ -405,10 +421,21 @@ fn kill_tree(child: &mut Child) {
                 .stderr(Stdio::null());
             use std::os::windows::process::CommandExt;
             taskkill.creation_flags(CREATE_NO_WINDOW);
-            let _ = taskkill.status();
+            if let Ok(mut taskkill) = taskkill.spawn() {
+                // Bounded like the core's own taskkill (`_DRAIN_SECONDS`): a hung taskkill
+                // must not hold up the scan. A slow one is stopped and the direct kill below
+                // still runs.
+                let deadline = Instant::now() + DRAIN_TIMEOUT;
+                while matches!(taskkill.try_wait(), Ok(None)) && Instant::now() < deadline {
+                    thread::sleep(POLL);
+                }
+                if matches!(taskkill.try_wait(), Ok(None)) {
+                    let _ = taskkill.kill();
+                }
+            }
         }
     }
-    // Covers non-Windows, and Windows if taskkill was unavailable; harmless if already gone.
+    // Covers non-Windows, and Windows if taskkill was unavailable or too slow; harmless if already gone.
     let _ = child.kill();
     let _ = child.wait();
 }
