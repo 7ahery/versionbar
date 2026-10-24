@@ -222,7 +222,7 @@ def test_store_placeholder_notes_reach_the_human_output(monkeypatch) -> None:
 
 # An alias whose data could not be read: what the real system reports when the
 # reparse point cannot be opened or holds a layout it does not know.
-UNREADABLE = UnreadableAlias(reason="Windows error 5")
+UNREADABLE = UnreadableAlias(reason="could not open it: Windows error 5")
 
 
 def test_an_unreadable_python_alias_is_treated_as_a_placeholder_and_not_run() -> None:
@@ -235,7 +235,8 @@ def test_an_unreadable_python_alias_is_treated_as_a_placeholder_and_not_run() ->
     assert python["notes"] == [
         "only Microsoft Store placeholders found on PATH (looked for: python, python3)",
         f"{STORE_PYTHON} is an App Execution Alias whose data could not be read"
-        " (Windows error 5), so it is treated as a Microsoft Store placeholder; it was not run",
+        " (could not open it: Windows error 5), so it is treated as a Microsoft Store"
+        " placeholder; it was not run",
     ]
     assert system.runs == []
 
