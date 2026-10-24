@@ -5,10 +5,17 @@ from typing import Annotated
 
 import typer
 
-from versionbar import __version__
+from versionbar import PROG, __version__
 from versionbar.capture import DEFAULT_OUT_DIR, CaptureError, CaptureFailure, capture_tool
+from versionbar.check import (
+    SPEC_HELP,
+    Requirement,
+    RequirementError,
+    evaluate,
+    parse_requirement,
+)
 from versionbar.contract import output_schema
-from versionbar.definition import builtin_definitions
+from versionbar.definition import ToolDefinition, builtin_definitions
 from versionbar.models import ScanResult
 from versionbar.scan import scan
 from versionbar.system import System
@@ -17,7 +24,7 @@ from versionbar.system import System
 # human renderer is imported only on the human path.
 
 app = typer.Typer(
-    name="versionbar",
+    name=PROG,
     help="Inventory the dev tools installed on this machine. With no command, runs `list`.",
     add_completion=False,
     rich_markup_mode=None,
@@ -78,24 +85,80 @@ def show_command(
     first; the rest are other installs it shadows.
     """
     system = _system(ctx)
-    every = builtin_definitions()
-    definitions = [d for d in every if system.os in d.os]
-    known = [d.id for d in definitions]
-    elsewhere = [d.id for d in every if system.os not in d.os]
-    problems = [
-        f"{name} is not available on {system.os}" if name in elsewhere else f"Unknown tool: {name}"
-        for name in tools
-        if name not in known
-    ]
+    _emit(system, scan(system, _requested_definitions(system, tools)), json_output, show=True)
+
+
+def _usage_error(lines: list[str]) -> typer.Exit:
+    # Usage-error exit code, plain stderr: Click's own error box would pull
+    # Rich into a `--json` run.
+    typer.echo("\n".join(lines), err=True)
+    return typer.Exit(2)
+
+
+def _known_tools(system: System) -> dict[str, ToolDefinition]:
+    return {d.id: d for d in builtin_definitions() if system.os in d.os}
+
+
+def _unknown_tool_problem(system: System, name: str) -> str:
+    elsewhere = any(d.id == name for d in builtin_definitions() if system.os not in d.os)
+    return f"{name} is not available on {system.os}" if elsewhere else f"Unknown tool: {name}"
+
+
+def _requested_definitions(system: System, names: list[str]) -> list[ToolDefinition]:
+    """Definitions for tool ids given on the command line, in request order, each once.
+
+    Exits with the usage-error code on ids that are unknown or belong to another OS.
+    """
+    known = _known_tools(system)
+    wanted = list(dict.fromkeys(names))
+    problems = [_unknown_tool_problem(system, name) for name in wanted if name not in known]
     if problems:
-        # Usage-error exit code, plain stderr: Click's own error box would pull
-        # Rich into a `--json` run.
-        typer.echo("\n".join(problems) + f"\nknown tools: {', '.join(known)}", err=True)
-        raise typer.Exit(2)
-    # Requested order, each tool once.
-    wanted = list(dict.fromkeys(tools))
-    by_id = {d.id: d for d in definitions}
-    _emit(system, scan(system, [by_id[name] for name in wanted]), json_output, show=True)
+        raise _usage_error([*problems, f"known tools: {', '.join(known)}"])
+    return [known[name] for name in wanted]
+
+
+@app.command(
+    "check",
+    help="Test requirements against the active install of each tool.\n\n" + SPEC_HELP,
+)
+def check_command(
+    ctx: typer.Context,
+    requirements: Annotated[
+        list[str] | None,
+        typer.Argument(metavar="TOOL[@SPEC]...", help="Requirements; quote any containing > or <."),
+    ] = None,
+    json_output: bool = typer.Option(False, "--json", help=_JSON_HELP),
+) -> None:
+    system = _system(ctx)
+    known = _known_tools(system)
+    parsed: list[Requirement] = []
+    problems: list[str] = []
+    for text in requirements or []:
+        try:
+            requirement = parse_requirement(text)
+        except RequirementError as error:
+            problems.append(str(error))
+            continue
+        if requirement.tool not in known:
+            problems.append(f"{text}: {_unknown_tool_problem(system, requirement.tool)}")
+        parsed.append(requirement)
+    if not requirements:
+        problems.append("check needs at least one requirement, e.g. check 'node@>=20' git")
+    if problems:
+        hint = f"see `{PROG} check --help` for the syntax"
+        raise _usage_error([*problems, hint, f"known tools: {', '.join(known)}"])
+
+    wanted = [known[tool] for tool in dict.fromkeys(r.tool for r in parsed)]
+    result = evaluate(parsed, scan(system, wanted))
+    if json_output:
+        typer.echo(result.model_dump_json(indent=2))
+    else:
+        from versionbar.human import print_check
+
+        terminal, color = _output_style(system)
+        print_check(result, terminal=terminal, color=color)
+    if not result.passed:
+        raise typer.Exit(1)
 
 
 def _list(ctx: typer.Context, json_output: bool) -> None:
@@ -110,16 +173,21 @@ def _emit(system: System, result: ScanResult, json_output: bool, *, show: bool) 
         _print_human(system, result, show=show)
 
 
-def _print_human(system: System, result: ScanResult, *, show: bool) -> None:
-    from versionbar.human import print_list, print_show
+def _output_style(system: System) -> tuple[bool, bool]:
+    """(terminal, color), decided from the system seam and stdout rather than by
+    Rich reading the process environment on its own."""
 
-    # Styling and width are decided here, from the system seam and stdout,
-    # rather than by Rich reading the process environment on its own.
     def is_set(name: str) -> bool:
         return system.getenv(name) not in (None, "")
 
     terminal = sys.stdout.isatty()
-    color = (terminal or is_set("FORCE_COLOR")) and not is_set("NO_COLOR")
+    return terminal, (terminal or is_set("FORCE_COLOR")) and not is_set("NO_COLOR")
+
+
+def _print_human(system: System, result: ScanResult, *, show: bool) -> None:
+    from versionbar.human import print_list, print_show
+
+    terminal, color = _output_style(system)
     (print_show if show else print_list)(result, terminal=terminal, color=color)
 
 
