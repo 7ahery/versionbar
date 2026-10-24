@@ -84,3 +84,26 @@ def test_installed_version_matches_package_metadata(installed_command: Path) -> 
     )
     assert result.returncode == 0
     assert result.stdout.strip() == expected
+
+
+def test_installed_package_ships_the_starter_config(installed_command: Path) -> None:
+    tools = installed_command.parent.parent / "tools"
+    shipped = list(tools.rglob("versionbar/starter_config.toml"))
+
+    assert len(shipped) == 1
+    assert (
+        shipped[0].read_bytes()
+        == (CORE_DIR / "src" / "versionbar" / "starter_config.toml").read_bytes()
+    )
+
+
+def test_installed_config_query_answers_as_json(installed_command: Path) -> None:
+    result = subprocess.run(
+        [str(installed_command), "config", "--json"],
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+    )
+    # This machine's own config decides 0 or 3; either way the document is JSON.
+    assert result.returncode in (0, 3), result.stderr
+    assert json.loads(result.stdout)["config_path"].endswith("config.toml")

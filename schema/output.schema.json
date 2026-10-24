@@ -1,13 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "CommandOutput",
-  "description": "Every document the CLI prints with --json. Scan results (list, show) and check results carry schema_version 1, which changes only on breaking changes.",
+  "description": "Every document the CLI prints with --json. Scan results (list, show), check results and config results carry schema_version 1, which changes only on breaking changes.",
   "anyOf": [
     {
       "$ref": "#/$defs/ScanResult"
     },
     {
       "$ref": "#/$defs/CheckResult"
+    },
+    {
+      "$ref": "#/$defs/ConfigResult"
     },
     {
       "$ref": "#/$defs/CaptureOutcome"
@@ -111,6 +114,79 @@
       "title": "CheckResult",
       "type": "object"
     },
+    "ConfigProblem": {
+      "additionalProperties": false,
+      "description": "One thing wrong with the user config file.",
+      "properties": {
+        "key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Where in the file, as a dotted TOML key with list indexes (e.g. `tools[0].version_regex`;\na part that is not a bare key is quoted, e.g. `timeouts.\"my.tool\"`), or null when the\nproblem is the whole file (unreadable, not UTF-8, not valid TOML)."
+        },
+        "message": {
+          "description": "Human-readable description of the problem; not for parsing.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "message"
+      ],
+      "title": "ConfigProblem",
+      "type": "object"
+    },
+    "ConfigResult": {
+      "additionalProperties": false,
+      "description": "The result of `config --json`, the preferences query: where the user config file is\nand the preferences it sets. Read live; nothing is run.\n\nExit code 0 when the config is usable (absent counts: defaults apply), 3 when it is not,\nin which case `problems` says why and `preferences` is null.",
+      "properties": {
+        "schema_version": {
+          "default": 1,
+          "description": "Changes only on breaking changes to this format; the same counter as ScanResult's.",
+          "type": "integer"
+        },
+        "config_path": {
+          "description": "Absolute path of the user config file, whether or not it exists.",
+          "type": "string"
+        },
+        "config_exists": {
+          "description": "Whether there is a file at `config_path`. False means every default applies.",
+          "type": "boolean"
+        },
+        "problems": {
+          "description": "Everything wrong with the file; empty when it is usable.",
+          "items": {
+            "$ref": "#/$defs/ConfigProblem"
+          },
+          "type": "array"
+        },
+        "preferences": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Preferences"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The preferences in effect, or null when the file is unusable (see `problems`)."
+        }
+      },
+      "required": [
+        "schema_version",
+        "config_path",
+        "config_exists",
+        "problems",
+        "preferences"
+      ],
+      "title": "ConfigResult",
+      "type": "object"
+    },
     "FailureOutcome": {
       "description": "Why nothing was captured. More values may be added without a breaking change; handle unknown ones.",
       "enum": [
@@ -180,6 +256,37 @@
         "linux"
       ],
       "type": "string"
+    },
+    "Preferences": {
+      "additionalProperties": false,
+      "description": "The preferences the app needs from the config file, defaults filled in.",
+      "properties": {
+        "update_check": {
+          "description": "Whether the app may check for VersionBar updates. When false it must make no update\nrequests.",
+          "type": "boolean"
+        },
+        "pinned": {
+          "description": "Tool ids to show first, in this order. Each id appears at most once in `pinned` and\n`order` together; ids of tools that are not in a scan are allowed and are skipped.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "order": {
+          "description": "Tool ids to show after the pinned ones, in this order.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "update_check",
+        "pinned",
+        "order"
+      ],
+      "title": "Preferences",
+      "type": "object"
     },
     "RequirementOutcome": {
       "description": "`passed`: met. Every other value is a failure: `unmet` (the active version is outside the range), `not-comparable` (the active version has no leading number to compare), `missing`, `error` or `timeout` (the tool has no usable active install; same meaning as the tool status). More values may be added without a schema_version bump; handle unknown ones.",
@@ -281,7 +388,7 @@
           "$ref": "#/$defs/OsName"
         },
         "tools": {
-          "description": "`list`: every tool known on this OS, missing ones included. `show`: the requested ones.",
+          "description": "`list`: every tool known on this OS, missing ones included, except those the user config\nhides; its pinned and ordered tools come first. `show`: the requested ones, in request order.",
           "items": {
             "$ref": "#/$defs/Tool"
           },

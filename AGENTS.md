@@ -42,7 +42,7 @@ Three-part monorepo with one shared version number (the core's package metadata 
 ## Install and scan rules
 
 - The scan command finds uv on PATH, then `UV_INSTALL_DIR`, then the default user-local bin, and keeps the Python environment in the app data folder (not the install folder).
-- The app may run exactly two fixed core invocations: the scan (`list --json`) and the preferences query (added by ticket 12a). Rust never parses TOML and never accepts arbitrary arguments; config values it needs (update-check flag, config file path) come from the preferences query.
+- The app may run exactly two fixed core invocations: the scan (`list --json`) and the preferences query (`config --json`, ADR 0011). Rust never parses TOML and never accepts arbitrary arguments; config values it needs (update-check flag, config file path) come from the preferences query.
 - VersionBar never installs uv or anything else on its own.
 
 ## Distribution and signing

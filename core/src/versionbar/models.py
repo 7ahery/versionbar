@@ -78,7 +78,8 @@ class ScanResult(StrictModel):
     """When the scan ran, RFC 3339 in UTC."""
     platform: OsName
     tools: list[Tool]
-    """`list`: every tool known on this OS, missing ones included. `show`: the requested ones."""
+    """`list`: every tool known on this OS, missing ones included, except those the user config
+    hides; its pinned and ordered tools come first. `show`: the requested ones, in request order."""
 
 
 # As with ToolStatus, the description sits on the enum type.
@@ -129,3 +130,47 @@ class CheckResult(StrictModel):
     """True when every requirement passed."""
     requirements: list[RequirementResult]
     """One entry per requirement, in the order given."""
+
+
+class ConfigProblem(StrictModel):
+    """One thing wrong with the user config file."""
+
+    key: str | None
+    """Where in the file, as a dotted TOML key with list indexes (e.g. `tools[0].version_regex`;
+    a part that is not a bare key is quoted, e.g. `timeouts."my.tool"`), or null when the
+    problem is the whole file (unreadable, not UTF-8, not valid TOML)."""
+    message: str
+    """Human-readable description of the problem; not for parsing."""
+
+
+class Preferences(StrictModel):
+    """The preferences the app needs from the config file, defaults filled in."""
+
+    update_check: bool
+    """Whether the app may check for VersionBar updates. When false it must make no update
+    requests."""
+    pinned: list[str]
+    """Tool ids to show first, in this order. Each id appears at most once in `pinned` and
+    `order` together; ids of tools that are not in a scan are allowed and are skipped."""
+    order: list[str]
+    """Tool ids to show after the pinned ones, in this order."""
+
+
+class ConfigResult(StrictModel):
+    """The result of `config --json`, the preferences query: where the user config file is
+    and the preferences it sets. Read live; nothing is run.
+
+    Exit code 0 when the config is usable (absent counts: defaults apply), 3 when it is not,
+    in which case `problems` says why and `preferences` is null.
+    """
+
+    schema_version: int = SCHEMA_VERSION
+    """Changes only on breaking changes to this format; the same counter as ScanResult's."""
+    config_path: str
+    """Absolute path of the user config file, whether or not it exists."""
+    config_exists: bool
+    """Whether there is a file at `config_path`. False means every default applies."""
+    problems: list[ConfigProblem]
+    """Everything wrong with the file; empty when it is usable."""
+    preferences: Preferences | None
+    """The preferences in effect, or null when the file is unusable (see `problems`)."""

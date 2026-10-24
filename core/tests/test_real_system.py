@@ -142,3 +142,24 @@ def test_an_app_execution_alias_is_read_without_running_it() -> None:
     assert alias.package_family == "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe"
     assert alias.app_user_model_id == "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe!winget"
     assert alias.target.lower().endswith(r"\winget.exe")
+
+
+def test_the_config_folder_is_the_platform_one() -> None:
+    folder = Path(local_system().config_dir)
+
+    assert folder.name == "versionbar"
+    if sys.platform == "win32":
+        # Roaming AppData, where per-user settings live on Windows.
+        assert folder.parent == Path(os.environ["APPDATA"])
+    else:
+        default = Path(os.environ.get("HOME", "~")).expanduser() / ".config"
+        assert folder.parent == Path(os.environ.get("XDG_CONFIG_HOME") or default)
+
+
+def test_reading_a_file_tells_absent_from_present(tmp_path: Path) -> None:
+    present = tmp_path / "config.toml"
+    present.write_bytes(b"timeout = 3\n")
+
+    assert local_system().read_file(str(present)) == b"timeout = 3\n"
+    with pytest.raises(FileNotFoundError):
+        local_system().read_file(str(tmp_path / "absent.toml"))

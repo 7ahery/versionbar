@@ -4,7 +4,8 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-from versionbar.models import CheckResult, ScanResult
+from versionbar.config import Settings
+from versionbar.models import CheckResult, ConfigResult, ScanResult
 
 # Wide enough that no real path wraps; the table still shrinks to its content.
 _PIPE_WIDTH = 10_000
@@ -82,3 +83,38 @@ def print_show(result: ScanResult, *, terminal: bool, color: bool) -> None:
     console.print(table)
     for note in notes:
         console.print(Text(note, style="dim"))
+
+
+def print_config(
+    result: ConfigResult, settings: Settings | None, *, terminal: bool, color: bool
+) -> None:
+    """The file's path, then either every problem with the file or every setting in effect.
+
+    `settings` is None exactly when the result has problems.
+    """
+    table = Table(box=None, pad_edge=False, show_header=False)
+    table.add_column(style="bold", no_wrap=True)
+    table.add_column(overflow="fold")
+    table.add_row("Config file", result.config_path)
+    if result.problems:
+        for index, problem in enumerate(result.problems):
+            where = f"{problem.key}: " if problem.key else ""
+            table.add_row("Problems" if index == 0 else "", Text(where + problem.message, "red"))
+    elif settings is not None:
+        if not result.config_exists:
+            table.add_row("", Text("not created yet; every default applies", style="dim"))
+        file = settings.file
+        timeouts = [f"{id} {seconds:g} s" for id, seconds in file.timeouts.items()]
+        custom = [definition.id for definition in settings.registry.custom()]
+        table.add_row("Update check", "on" if file.app.update_check else "off")
+        table.add_row("Pinned", _ids(file.pinned))
+        table.add_row("Order", _ids(file.order))
+        table.add_row("Hidden", _ids(file.hidden))
+        table.add_row("Timeout", f"{file.timeout:g} s")
+        table.add_row("Timeouts", _ids(timeouts))
+        table.add_row("Custom tools", _ids(custom))
+    _console(terminal=terminal, color=color).print(table)
+
+
+def _ids(items: list[str]) -> Text:
+    return Text(", ".join(items)) if items else Text("none", style="dim")

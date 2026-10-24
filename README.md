@@ -12,6 +12,7 @@ versionbar list          # table: each tool's active version, path and count of 
 versionbar show python node  # every install of the given tools, the active one first (also: `--json`)
 versionbar list --json   # machine-readable ScanResult (also: `versionbar --json`)
 versionbar check git 'node@>=20' 'python@>=3.12,<4'  # exit 0 only if every requirement holds
+versionbar config        # where the config file is and what it sets (also: `--json`)
 versionbar schema        # JSON Schema of every --json output
 versionbar --help        # every command has --help
 ```
@@ -79,12 +80,12 @@ Every run scans the machine live; nothing is cached. Human output uses colour on
 
 ### Failures and partial results
 
-A scan always completes and always lists every tool; one broken or slow tool never stops the others from being reported. The exit code of `list` and `show` does not depend on tool statuses.
+A scan always completes and always lists every tool (except those the config hides); one broken or slow tool never stops the others from being reported. The exit code of `list` and `show` does not depend on tool statuses. An invalid config file stops every scanning command with exit code 3 before anything runs (see [docs/config.md](docs/config.md)).
 
 | What happened | `status` | `active`, `installs` | `notes` |
 | --- | --- | --- | --- |
 | No binary on PATH | `missing` | `null`, `[]` | `not found on PATH (looked for: …)` |
-| Active install did not answer within 5 s | `timeout` | `null`, `[]` | `<path> did not answer within 5 s`, plus `: <its output>` if it printed anything before it was killed |
+| Active install did not answer within 5 s (or the configured timeout) | `timeout` | `null`, `[]` | `<path> did not answer within <n> s`, plus `: <its output>` if it printed anything before it was killed |
 | Active install could not be started | `error` | `null`, `[]` | `could not run <path>: <OS error>` |
 | Active install exited non-zero | `error` | `null`, `[]` | `<path> exited with code <n>: <its output>` |
 | Active install printed no recognisable version | `error` | `null`, `[]` | `<path> printed no version: <its output>` |
@@ -99,13 +100,17 @@ The core itself runs on a uv-managed Python, and `uv run`/`uvx` put that environ
 
 If the data of a `python.exe` or `python3.exe` alias cannot be read, VersionBar assumes it is a placeholder, does not run it, and says so in a note: skipping a real Python costs a note, running a placeholder could open the Store.
 
-"Its output" is everything the command printed, stdout then stderr, decoded. Version commands run in parallel (up to 16 at once), each with a 5-second timeout; when one times out, its whole process tree is killed (so a hung program started by a `.cmd` shim cannot stall the scan). Output is decoded per stream: UTF-16 (with a BOM, or detected by its NUL bytes, as `wsl --version` prints it) or UTF-8, with Windows line endings normalised to `\n`; a version printed only on stderr (as `ssh -V` does) is found too. Captures keep the raw bytes, so every decoding case replays exactly in tests.
+"Its output" is everything the command printed, stdout then stderr, decoded. Version commands run in parallel (up to 16 at once), each with a 5-second timeout (configurable); when one times out, its whole process tree is killed (so a hung program started by a `.cmd` shim cannot stall the scan). Output is decoded per stream: UTF-16 (with a BOM, or detected by its NUL bytes, as `wsl --version` prints it) or UTF-8, with Windows line endings normalised to `\n`; a version printed only on stderr (as `ssh -V` does) is found too. Captures keep the raw bytes, so every decoding case replays exactly in tests.
 
 ### Scan timing
 
 The target is a full scan in about a second. Typical timing on the development machine (Windows 11, 2026-10-24), scanning 15 real tools (18 version commands, including `npm.cmd` and `code.cmd`) in-process, median of five runs: **0.35 s** in parallel versus 0.90 s one at a time. Python and uv start-up add to this for a CLI invocation.
 
 The first full scan of the built-in core four (git, node, python and uv; four version commands, two git installs among them; the two Store placeholders are not run), same machine, 2026-10-24, median of five runs: **0.07 s** in-process and **0.65 s** for a whole `versionbar list --json` invocation, which is mostly interpreter start-up. This is a measurement, not a test: the suite proves parallelism with synchronisation in the fake system rather than with wall-clock thresholds.
+
+## Config
+
+An optional TOML file (`%APPDATA%\versionbar\config.toml` on Windows, `~/.config/versionbar/config.toml` on Linux), read on every run and shared with the tray app, adds custom tools in the definition format, hides tools from `list`, pins and orders them, sets global and per-tool timeouts, and turns off the app's update check. `versionbar config` prints its path and the settings in effect. Every key, the ordering rule and the error format: [docs/config.md](docs/config.md).
 
 ## Tool definitions and fixtures
 

@@ -18,6 +18,9 @@ from versionbar.system import AppExecutionAlias, OsName, ProcessResult, Unreadab
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
+WINDOWS_CONFIG_DIR = r"C:\Users\dev\AppData\Roaming\versionbar"
+LINUX_CONFIG_DIR = "/home/dev/.config/versionbar"
+
 WINDOWS_PATHEXT = ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.CPL"
 
 
@@ -25,6 +28,9 @@ WINDOWS_PATHEXT = ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.CPL"
 class Capture:
     args: tuple[str, ...]
     result: ProcessResult
+    # How long the command takes to answer on the fake machine. One slower
+    # than the timeout it is run with times out, printing nothing.
+    seconds: float = 0.0
 
 
 def capture_from_bytes(data: bytes) -> Capture:
@@ -59,6 +65,13 @@ class FakeSystem:
     # Called on the scanning thread before each command answers, so a test can
     # hold commands at a barrier to prove they overlap, without timing anything.
     before_run: Callable[[tuple[str, ...]], object] | None = None
+    # Where platformdirs would put VersionBar's config; set per OS when empty.
+    config_dir: str = ""
+    _read_errors: dict[str, str] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if not self.config_dir:
+            self.config_dir = WINDOWS_CONFIG_DIR if self.os == "windows" else LINUX_CONFIG_DIR
 
     def _key(self, path: str) -> str:
         # Windows file names are case-insensitive; the fake must be too, or
@@ -83,6 +96,28 @@ class FakeSystem:
         data = self._contents.get(self._key(path))
         return None if data is None else data[:limit]
 
+    def read_file(self, path: str) -> bytes:
+        error = self._read_errors.get(self._key(path))
+        if error is not None:
+            raise PermissionError(error)
+        data = self._contents.get(self._key(path))
+        if data is None:
+            raise FileNotFoundError(path)
+        return data
+
+    @property
+    def config_path(self) -> str:
+        separator = "\\" if self.os == "windows" else "/"
+        return f"{self.config_dir}{separator}config.toml"
+
+    def add_unreadable(self, path: str, error: str) -> None:
+        """A file that exists but whose reading fails with `error`."""
+        self._read_errors[self._key(path)] = error
+
+    def add_config(self, text: str) -> None:
+        """Give the machine a user config file holding `text`."""
+        self.add_content(self.config_path, text.encode())
+
     def app_execution_alias(self, path: str) -> AppExecutionAlias | UnreadableAlias | None:
         return self._aliases.get(self._key(path))
 
@@ -102,6 +137,8 @@ class FakeSystem:
         captures = self._executables[self._key(argv[0])]
         for capture in captures:
             if capture.args == tuple(argv[1:]):
+                if capture.seconds > timeout:
+                    return ProcessResult(exit_code=None, stdout=b"", stderr=b"", timed_out=True)
                 return capture.result
         raise AssertionError(f"no captured output for {list(argv)}")
 
