@@ -109,6 +109,23 @@ def test_show_human_reports_a_missing_tool() -> None:
     assert "not found on PATH" in result.stdout
 
 
+def test_show_human_headers_sit_over_their_values(monkeypatch) -> None:
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+
+    result = run_cli(windows_with_two_gits(), "show", "git", "node")
+
+    header, active, other, node = [line for line in result.stdout.splitlines() if line.strip()][:4]
+    column = header.index
+    # Every column has a title, so each one starts where its values start.
+    assert header.split() == ["Tool", "Install", "Version", "Path", "Source"]
+    assert active.index("active") == other.index("other") == column("Install")
+    assert active.index("2.55.0.windows.2") == other.index("2.43.0") == column("Version")
+    assert active.index(WIN_GIT) == other.index(SCOOP_GIT) == column("Path")
+    assert active.index("path", len(WIN_GIT) + column("Path")) == column("Source")
+    # A tool with no install shows its status where a version would be, as `list` does.
+    assert node.index("missing") == column("Version")
+
+
 def test_list_counts_the_other_installs(monkeypatch) -> None:
     monkeypatch.delenv("FORCE_COLOR", raising=False)
 
