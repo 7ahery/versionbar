@@ -7,6 +7,7 @@
     "core:app:allow-version",
     "allow-get-state",
     "allow-refresh",
+    "allow-open-uv-docs",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

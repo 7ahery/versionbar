@@ -11,6 +11,8 @@ import type { ScanResult } from "schema";
  */
 export interface ShellState {
   scanning: boolean;
+  /** The running scan is the first one, which sets up the core's environment. */
+  setting_up?: boolean;
   current: ScanResult | null;
   previous: ScanResult | null;
   /** How the latest finished attempt went; null until one finishes. */
@@ -19,8 +21,7 @@ export interface ShellState {
 
 /**
  * `kind` is `ok`, `uv_missing` or `failed` (which adds the other fields). New kinds and
- * reasons may appear (ticket 22 adds a setup state), so this stays loose and callers keep a
- * default branch.
+ * reasons may appear, so this stays loose and callers keep a default branch.
  */
 export interface Outcome {
   kind: string;
@@ -84,6 +85,11 @@ export function useShellState(): {
   }, []);
 
   return { state, refresh };
+}
+
+/** Opens the official uv installation guide in the browser; the shell knows the address. */
+export function openUvDocs() {
+  invoke("open_uv_docs").catch(() => {});
 }
 
 /** Unsubscribing can fail while the webview is being torn down; nothing is left to do then. */

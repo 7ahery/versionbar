@@ -5,6 +5,7 @@ import type { ScanResult } from "schema";
 
 import { cn } from "@/lib/utils";
 import { PRODUCT_NAME } from "@/product";
+import { FailedScreen, MissingUvScreen, SettingUpScreen } from "@/Recovery";
 import { type Outcome, type ShellState, useShellState } from "@/shell";
 
 type Tool = ScanResult["tools"][number];
@@ -35,15 +36,49 @@ export default function App() {
           Refresh
         </button>
       </header>
-      <StatusLine state={state} />
       {state?.current ? (
-        <ToolList tools={state.current.tools} />
+        <>
+          <StatusLine state={state} />
+          <ToolList tools={state.current.tools} />
+        </>
       ) : (
-        <p className="m-auto text-sm text-muted-foreground">
-          {scanning ? null : "No scan results yet."}
-        </p>
+        <NoResults state={state} onRetry={refresh} />
       )}
     </main>
+  );
+}
+
+/**
+ * What fills the popup while there is nothing to list: the first run's setup, or the recovery
+ * screen for the last outcome. With results on screen, problems stay a line in the status
+ * bar instead (see `describeProblem`), so a failed refresh never hides good data.
+ */
+function NoResults({
+  state,
+  onRetry,
+}: {
+  state: ShellState | null;
+  onRetry: () => void;
+}) {
+  const scanning = state?.scanning ?? false;
+  const outcome = state?.outcome;
+  if (scanning && state?.setting_up) return <SettingUpScreen />;
+  // Unknown kinds fall through to the plain empty state.
+  if (outcome?.kind === "uv_missing") {
+    return <MissingUvScreen scanning={scanning} onRetry={onRetry} />;
+  }
+  if (outcome?.kind === "failed") {
+    return (
+      <FailedScreen outcome={outcome} scanning={scanning} onRetry={onRetry} />
+    );
+  }
+  return (
+    <>
+      <StatusLine state={state} />
+      <p className="m-auto text-sm text-muted-foreground">
+        {scanning ? null : "No scan results yet."}
+      </p>
+    </>
   );
 }
 
@@ -67,7 +102,6 @@ function describeProblem(outcome: Outcome): string | null {
     case "failed":
       return outcome.message ?? "The last scan failed.";
     case "uv_missing":
-      // Ticket 22 replaces this line with the full missing-uv screen.
       return "uv was not found, so no scan could run.";
     default:
       return null;

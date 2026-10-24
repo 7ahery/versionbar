@@ -17,6 +17,9 @@ const REVIEWED: &[&str] = &[
     "allow-get-state",
     // Starts a scan with the shell's fixed `list --json` invocation; takes no arguments.
     "allow-refresh",
+    // Opens one fixed page, the official uv installation guide, in the default browser; takes
+    // no arguments, so the webview cannot make the shell open anything else.
+    "allow-open-uv-docs",
     // Subscribe to and drop the `scan-updated` event. Listening only: the webview cannot
     // emit events.
     "core:event:allow-listen",
