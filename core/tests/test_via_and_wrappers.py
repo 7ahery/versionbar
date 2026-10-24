@@ -209,3 +209,26 @@ def test_human_show_names_the_manager_beside_the_source(monkeypatch) -> None:
     assert result.exit_code == 0, result.output
     shim_line = next(line for line in result.stdout.splitlines() if PYENV_SHIM in line)
     assert shim_line.rstrip().endswith("path via pyenv")
+
+
+def test_a_batch_wrapper_is_an_install_like_a_plain_executable() -> None:
+    # npm, code and pyenv shims are `.cmd`/`.bat` wrappers beside an
+    # extensionless shell script for Git Bash. Windows runs the wrapper, so it
+    # is the install reported, at the wrapper's own path; the script never is.
+    system = windows([r"C:\Users\dev\AppData\Roaming\npm", NODE_DIR])
+    node = load_capture(NODE_WINDOWS)
+    system.add_executable(r"C:\Users\dev\AppData\Roaming\npm\node", node)
+    system.add_executable(TAGGED_SHIM, node)
+    system.add_executable(rf"{NODE_DIR}\node.exe", node)
+
+    result = tool(system, "node")
+
+    assert [(i["path"], i["version"]) for i in result["installs"]] == [
+        (TAGGED_SHIM, "24.21.0"),
+        (rf"{NODE_DIR}\node.exe", "24.21.0"),
+    ]
+    assert result["active"]["path"] == TAGGED_SHIM
+    # Probes run in parallel, so only the set of commands is fixed.
+    assert sorted(system.runs) == sorted(
+        [(TAGGED_SHIM, "--version"), (rf"{NODE_DIR}\node.exe", "--version")]
+    )

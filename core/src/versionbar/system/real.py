@@ -10,6 +10,7 @@ import signal
 import subprocess
 import sys
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -59,9 +60,19 @@ class _LocalSystem:
         # and then, on Windows, waits without limit for the pipes to close. A
         # `.cmd` shim whose hung grandchild inherited them would then stall the
         # scan for as long as the grandchild lives.
+        command: str | list[str] = list(argv)
+        executable = None
+        if self._os == "windows" and _is_batch(argv[0]):
+            launch = _batch_command_line(argv)
+            if isinstance(launch, _Refused):
+                return ProcessResult(
+                    exit_code=None, stdout=b"", stderr=b"", launch_error=launch.reason
+                )
+            executable, command = launch
         try:
             process = subprocess.Popen(
-                list(argv),
+                command,
+                executable=executable,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -89,10 +100,8 @@ class _LocalSystem:
     def _kill_tree(self, process: subprocess.Popen[bytes]) -> None:
         if sys.platform == "win32":
             # taskkill walks the tree by parent id, so it must run before the
-            # child dies. Full path: a scan must not run whatever `taskkill`
-            # the PATH under inspection happens to offer.
-            system_root = os.environ.get("SYSTEMROOT", r"C:\Windows")
-            taskkill = os.path.join(system_root, "System32", "taskkill.exe")
+            # child dies.
+            taskkill = _system32("taskkill.exe")
             with contextlib.suppress(OSError, subprocess.TimeoutExpired):
                 subprocess.run(
                     [taskkill, "/F", "/T", "/PID", str(process.pid)],
@@ -149,6 +158,53 @@ class _LocalSystem:
 
     def now(self) -> datetime:
         return datetime.now(UTC)
+
+
+def _system32(name: str) -> str:
+    # Full path: a scan must not run whatever `cmd` or `taskkill` the PATH
+    # under inspection happens to offer.
+    system_root = os.environ.get("SYSTEMROOT", r"C:\Windows")
+    return os.path.join(system_root, "System32", name)
+
+
+def _is_batch(path: str) -> bool:
+    return os.path.splitext(path)[1].lower() in (".bat", ".cmd")
+
+
+@dataclass(frozen=True)
+class _Refused:
+    reason: str
+
+
+# cmd.exe expands `%` even inside quotes and treats the rest as operators or
+# quoting outside them. Version arguments never need any of these, so a batch
+# wrapper simply never receives one rather than relying on escaping that
+# differs between cmd.exe and the script's own %1 parsing.
+_BATCH_UNSAFE = frozenset('%"^&|<>()!\r\n\t ')
+
+
+def _batch_command_line(argv: Sequence[str]) -> tuple[str, str] | _Refused:
+    """The cmd.exe command line that runs a `.cmd`/`.bat` wrapper exactly once.
+
+    Windows would start cmd.exe implicitly, but then AutoRun hooks (conda,
+    clink) run before every wrapper, slowing the scan and free to print or
+    change directory, and the arguments are reinterpreted unchecked. So
+    cmd.exe is started explicitly: /d skips AutoRun, /e:on and /v:off pin
+    command extensions on (generated shims use them) and delayed expansion off
+    whatever the registry says, and /s with outer quotes keeps the quoted
+    script path intact, parentheses and spaces included.
+    """
+    script, *arguments = argv
+    if "%" in script or '"' in script:
+        return _Refused(f"cmd.exe would expand or split the path of {script}, so it was not run")
+    for argument in arguments:
+        if not argument or _BATCH_UNSAFE & set(argument):
+            return _Refused(
+                f"argument {argument!r} would be reinterpreted by cmd.exe, so {script} was not run"
+            )
+    cmd = _system32("cmd.exe")
+    inner = " ".join([f'"{script}"', *arguments])
+    return cmd, f'"{cmd}" /d /e:on /v:off /s /c "{inner}"'
 
 
 @functools.cache
