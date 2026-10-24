@@ -79,3 +79,51 @@ class ScanResult(StrictModel):
     platform: OsName
     tools: list[Tool]
     """`list`: every tool known on this OS, missing ones included. `show`: the requested ones."""
+
+
+# As with ToolStatus, the description sits on the enum type.
+type RequirementOutcome = Annotated[
+    Literal["passed", "unmet", "not-comparable", "missing", "error", "timeout"],
+    Field(
+        description=(
+            "`passed`: met. Every other value is a failure: `unmet` (the active version is "
+            "outside the range), `not-comparable` (the active version has no leading number to "
+            "compare), `missing`, `error` or `timeout` (the tool has no usable active install; "
+            "same meaning as the tool status). "
+            "More values may be added without a schema_version bump; handle unknown ones."
+        )
+    ),
+]
+
+
+class RequirementResult(StrictModel):
+    """The verdict on one requirement given to `check`."""
+
+    requirement: str
+    """The requirement exactly as given, e.g. `node@>=20`."""
+    tool: str
+    """Tool id the requirement is about."""
+    spec: str | None
+    """The version spec after `@` (e.g. `>=20,<23`), or null for a presence-only requirement."""
+    passed: bool
+    """True when the outcome is `passed`."""
+    outcome: RequirementOutcome
+    version: str | None
+    """Version of the active install as the tool prints it, or null when there is none."""
+    path: str | None
+    """Absolute path of the active install, or null when there is none."""
+    message: str
+    """Human-readable explanation of the verdict; not for parsing."""
+
+
+class CheckResult(StrictModel):
+    """The result of `check --json`: one live scan, then every requirement tested against the
+    active install of its tool. The exit code is 0 exactly when `passed` is true."""
+
+    scanned_at: AwareDatetime
+    """When the scan ran, RFC 3339 in UTC."""
+    platform: OsName
+    passed: bool
+    """True when every requirement passed."""
+    requirements: list[RequirementResult]
+    """One entry per requirement, in the order given."""

@@ -3,12 +3,16 @@
 /**
  * Every document the CLI prints with --json. Scan results (list, show) carry schema_version 1, which changes only on breaking changes.
  */
-export type CommandOutput = ScanResult | CaptureOutcome | CaptureFailure;
+export type CommandOutput = ScanResult | CheckResult | CaptureOutcome | CaptureFailure;
 export type OsName = "windows" | "linux";
 /**
  * More values may be added without a schema_version bump; handle unknown ones.
  */
 export type ToolStatus = "found" | "missing" | "error" | "timeout";
+/**
+ * `passed`: met. Every other value is a failure: `unmet` (the active version is outside the range), `not-comparable` (the active version has no leading number to compare), `missing`, `error` or `timeout` (the tool has no usable active install; same meaning as the tool status). More values may be added without a schema_version bump; handle unknown ones.
+ */
+export type RequirementOutcome = "passed" | "unmet" | "not-comparable" | "missing" | "error" | "timeout";
 /**
  * Why nothing was captured. More values may be added without a breaking change; handle unknown ones.
  */
@@ -86,6 +90,59 @@ export interface Install {
    * Decoded version output the version was parsed from, or null.
    */
   raw: string | null;
+}
+/**
+ * The result of `check --json`: one live scan, then every requirement tested against the
+ * active install of its tool. The exit code is 0 exactly when `passed` is true.
+ */
+export interface CheckResult {
+  /**
+   * When the scan ran, RFC 3339 in UTC.
+   */
+  scanned_at: string;
+  platform: OsName;
+  /**
+   * True when every requirement passed.
+   */
+  passed: boolean;
+  /**
+   * One entry per requirement, in the order given.
+   */
+  requirements: RequirementResult[];
+}
+/**
+ * The verdict on one requirement given to `check`.
+ */
+export interface RequirementResult {
+  /**
+   * The requirement exactly as given, e.g. `node@>=20`.
+   */
+  requirement: string;
+  /**
+   * Tool id the requirement is about.
+   */
+  tool: string;
+  /**
+   * The version spec after `@` (e.g. `>=20,<23`), or null for a presence-only requirement.
+   */
+  spec: string | null;
+  /**
+   * True when the outcome is `passed`.
+   */
+  passed: boolean;
+  outcome: RequirementOutcome;
+  /**
+   * Version of the active install as the tool prints it, or null when there is none.
+   */
+  version: string | null;
+  /**
+   * Absolute path of the active install, or null when there is none.
+   */
+  path: string | null;
+  /**
+   * Human-readable explanation of the verdict; not for parsing.
+   */
+  message: string;
 }
 /**
  * What `debug capture --json` prints after writing a capture file.
