@@ -7,7 +7,7 @@ from typer.testing import CliRunner
 from versionbar import cli, definition
 from versionbar.cli import app
 
-from fakes import GIT_LINUX, GIT_WINDOWS, WINDOWS_PATHEXT, FakeSystem, load_capture
+from fakes import GIT_LINUX, GIT_WINDOWS, UV_WINDOWS, WINDOWS_PATHEXT, FakeSystem, load_capture
 
 WIN_GIT = r"C:\Program Files\Git\cmd\git.exe"
 SCOOP_GIT = r"C:\Users\dev\scoop\shims\git.exe"
@@ -137,7 +137,8 @@ def test_tool_known_only_for_another_os_is_not_called_unknown(monkeypatch) -> No
     linux_only = definition.builtin_definitions()[0].model_copy(
         update={"id": "linuxonly", "os": ["linux"]}
     )
-    # Remove once real definitions (ticket 08, #9) include a per-OS tool.
+    # The core four all run on both OSes; remove once a built-in is OS-specific
+    # (WSL, ticket 15, #17).
     monkeypatch.setattr(
         cli, "builtin_definitions", lambda: [*definition.builtin_definitions(), linux_only]
     )
@@ -173,7 +174,7 @@ def test_relative_posix_path_entries_are_skipped() -> None:
 
 def test_a_binary_matched_by_two_declared_names_is_one_install(monkeypatch) -> None:
     both = definition.builtin_definitions()[0].model_copy(update={"binaries": ["git", "git.exe"]})
-    # Remove once real definitions (ticket 08, #9) can show this on their own.
+    # No built-in declares two names for one file, so one is made up here.
     monkeypatch.setattr(cli, "builtin_definitions", lambda: [both])
 
     git = git_of(run_cli(windows_with_two_gits(), "list", "--json"))
@@ -187,34 +188,19 @@ def test_show_requires_at_least_one_tool() -> None:
     assert result.exit_code == 2
 
 
-def test_show_with_several_tools_keeps_found_and_missing_visible(monkeypatch) -> None:
-    # Only git is defined so far, so extra tools are injected; replace this with
-    # real definitions once ticket 08 (#9) adds node, python and uv. Their version
-    # output is the real git capture, run through a differently named binary.
-    other = definition.ToolDefinition(
-        id="gitlike",
-        name="Git-like",
-        os=["windows", "linux"],
-        binaries=["gitlike"],
-        version_args=["--version"],
-        version_regex=r"git version (?P<version>\d+\.\d+\.\d+\S*)",
-    )
-    third = other.model_copy(update={"id": "absent", "name": "Absent", "binaries": ["absent"]})
-    monkeypatch.setattr(
-        cli, "builtin_definitions", lambda: [*definition.builtin_definitions(), other, third]
-    )
+def test_show_with_several_tools_keeps_found_and_missing_visible() -> None:
     system = windows_with_two_gits()
-    system.add_executable(r"C:\Users\dev\scoop\shims\gitlike.exe", load_capture(GIT_LINUX))
+    system.add_executable(r"C:\Users\dev\scoop\shims\uv.exe", load_capture(UV_WINDOWS))
 
-    result = run_cli(system, "show", "absent", "git", "gitlike", "git", "--json")
+    result = run_cli(system, "show", "node", "git", "uv", "git", "--json")
 
     assert result.exit_code == 0, result.output
     tools = json.loads(result.stdout)["tools"]
-    # Requested order, duplicates dropped, unrequested tools left out.
+    # Requested order, duplicates dropped, unrequested tools (python) left out.
     assert [(t["id"], t["status"]) for t in tools] == [
-        ("absent", "missing"),
+        ("node", "missing"),
         ("git", "found"),
-        ("gitlike", "found"),
+        ("uv", "found"),
     ]
 
 

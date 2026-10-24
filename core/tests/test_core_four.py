@@ -5,6 +5,7 @@ import json
 from typer.testing import CliRunner
 
 from versionbar.cli import app
+from versionbar.system import ProcessResult
 
 from fakes import (
     GIT_WINDOWS,
@@ -15,6 +16,7 @@ from fakes import (
     UV_WINDOWS,
     WINDOWS_PATHEXT,
     WINGET_ALIAS,
+    Capture,
     FakeSystem,
     load_capture,
 )
@@ -78,6 +80,68 @@ def test_list_reports_the_core_four_with_versions_and_paths() -> None:
         by_id["uv"]["active"]["raw"] == "uv 0.12.23 (46b84fd0b 2026-10-03 x86_64-pc-windows-msvc)"
     )
     assert by_id["node"]["active"]["raw"] == "v24.21.0"
+
+
+def test_mixed_statuses_are_each_reported_without_hiding_the_others(monkeypatch) -> None:
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    system = with_store_placeholders(core_four())
+    system.env["PATH"] = system.env["PATH"].replace(r"C:\Program Files\Python314", WINDOWS_APPS)
+    # Real output of a version command rejecting its arguments, replayed as node's.
+    failing = load_capture("git/windows-git-badflag-unknown-version.json").result
+    system.add_executable(NODE, Capture(("--version",), failing))
+    # A hang has no output to capture; this is what the real runner reports.
+    system.add_executable(
+        UV,
+        Capture(
+            ("--version",), ProcessResult(exit_code=None, stdout=b"", stderr=b"", timed_out=True)
+        ),
+    )
+
+    tools = tools_of(run_cli(system, "list", "--json"))
+    table = run_cli(system, "list").stdout
+
+    assert {i: t["status"] for i, t in tools.items()} == {
+        "git": "found",
+        "node": "error",
+        "python": "missing",
+        "uv": "timeout",
+    }
+    assert tools["node"]["notes"][0].startswith(f"{NODE} exited with code 129")
+    assert tools["uv"]["notes"] == [f"{UV} did not answer within 5 s"]
+    rows = {line.split()[0]: line for line in table.splitlines() if line.strip()}
+    assert "2.55.0.windows.2" in rows["git"]
+    assert "error" in rows["node"]
+    assert "missing" in rows["python"]
+    assert "timeout" in rows["uv"]
+
+
+def test_every_python_on_path_is_listed_once_in_path_order() -> None:
+    system = windows(
+        r"C:\Python313",
+        r"C:\Program Files\Python314",
+        r"c:\python313\\",
+        r"C:\Program Files\Python314",
+    )
+    system.add_executable(r"C:\Python313\python.exe", load_capture(PYTHON_313_WINDOWS))
+    system.add_executable(PYTHON, load_capture(PYTHON_314_WINDOWS))
+
+    python = tools_of(run_cli(system, "show", "python", "--json"))["python"]
+
+    assert python["active"]["path"] == r"C:\Python313\python.exe"
+    assert [(i["version"], i["path"]) for i in python["installs"]] == [
+        ("3.13.16", r"C:\Python313\python.exe"),
+        ("3.14.8", PYTHON),
+    ]
+
+
+def test_python3_is_found_when_no_python_command_exists() -> None:
+    # Store Python and most Linux machines offer only `python3`.
+    system = windows(r"C:\Tools\py")
+    system.add_executable(r"C:\Tools\py\python3.exe", load_capture(PYTHON_314_WINDOWS))
+
+    python = tools_of(run_cli(system, "list", "--json"))["python"]
+
+    assert python["active"]["path"] == r"C:\Tools\py\python3.exe"
 
 
 WINDOWS_APPS = r"C:\Users\dev\AppData\Local\Microsoft\WindowsApps"
