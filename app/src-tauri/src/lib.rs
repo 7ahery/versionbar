@@ -1,19 +1,35 @@
-//! The tray app's Rust shell: app lifecycle only (tray, popup window, single instance).
+//! The tray app's Rust shell: app lifecycle (tray, popup window, single instance) plus the
+//! scoped scan and state commands.
 //!
 //! Everything about tools and versions lives in the core and the React UI (ADR-0006/0007).
 //! The tray is built here at launch and never depends on the webview (ADR-0009).
 
 use std::{
-    sync::Mutex,
+    sync::{Arc, Mutex},
+    thread,
     time::{Duration, Instant},
 };
 
 use tauri::{
-    AppHandle, Manager, PhysicalPosition, Runtime, WebviewWindow, WindowEvent,
+    AppHandle, Emitter, Manager, PhysicalPosition, Runtime, WebviewWindow, WindowEvent,
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 use tauri_plugin_positioner::{Position, WindowExt};
+
+pub mod scan;
+
+use scan::{SCAN_TIMEOUT, ScanConfig, Scanner, ShellState};
+
+/// Sent to the popup with the full `ShellState` whenever it changes.
+const SCAN_UPDATED: &str = "scan-updated";
+
+/// Where the installer puts the core project, inside the app's resource folder. Must match
+/// `bundle.resources` in tauri.conf.json.
+const BUNDLED_CORE: &str = "core";
+
+/// The core's Python environment, inside the per-machine app data folder.
+const CORE_ENVIRONMENT: &str = "core-env";
 
 /// Window label of the popup, as declared in tauri.conf.json and the capabilities file.
 const POPUP: &str = "popup";
@@ -58,8 +74,13 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_positioner::init())
         .manage(LastBlurHide::default())
+        .invoke_handler(tauri::generate_handler![get_state, refresh])
         .setup(|app| {
             create_tray(app.handle())?;
+            let scanner = Arc::new(Scanner::new(scan_config(app.handle())?, announce(app.handle())));
+            app.manage(scanner.clone());
+            // Scan at launch so the popup has data by the time it is first opened.
+            start_refresh(scanner);
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -83,6 +104,45 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("failed to start the tray app");
+}
+
+fn scan_config<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<ScanConfig> {
+    let paths = app.path();
+    Ok(ScanConfig {
+        find_uv: Box::new(|| scan::find_uv(&|key| std::env::var_os(key))),
+        project: paths.resource_dir()?.join(BUNDLED_CORE),
+        // Local, not roaming: the environment is large and specific to this machine.
+        environment: paths.app_local_data_dir()?.join(CORE_ENVIRONMENT),
+        timeout: SCAN_TIMEOUT,
+    })
+}
+
+fn announce<R: Runtime>(app: &AppHandle<R>) -> scan::Notify {
+    let app = app.clone();
+    Box::new(move |state: &ShellState| {
+        // No popup listening yet is normal; it asks with `get_state` when it loads.
+        let _ = app.emit(SCAN_UPDATED, state);
+    })
+}
+
+/// Scans on a background thread so neither IPC nor the tray waits for the core.
+fn start_refresh(scanner: Arc<Scanner>) {
+    thread::spawn(move || {
+        scanner.refresh();
+    });
+}
+
+/// The popup's view of the scan state: current and previous results plus progress.
+#[tauri::command]
+fn get_state(scanner: tauri::State<'_, Arc<Scanner>>) -> ShellState {
+    scanner.state()
+}
+
+/// Starts a scan and returns at once; the result arrives as a `scan-updated` event. Does
+/// nothing while a scan is already running.
+#[tauri::command]
+fn refresh(scanner: tauri::State<'_, Arc<Scanner>>) {
+    start_refresh(scanner.inner().clone());
 }
 
 fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {

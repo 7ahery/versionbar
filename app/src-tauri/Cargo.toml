@@ -22,9 +22,10 @@ tauri-build = { version = "2.7.4", features = [] }
 tauri = { version = "2.12.5", features = ["tray-icon"] }
 tauri-plugin-positioner = { version = "2.4.0", features = ["tray-icon"] }
 tauri-plugin-single-instance = "2.5.4"
-
-[dev-dependencies]
-serde_json = "1"
+# Already in the tree through tauri; used directly for the IPC state shape and the scan
+# output check (`raw_value` keeps scan results as untouched JSON text).
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["raw_value"] }
 
 [profile.release]
 # Smaller installer; the shell does little work, so speed optimisations buy nothing.

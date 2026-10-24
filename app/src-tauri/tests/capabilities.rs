@@ -13,6 +13,14 @@ use serde_json::Value;
 const REVIEWED: &[&str] = &[
     // Popup header shows the app version.
     "core:app:allow-version",
+    // The scan state (current and previous results, progress, last outcome); read only.
+    "allow-get-state",
+    // Starts a scan with the shell's fixed `list --json` invocation; takes no arguments.
+    "allow-refresh",
+    // Subscribe to and drop the `scan-updated` event. Listening only: the webview cannot
+    // emit events.
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
 ];
 
 fn capabilities() -> Vec<(String, Value)> {

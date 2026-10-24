@@ -3,5 +3,11 @@
   "identifier": "popup",
   "description": "Everything the popup webview may call. Keep it minimal: one permission per scoped command, never shell or process access.",
   "windows": ["popup"],
-  "permissions": ["core:app:allow-version"]
+  "permissions": [
+    "core:app:allow-version",
+    "allow-get-state",
+    "allow-refresh",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
 }
