@@ -37,7 +37,7 @@ Every runnable PATH hit is an install with `source = "path"`, the first one acti
 
 Nothing to declare. `binaries = ["npm"]` resolves to `npm.cmd` through PATHEXT, skipping the extensionless `npm` script beside it, exactly as `cmd.exe` would. The install's path is the wrapper's own path, since that is what typing the command runs.
 
-The runner starts wrappers through `%SYSTEMROOT%\System32\cmd.exe /d /e:on /v:off /s /c`: AutoRun hooks are skipped, command extensions are on and delayed expansion off. So `version_args` for a tool that may resolve to a wrapper must avoid characters `cmd.exe` would reinterpret: whitespace, `% " ^ & | < > ( ) !`. An argument with one of them, or a wrapper whose path contains `%`, is not run and the install reports an error saying so. Plain flags (`--version`, `version`, `-v`, `--client`) are fine.
+The runner starts wrappers through `%SYSTEMROOT%\System32\cmd.exe /d /e:on /v:off /s /c`: AutoRun hooks are skipped, command extensions are on and delayed expansion off. So `version_args` for a tool that may resolve to a wrapper must avoid characters `cmd.exe` would reinterpret: whitespace, `% " ^ & | < > ( ) !`. A wrapper given such an argument (or an empty one), or whose path contains `%`, is not run and the install reports an error saying so. Plain flags (`--version`, `version`, `-v`, `--client`) are fine.
 
 ## Shim attribution (`via`)
 

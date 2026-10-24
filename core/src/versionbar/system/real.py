@@ -196,12 +196,10 @@ def _batch_command_line(argv: Sequence[str]) -> tuple[str, str] | _Refused:
     """
     script, *arguments = argv
     if "%" in script or '"' in script:
-        return _Refused(f"cmd.exe would expand or split the path of {script}, so it was not run")
+        return _Refused("cmd.exe would expand or split its path, so it was not run")
     for argument in arguments:
         if not argument or _BATCH_UNSAFE & set(argument):
-            return _Refused(
-                f"argument {argument!r} would be reinterpreted by cmd.exe, so {script} was not run"
-            )
+            return _Refused(f"cmd.exe would reinterpret argument {argument!r}, so it was not run")
     cmd = _system32("cmd.exe")
     inner = " ".join([f'"{script}"', *arguments])
     return cmd, f'"{cmd}" /d /e:on /v:off /s /c "{inner}"'
