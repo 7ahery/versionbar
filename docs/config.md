@@ -65,7 +65,7 @@ Hidden tools are left out. `show` and `check` are unaffected: they report the to
 
 ## Invalid config
 
-A file that cannot be used stops `list`, `show` and `check` with **exit code 3** before anything is scanned. stderr names the file, then one line per problem: the key (dotted, with list indexes) and what is wrong. Nothing is printed on stdout, with or without `--json`.
+A file that cannot be used stops `list`, `show` and `check` with **exit code 3** before anything is scanned. stderr names the file, then one line per problem: the key (dotted, with list indexes; a part that is not a bare TOML key is quoted, as in `timeouts."my.tool"`) and what is wrong. Nothing is printed on stdout, with or without `--json`.
 
 ```
 invalid config file C:\Users\me\AppData\Roaming\versionbar\config.toml
@@ -94,6 +94,7 @@ Exit codes: 0 success, 1 `check` requirement failed (or `debug capture` failed),
 
 - Exit 0 when the config is usable (including absent). Exit 3 when not: the document is still printed, with every problem in `problems` (`key` null for whole-file problems) and `preferences` null. `config_path` is always there, so the app can still open the file to fix it.
 - This is the app's second and last fixed core invocation (ADR 0011). The app reads `config_path` (Open config file), `preferences.update_check` (the updater) and `pinned`/`order` (sorting). Fields are added under the [compatibility rules](../schema/README.md); consumers ignore unknown ones.
+- The scan fails on the same config: `list --json` exits 3 with empty stdout and the problems on stderr. The app reports that as a failed scan (ticket 21 maps any nonzero exit to failed/exit with stderr) and may run `config --json` to find the file and the problems.
 - When `preferences` is null the app does not know the update preference. It must not treat that as "enabled": keep the last known value, and without one, do not check (12b, 30).
 
 ## Starter template
@@ -104,4 +105,4 @@ Ticket 27's Open config file, when `config_path` does not exist, copies this fil
 
 ## For ticket 16 (`tools` catalog)
 
-`load_settings(system, builtins)` in `core/src/versionbar/config.py` returns `Settings`; `Settings.registry` is the validated `Registry`: `definitions` (every tool on every OS, built-ins first, custom tools merged by the replacement rule above) and `custom_ids` (ids defined by the config). The catalog lists from it rather than from the built-ins alone.
+`load_settings(system, builtins)` in `core/src/versionbar/config.py` returns `Settings`; `Settings.registry` is the validated `Registry`: `definitions` (every tool on every OS, built-ins first, custom tools merged by the replacement rule above), `custom_ids` (ids defined by the config), and `custom()` (those definitions, in registry order). The catalog lists from it rather than from the built-ins alone.
