@@ -2,6 +2,7 @@
 (`uv tool install`) and run the installed command, so packaging, the entry point
 and import-time dependencies are all exercised."""
 
+import json
 import os
 import shutil
 import subprocess
@@ -10,10 +11,12 @@ import tomllib
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 
 from versionbar.models import ScanResult
 
 CORE_DIR = Path(__file__).resolve().parents[1]
+REPO_DIR = CORE_DIR.parent
 
 
 @pytest.fixture(scope="module")
@@ -42,11 +45,24 @@ def test_installed_help_works(installed_command: Path) -> None:
 
 def test_installed_list_json_finds_git_on_the_real_machine(installed_command: Path) -> None:
     # git is preinstalled on contributor machines and both CI runner images.
+    # Python reports every import on stderr, so the real `--json` path can be
+    # checked for staying clear of Rich.
+    env = {**os.environ, "PYTHONPROFILEIMPORTTIME": "1"}
     result = subprocess.run(
-        [str(installed_command), "list", "--json"], capture_output=True, text=True, check=False
+        [str(installed_command), "list", "--json"],
+        capture_output=True,
+        encoding="utf-8",
+        env=env,
+        check=False,
     )
     assert result.returncode == 0, result.stderr
-    scan = ScanResult.model_validate_json(result.stdout)
+    imported = [line.rsplit("|", 1)[-1].strip() for line in result.stderr.splitlines()]
+    assert "versionbar.cli" in imported
+    assert not [name for name in imported if name.split(".")[0] == "rich"]
+    output = json.loads(result.stdout)
+    schema = json.loads((REPO_DIR / "schema" / "output.schema.json").read_text("utf-8"))
+    assert [error.message for error in Draft202012Validator(schema).iter_errors(output)] == []
+    scan = ScanResult.model_validate(output)
     git = next(tool for tool in scan.tools if tool.id == "git")
     assert git.status == "found"
     assert git.active is not None

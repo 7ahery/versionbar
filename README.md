@@ -2,7 +2,7 @@
 
 Inventories the dev tools installed on a machine. The `versionbar` CLI (Python core) is the product; a Windows tray app is one consumer of it.
 
-**Status: early M1.** The CLI detects one tool (git) live. More tools, `check`, `tools` and `schema` arrive in later slices. The tray app launches and opens its popup, which does not show scan results yet.
+**Status: early M1.** The CLI detects one tool (git) live. More tools, `check` and `tools` arrive in later slices. The tray app launches and opens its popup, which does not show scan results yet.
 
 ## Usage
 
@@ -11,6 +11,7 @@ versionbar               # same as `versionbar list`
 versionbar list          # table: each tool's active version, path and count of other installs
 versionbar show git ...  # every install of the given tools, the active one first (also: `--json`)
 versionbar list --json   # machine-readable ScanResult (also: `versionbar --json`)
+versionbar schema        # JSON Schema of every --json output
 versionbar --help        # every command has --help
 ```
 
@@ -44,6 +45,8 @@ Every run scans the machine live; nothing is cached. Human output uses colour on
 - `versionbar show <tool>...` prints the same `ScanResult`, limited to the requested tools (in the order given, repeats dropped). An unknown id exits with code 2 and lists the known ids on stderr; nothing is written to stdout.
 - `source` is `path` for installs found on PATH. `via` and `raw` are optional (`null` when absent); `raw` is the version output the version was read from.
 - `notes` are human-readable diagnostics explaining a status (for example why a tool is missing, or the captured message of a failed version command). They are for people and logs, not for parsing. They are the only diagnostic field; see below for what each status puts there.
+
+`versionbar schema` prints the JSON Schema (draft 2020-12) of every `--json` output, generated from the core's Pydantic models. The same schema and the UI's TS types are committed under [`schema/`](schema/README.md), which also describes the compatibility rules.
 
 ### Failures and partial results
 
@@ -99,17 +102,18 @@ versionbar --help
 
 ## Commands
 
-All work goes through root npm scripts. `lint` and `test` run every part; the `:core`, `:repo`, `:ui` and `:rust` variants run one part each.
+All work goes through root npm scripts. `lint` and `test` run every part; the `:core`, `:repo`, `:gen`, `:ui` and `:rust` variants run one part each.
 
 | Script | What it does |
 | --- | --- |
 | `npm run cli -- <args>` | Run the `versionbar` CLI from the checkout |
 | `npm run dev` | Run the tray app with hot reload |
 | `npm run build` | Local test build of the installer (releases come from CI) |
-| `npm test` | `test:core`: pytest, CLI tests over the fake system plus an install smoke test (`uv tool install` of `core/`, then run the installed command, including a live `list --json` that must find git). `test:ui`: Vitest, the popup rendered with Tauri's IPC mock. `test:rust`: `cargo test` for the shell |
-| `npm run lint` | `lint:core`: ruff check and format check, ty. `lint:repo`: taplo (check and format), actionlint. `lint:ui`: `tsc --noEmit`, ESLint (typescript-eslint, react-hooks), Prettier. `lint:rust`: rustfmt, clippy `-D warnings`, cargo-deny |
+| `npm test` | `test:core`: pytest, CLI tests over the fake system plus an install smoke test (`uv tool install` of `core/`, then run the installed command, including a live `list --json` that must find git, validate against the committed schema and never import Rich). `test:ui`: Vitest, the popup rendered with Tauri's IPC mock. `test:rust`: `cargo test` for the shell |
+| `npm run gen` | Regenerate `schema/` (JSON Schemas and TS types) and the UI's product-name constant from their sources; see [schema/README.md](schema/README.md) |
+| `npm run lint` | `lint:core`: ruff check and format check, ty. `lint:repo`: taplo (check and format, including the built-in tool definitions against their schema), actionlint. `lint:gen`: fails if any generated file is stale. `lint:ui`: `tsc --noEmit`, ESLint (typescript-eslint, react-hooks), Prettier. `lint:rust`: rustfmt, clippy `-D warnings`, cargo-deny |
 
-More scripts (`gen`, `doctor`) arrive with the slices that need them. CI runs the core, repo and UI checks on Windows and Ubuntu and the Rust checks on Windows only (the shell ships only for Windows, and building Tauri on Linux needs extra system packages). It also checks that PR titles follow Conventional Commits.
+More scripts (`doctor`) arrive with the slices that need them. CI runs the core, repo and UI checks on Windows and Ubuntu and the Rust checks on Windows only (the shell ships only for Windows, and building Tauri on Linux needs extra system packages). It also checks that PR titles follow Conventional Commits.
 
 ## Tooling choices
 

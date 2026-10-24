@@ -7,9 +7,6 @@ import sys
 from pathlib import Path
 
 import pytest
-from typer.testing import CliRunner
-
-from versionbar.cli import app
 
 from fakes import (
     GIT_LINUX,
@@ -17,12 +14,9 @@ from fakes import (
     WINDOWS_PATHEXT,
     FakeSystem,
     load_capture,
+    run_cli,
     windows_with_git,
 )
-
-
-def run_cli(system: FakeSystem, *args: str):
-    return CliRunner().invoke(app, list(args), obj=system)
 
 
 def run_entry_point(args: list[str], system_expr: str) -> subprocess.CompletedProcess[bytes]:
@@ -130,6 +124,20 @@ def test_json_runs_never_import_rich(args: list[str]) -> None:
 
     assert completed.returncode == 0, completed.stderr
     assert json.loads(completed.stdout)["tools"]
+    assert completed.stderr == b"rich absent"
+
+
+@pytest.mark.parametrize(
+    ("args", "exit_code"),
+    [(["schema"], 0), (["debug", "capture", "git", "--out", "caps", "--json"], 1)],
+    ids=["schema", "debug capture"],
+)
+def test_other_json_commands_never_import_rich(args: list[str], exit_code: int) -> None:
+    # The capture finds no git on the empty PATH, so it prints its failure JSON.
+    completed = run_entry_point(args, "fakes.FakeSystem(env={'PATH': ''})")
+
+    assert completed.returncode == exit_code, completed.stderr
+    assert json.loads(completed.stdout)
     assert completed.stderr == b"rich absent"
 
 

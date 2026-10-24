@@ -12,7 +12,7 @@ dependencies = ["typer>=0.12", "rich>=13", "pydantic>=2.11"]
 versionbar = "versionbar.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff>=0.6", "ty>=0.0.1a1"]
+dev = ["jsonschema>=4.23", "pytest>=8", "ruff>=0.6", "ty>=0.0.1a1"]
 
 [build-system]
 requires = ["uv_build>=0.8,<0.13"]
