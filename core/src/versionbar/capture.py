@@ -66,10 +66,15 @@ class CaptureFile(StrictModel):
     provenance: Provenance
 
 
+type FailureOutcome = Literal[
+    "unknown-tool", "unsupported-os", "not-found", "timeout", "launch-error", "write-failed"
+]
+
+
 class CaptureError(Exception):
     """A capture that could not be recorded. `outcome` is the stable machine-readable reason."""
 
-    def __init__(self, outcome: str, message: str) -> None:
+    def __init__(self, outcome: FailureOutcome, message: str) -> None:
         super().__init__(message)
         self.outcome = outcome
         self.message = message
@@ -80,6 +85,14 @@ class CaptureOutcome(StrictModel):
     tool: str
     destination: str
     exit_code: int
+
+
+class CaptureFailure(StrictModel):
+    """What `debug capture --json` prints when nothing was recorded."""
+
+    outcome: FailureOutcome
+    tool: str
+    message: str
 
 
 def capture_tool(
