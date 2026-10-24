@@ -41,6 +41,31 @@ uv run --frozen --no-dev --managed-python --project <resources>\core -- versionb
 with `UV_PROJECT_ENVIRONMENT=<core-env>` and `PYTHONPYCACHEPREFIX=<core-env>\pycache` set and
 `VIRTUAL_ENV` removed. The arguments are fixed; the webview cannot change them.
 
+### Inherited uv settings
+
+The app inherits the user's environment, and uv reads many settings from `UV_*` variables. The
+ones that would change which project, Python, environment or dependency set this invocation
+uses, or contradict its flags, are removed before uv starts (`OVERRIDDEN_UV_VARIABLES` in
+`scan.rs`, checked against `uv run --help` for uv 0.12):
+
+| Group | Removed |
+|---|---|
+| Which Python | `UV_PYTHON`, `UV_MANAGED_PYTHON`, `UV_NO_MANAGED_PYTHON`, `UV_SYSTEM_PYTHON`, `UV_PYTHON_PREFERENCE` |
+| Which project and environment | `UV_PROJECT`, `UV_WORKING_DIR`, `UV_NO_PROJECT`, `UV_ISOLATED` (`UV_PROJECT_ENVIRONMENT` is set by the app) |
+| How the environment is synced | `UV_LOCKED` (clashes with `--frozen`), `UV_FROZEN`, `UV_NO_SYNC`, `UV_NO_DEV`, `UV_NO_DEFAULT_GROUPS`, `UV_NO_GROUP`, `UV_NO_EDITABLE`, `UV_NO_SOURCES`, `UV_NO_SOURCES_PACKAGE` |
+| Extra variables | `UV_ENV_FILE` (a dotenv file would load arbitrary variables into the core) |
+
+Everything else is passed on, on purpose: index and mirror settings (`UV_INDEX_URL`,
+`UV_DEFAULT_INDEX`, `UV_PYTHON_INSTALL_MIRROR`, ...), proxies and TLS (`HTTPS_PROXY`,
+`UV_NATIVE_TLS`, ...), cache and install locations (`UV_CACHE_DIR`, `UV_PYTHON_INSTALL_DIR`),
+and offline or download policy (`UV_OFFLINE`, `UV_PYTHON_DOWNLOADS`). A user behind a company
+mirror or proxy needs them for the first-run download. uv config files (`uv.toml`) are read as
+usual for the same reason; the command-line flags above take precedence over them.
+
+The removed variables are also absent for the core and the tools it runs. Today the core only
+runs `--version` commands, which ignore them; a future provider that asks uv itself about
+Pythons would not see the user's `UV_PYTHON` and similar settings.
+
 - `--frozen` installs exactly the bundled lock file and never rewrites it.
 - `--no-dev` leaves out the contributor tools (pytest, ruff, ty).
 - `--managed-python` uses a uv-managed Python only, never the system Python the core reports
@@ -55,10 +80,13 @@ first-run timeout; until then every scan uses the 30-second timeout.
 
 Looked up again for every scan, in this order, taking the first `uv.exe` that is a file:
 
-1. Each absolute entry of `PATH`.
+1. Each entry of `PATH`.
 2. `UV_INSTALL_DIR` (uv's installer puts the binary directly in that folder).
 3. `%USERPROFILE%\.local\bin`, the installer's default, for an app started at login without
    the shell's `PATH`.
+
+Relative or empty folders are skipped at every step: they would resolve against the app's
+working directory, which nobody chose. The core treats `PATH` the same way.
 
 If none exists the outcome is `uv_missing` and nothing runs. VersionBar never installs uv.
 
@@ -70,11 +98,21 @@ The scan fails (`kind: "failed"`) with one of these reasons, and keeps the last 
 |---|---|
 | `launch` | uv could not be started. |
 | `timeout` | No exit within the timeout. uv and everything it started are killed (`taskkill /F /T`). |
-| `exit` | Nonzero exit code. stderr is attached. |
+| `exit` | Nonzero exit code (stderr is attached), or the operating system could not report whether uv was still running; uv is then stopped like a timed-out scan and the message carries the error. |
 | `malformed` | stdout is not a JSON object. |
 | `incompatible` | A JSON object whose `schema_version` is missing or not the one this build supports (`SUPPORTED_SCHEMA_VERSION`, checked against `schema/output.schema.json` by `tests/schema_version.rs`). |
 
 Beyond that check the result is stored and passed on as the exact text the core printed.
+
+### Output after an exit or a kill
+
+stdout and stderr are read on background threads. Once uv has exited (or been killed) the
+shell waits at most one second more for the pipes to close, then goes on with what arrived. A
+process outside the killed tree that inherited the pipes can keep them open; its reader thread
+is then left behind until the pipe closes, because a blocked read cannot be cancelled. This is
+accepted: it holds a few kilobytes of memory, never delays a scan by more than that second, and
+matches what the core does for the tools it runs (`_DRAIN_SECONDS` in
+`core/src/versionbar/system/real.py`).
 
 ## IPC contract with the popup
 
@@ -95,6 +133,11 @@ Beyond that check the result is stored and passed on as the exact text the core 
     | { kind: "failed"; reason: string; message: string; stderr: string };
 }
 ```
+
+A consumer subscribes to `scan-updated` first and calls `get_state` only once the
+subscription is in place: an event sent while the listener is still being registered reaches
+nobody, so an earlier `get_state` answer could stay stale. After an event has arrived, a
+`get_state` answer is ignored, since it may have been read before that event.
 
 The TS mirror is `app/src/shell.ts`. Consumers must handle unknown `kind` and `reason` values
 (ticket 22 adds a setup state). State is held in memory only; ticket 24 saves it to disk.

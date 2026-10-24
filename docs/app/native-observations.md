@@ -85,13 +85,24 @@ invocation are described in `docs/app/bundled-core.md`.
 
 - **Finding uv.** Before every scan it looks for `uv.exe` on PATH, then in `UV_INSTALL_DIR`,
   then in `%USERPROFILE%\.local\bin`. The last two cover an app started at login without the
-  terminal's PATH. If uv is nowhere, it reports "uv missing" and runs nothing. It never
-  installs uv.
+  terminal's PATH. Folders given as relative or empty paths are skipped, because they would
+  depend on whatever folder the app happened to start in. If uv is nowhere, it reports "uv
+  missing" and runs nothing. It never installs uv.
 - **Running the core.** It starts uv with one fixed command line (`run --frozen --no-dev
   --managed-python --project <bundled core> -- versionbar list --json`). The Python
   environment and Python's bytecode files go in the app data folder, never in the install
   folder. No console window flashes. If the scan takes longer than 30 seconds, it kills uv
-  and everything uv started.
+  and everything uv started. If Windows cannot say whether uv is still running, it also
+  kills it and reports a failure with Windows' error, rather than calling it a timeout.
+- **Ignoring stray uv settings.** uv also reads settings from `UV_...` environment
+  variables. The shell removes the ones that would make uv pick a different Python, project
+  or environment, or install a different set of packages than the shipped lock file (the
+  full list is in `docs/app/bundled-core.md`). Settings for mirrors, proxies, the download
+  cache and offline mode are kept, because some users need them to download anything.
+- **Leftover readers.** After uv exits or is killed, the shell waits at most one more second
+  for its output. If some other program still holds the output open, the scan goes on and a
+  small background reader is left waiting until that program lets go. The core accepts the
+  same trade-off for the tools it runs.
 - **Checking the result.** It accepts the output only if it is a JSON object whose
   `schema_version` is 1. It reads no other field and passes the text on unchanged.
   Anything else (start failure, timeout, nonzero exit with its error output, non-JSON,
@@ -104,6 +115,16 @@ invocation are described in `docs/app/bundled-core.md`.
   scan starts and ends. The popup gained exactly four permissions: those two commands plus
   listening and un-listening for events. `tests/capabilities.rs` lists them. It still cannot
   run programs or pass arguments to the core.
+- **Why the two event permissions.** The usual rule is one permission per scoped command,
+  and the two event permissions are not commands of ours. They are Tauri's built-in way for
+  a page to receive messages the app sends it: "listen" lets the popup start receiving
+  `scan-updated`, "unlisten" lets it stop when it closes. Without them the popup could only
+  ask for the state again and again. They only let the popup hear messages; they do not let
+  it send anything to Rust, run anything or change any state. The alternative, a command
+  that waits until the next scan finishes, would be a home-made copy of the same mechanism.
+- **Order on the popup side.** The popup starts listening first and asks for the state only
+  once listening works. Asking first could leave it showing "Scanning…" forever, if the scan
+  finished in the moment between the answer and the start of listening.
 - **Startup.** One scan starts at launch, so the popup has data by the time it opens.
 - **Dependencies.** `serde` and `serde_json` became direct dependencies. They were already
   built as part of Tauri, so nothing new is downloaded. `serde_json` gained its `raw_value`
