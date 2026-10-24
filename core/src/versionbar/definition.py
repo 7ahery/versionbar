@@ -16,7 +16,7 @@ from versionbar.system import OsName
 
 
 def _check_regex(pattern: str) -> str:
-    if "version" not in re.compile(pattern).groupindex:
+    if "version" not in re.compile(_check_compiles(pattern)).groupindex:
         raise ValueError("version_regex needs a named group `(?P<version>...)`")
     return pattern
 

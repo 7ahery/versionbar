@@ -97,7 +97,10 @@ def test_a_batch_wrapper_in_a_folder_with_spaces_and_parentheses_runs(
 
 
 @windows_only
-@pytest.mark.parametrize("argument", ["%PATH%", "a&b", "a|b", "a>b", "a^b", '"quoted"', "a b"])
+@pytest.mark.parametrize(
+    "argument",
+    ["%PATH%", "a&b", "a|b", "a>b", "a^b", '"quoted"', "a b", "a,b", "a;b", "a=b"],
+)
 def test_a_batch_wrapper_is_not_given_arguments_cmd_would_reinterpret(
     tmp_path: Path, argument: str
 ) -> None:

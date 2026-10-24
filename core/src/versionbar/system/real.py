@@ -177,10 +177,11 @@ class _Refused:
 
 
 # cmd.exe expands `%` even inside quotes and treats the rest as operators or
-# quoting outside them. Version arguments never need any of these, so a batch
-# wrapper simply never receives one rather than relying on escaping that
-# differs between cmd.exe and the script's own %1 parsing.
-_BATCH_UNSAFE = frozenset('%"^&|<>()!\r\n\t ')
+# quoting outside them. `,` `;` `=` separate arguments in a batch file's own
+# %1 parsing, so one argument would arrive as several. Version arguments never
+# need any of these, so a batch wrapper simply never receives one rather than
+# relying on escaping that differs between cmd.exe and the script.
+_BATCH_UNSAFE = frozenset('%"^&|<>()!,;=\r\n\t ')
 
 
 def _batch_command_line(argv: Sequence[str]) -> tuple[str, str] | _Refused:

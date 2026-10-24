@@ -169,6 +169,21 @@ def test_a_definition_with_via_rules_validates_and_loads() -> None:
     assert [rule.manager for rule in loaded.for_os("windows").via] == ["pyenv"]
 
 
+@pytest.mark.parametrize(
+    "broken",
+    [
+        changed(version_regex="(?P<version>unclosed"),
+        changed(overrides={"linux": {"version_regex": "(?P<version>unclosed"}}),
+    ],
+    ids=["version_regex", "override version_regex"],
+)
+def test_a_version_regex_that_does_not_compile_is_rejected_by_the_loader(broken: dict) -> None:
+    # The schema only checks the group's syntax; compiling is the loader's job,
+    # and re.error must surface as a validation error, not a crash.
+    with pytest.raises(ValidationError, match="not a valid regex"):
+        ToolDefinition.model_validate(broken)
+
+
 def test_a_content_regex_that_does_not_compile_is_rejected_by_the_loader() -> None:
     # Like version_regex, only the loader can compile the pattern.
     with pytest.raises(ValidationError, match="content_regex"):

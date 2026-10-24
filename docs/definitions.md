@@ -37,11 +37,11 @@ Every runnable PATH hit is an install with `source = "path"`, the first one acti
 
 Nothing to declare. `binaries = ["npm"]` resolves to `npm.cmd` through PATHEXT, skipping the extensionless `npm` script beside it, exactly as `cmd.exe` would. The install's path is the wrapper's own path, since that is what typing the command runs.
 
-The runner starts wrappers through `%SYSTEMROOT%\System32\cmd.exe /d /e:on /v:off /s /c`: AutoRun hooks are skipped, command extensions are on and delayed expansion off. So `version_args` for a tool that may resolve to a wrapper must avoid characters `cmd.exe` would reinterpret: whitespace, `% " ^ & | < > ( ) !`. A wrapper given such an argument (or an empty one), or whose path contains `%`, is not run and the install reports an error saying so. Plain flags (`--version`, `version`, `-v`, `--client`) are fine.
+The runner starts wrappers through `%SYSTEMROOT%\System32\cmd.exe /d /e:on /v:off /s /c`: AutoRun hooks are skipped, command extensions are on and delayed expansion off. So `version_args` for a tool that may resolve to a wrapper must avoid characters `cmd.exe` would reinterpret: whitespace, `% " ^ & | < > ( ) ! , ; =`. A wrapper given such an argument (or an empty one), or whose path contains `%` or `"`, is not run and the install reports an error saying so. Plain flags (`--version`, `version`, `-v`, `--client`) are fine.
 
 ## Shim attribution (`via`)
 
-`[[via]]` rules are tried in order for every install on PATH; the first that matches sets the install's `via` to its `manager`. A rule matches when every condition it gives matches, and it must give at least one:
+`[[via]]` rules are tried in order for every install on PATH; the first that matches sets the install's `via` to its `manager`. `manager` is a free string, but built-in definitions use only the spec's managers (`corepack`, `volta`, `pyenv`) unless spec #1 changes. A rule matches when every condition it gives matches, and it must give at least one:
 
 - `dirs`: the install's folder is one of these folders. Each starts with an environment variable, `{NAME}`, and may use more: `{VOLTA_HOME}/bin`. Use `/`; it becomes `\` on Windows, and comparison follows the OS (case-insensitive on Windows). A folder whose variable is unset or empty, or that is not absolute once expanded, is ignored. There are no fixed paths: a manager is recognised wherever its variable says it lives, and a folder that only looks like a manager's default is not tagged. List fallbacks as extra folders (`{PYENV_ROOT}/shims`, `{HOME}/.pyenv/shims`); all of them count. Variables must hold one folder, not a list.
 - `content_regex`: a Python regex searched for in the first 16 KiB of the install's file, decoded as UTF-8. For shims recognisable only by what their manager writes into them. The file is read, never run; an unreadable file does not match.
@@ -56,7 +56,7 @@ Attribution never changes which install is active or what is run: `via` only exp
 | 09 | pyenv on Linux | `[[via]] manager = "pyenv"`, `dirs = ["{PYENV_ROOT}/shims", "{HOME}/.pyenv/shims"]` |
 | 09 | pip, pipx, poetry | Plain definitions; the same pyenv rule where pyenv shims them. |
 | 13 (#15) volta | `node`, `npm`, `pnpm`, `yarn` served by Volta | `[[via]] manager = "volta"`, `dirs = ["{VOLTA_HOME}/bin"]` (plus a Windows fallback such as `{LOCALAPPDATA}/Volta/bin` if captures show `VOLTA_HOME` can be unset) |
-| 13 | corepack's `pnpm`/`yarn` | `[[via]] manager = "corepack"` with a `content_regex` matching the corepack path the shim launches (`corepack[\\/]dist[\\/]` on Windows `.cmd` shims; on Linux the file is a symlink whose target, read through it, also names corepack). Take the exact marker from a real shim. |
+| 13 | corepack's `pnpm`/`yarn` | `[[via]] manager = "corepack"` with a `content_regex` matching the corepack path the shim launches (`corepack[\\/]dist[\\/]` on Windows `.cmd` shims; on Linux verify with a real capture what the shim file is and what the content read sees). Take the exact marker from a real shim. |
 | 13 | `npm.cmd`, `pnpm.cmd`, `yarn.cmd` | Nothing: wrappers resolve and run as above. |
 | 13 | nvm, fnm, volta themselves | Plain definitions; their binaries are on PATH. nvm-held Node versions are the nvm provider's (ticket 16). |
 | 14 (#16) | java, go, rustc, cargo, rustup, dotnet, ruby, php, composer | Plain definitions (`composer.bat` is a wrapper). A `via` rule only where a manager shims the tool, such as `{CARGO_HOME}/bin` for rustup's proxies if that attribution is wanted. |
