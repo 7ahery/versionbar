@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from versionbar.system import AppExecutionAlias
 from versionbar.system.real import local_system
 from versionbar.system.resolve import path_hits
 
@@ -76,7 +77,7 @@ def test_an_app_execution_alias_is_read_without_running_it() -> None:
 
     alias = local_system().app_execution_alias(str(winget))
 
-    assert alias is not None
+    assert isinstance(alias, AppExecutionAlias), alias
     assert alias.package_family == "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe"
     assert alias.app_user_model_id == "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe!winget"
     assert alias.target.lower().endswith(r"\winget.exe")

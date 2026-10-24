@@ -5,7 +5,7 @@ import json
 from typer.testing import CliRunner
 
 from versionbar.cli import app
-from versionbar.system import ProcessResult
+from versionbar.system import ProcessResult, UnreadableAlias
 
 from fakes import (
     GIT_WINDOWS,
@@ -204,6 +204,49 @@ def test_a_placeholder_earlier_on_path_is_named_as_what_typing_the_command_runs(
         # Typing `python3` finds no real install to hide.
         placeholder_note(STORE_PYTHON3),
     ]
+
+
+def test_store_placeholder_notes_reach_the_human_output(monkeypatch) -> None:
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    system = with_store_placeholders(windows(WINDOWS_APPS))
+
+    listed = run_cli(system, "list").stdout.splitlines()
+    shown = run_cli(system, "show", "python").stdout.splitlines()
+
+    # `list` stays one row per tool; `show` is where the explanation is read.
+    assert "missing" in next(line for line in listed if line.startswith("python "))
+    assert "missing" in next(line for line in shown if line.startswith("python "))
+    assert f"python: {placeholder_note(STORE_PYTHON)}" in shown
+    assert f"python: {placeholder_note(STORE_PYTHON3)}" in shown
+
+
+# An alias whose data could not be read: what the real system reports when the
+# reparse point cannot be opened or holds a layout it does not know.
+UNREADABLE = UnreadableAlias(reason="Windows error 5")
+
+
+def test_an_unreadable_python_alias_is_treated_as_a_placeholder_and_not_run() -> None:
+    system = windows(WINDOWS_APPS)
+    system.add_app_execution_alias(STORE_PYTHON, UNREADABLE)
+
+    python = tools_of(run_cli(system, "list", "--json"))["python"]
+
+    assert (python["status"], python["active"]) == ("missing", None)
+    assert python["notes"] == [
+        "only Microsoft Store placeholders found on PATH (looked for: python, python3)",
+        f"{STORE_PYTHON} is an App Execution Alias whose data could not be read"
+        " (Windows error 5), so it is treated as a Microsoft Store placeholder; it was not run",
+    ]
+    assert system.runs == []
+
+
+def test_an_unreadable_alias_for_another_command_is_still_run() -> None:
+    system = windows(WINDOWS_APPS)
+    system.add_app_execution_alias(rf"{WINDOWS_APPS}\uv.exe", UNREADABLE, load_capture(UV_WINDOWS))
+
+    uv = tools_of(run_cli(system, "list", "--json"))["uv"]
+
+    assert (uv["status"], uv["active"]["version"]) == ("found", "0.12.23")
 
 
 def test_other_app_execution_aliases_still_run_even_from_the_same_package() -> None:

@@ -3,6 +3,7 @@ that touches processes, the environment or the machine's filesystem directly
 (reading the package's own bundled data is not machine access)."""
 
 import contextlib
+import functools
 import os
 import platform
 import signal
@@ -11,8 +12,9 @@ import sys
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
-from versionbar.system import AppExecutionAlias, OsName, ProcessResult, System
+from versionbar.system import AppExecutionAlias, OsName, ProcessResult, System, UnreadableAlias
 
 # How long a timed-out command's tree gets to die and release its pipes.
 _DRAIN_SECONDS = 1.0
@@ -117,7 +119,7 @@ class _LocalSystem:
                 with contextlib.suppress(OSError):
                     stream.close()
 
-    def app_execution_alias(self, path: str) -> AppExecutionAlias | None:
+    def app_execution_alias(self, path: str) -> AppExecutionAlias | UnreadableAlias | None:
         if sys.platform != "win32":
             return None
         try:
@@ -142,22 +144,19 @@ class _LocalSystem:
         return datetime.now(UTC)
 
 
-def _read_app_execution_alias(path: str) -> AppExecutionAlias | None:
-    """Read an App Execution Alias's reparse data with FSCTL_GET_REPARSE_POINT.
-
-    Python has no API for this reparse type (os.readlink rejects it), hence
-    ctypes. The file is opened with no access rights and as the reparse point
-    itself, so nothing it points to is opened or run.
-    """
+@functools.cache
+def _kernel32() -> Any:
+    """kernel32 with typed prototypes, built once on first use (Windows only)."""
     if sys.platform != "win32":
-        return None
+        raise RuntimeError("kernel32 exists only on Windows")
     import ctypes
     from ctypes import wintypes
 
+    # use_last_error: GetLastError is copied after every call, so the reason a
+    # call failed survives into the note an unreadable alias gets.
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    create_file = kernel32.CreateFileW
-    create_file.restype = wintypes.HANDLE
-    create_file.argtypes = [
+    kernel32.CreateFileW.restype = wintypes.HANDLE
+    kernel32.CreateFileW.argtypes = [
         wintypes.LPCWSTR,
         wintypes.DWORD,
         wintypes.DWORD,
@@ -166,9 +165,8 @@ def _read_app_execution_alias(path: str) -> AppExecutionAlias | None:
         wintypes.DWORD,
         wintypes.HANDLE,
     ]
-    device_io_control = kernel32.DeviceIoControl
-    device_io_control.restype = wintypes.BOOL
-    device_io_control.argtypes = [
+    kernel32.DeviceIoControl.restype = wintypes.BOOL
+    kernel32.DeviceIoControl.argtypes = [
         wintypes.HANDLE,
         wintypes.DWORD,
         wintypes.LPVOID,
@@ -179,21 +177,41 @@ def _read_app_execution_alias(path: str) -> AppExecutionAlias | None:
         wintypes.LPVOID,
     ]
     kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    return kernel32
 
-    share_all = 0x1 | 0x2 | 0x4  # FILE_SHARE_READ | WRITE | DELETE
-    open_existing = 3
-    open_reparse_point = 0x00200000 | 0x02000000  # FILE_FLAG_OPEN_REPARSE_POINT | BACKUP_SEMANTICS
-    fsctl_get_reparse_point = 0x000900A8
-    handle = create_file(path, 0, share_all, None, open_existing, open_reparse_point, None)
+
+_FILE_SHARE_ALL = 0x1 | 0x2 | 0x4  # FILE_SHARE_READ | WRITE | DELETE
+_OPEN_EXISTING = 3
+# FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS
+_OPEN_AS_REPARSE_POINT = 0x00200000 | 0x02000000
+_FSCTL_GET_REPARSE_POINT = 0x000900A8
+_MAXIMUM_REPARSE_DATA_BUFFER_SIZE = 16 * 1024
+
+
+def _read_app_execution_alias(path: str) -> AppExecutionAlias | UnreadableAlias:
+    """Read an App Execution Alias's reparse data with FSCTL_GET_REPARSE_POINT.
+
+    Python has no API for this reparse type (os.readlink rejects it), hence
+    ctypes. The file is opened with no access rights and as the reparse point
+    itself, so nothing it points to is opened or run.
+    """
+    if sys.platform != "win32":
+        raise RuntimeError("App Execution Aliases exist only on Windows")
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = _kernel32()
+    handle = kernel32.CreateFileW(
+        path, 0, _FILE_SHARE_ALL, None, _OPEN_EXISTING, _OPEN_AS_REPARSE_POINT, None
+    )
     if handle in (None, wintypes.HANDLE(-1).value):
-        return None
+        return UnreadableAlias(f"could not open it: Windows error {ctypes.get_last_error()}")
     try:
-        # MAXIMUM_REPARSE_DATA_BUFFER_SIZE.
-        buffer = ctypes.create_string_buffer(16 * 1024)
+        buffer = ctypes.create_string_buffer(_MAXIMUM_REPARSE_DATA_BUFFER_SIZE)
         returned = wintypes.DWORD()
-        if not device_io_control(
+        if not kernel32.DeviceIoControl(
             handle,
-            fsctl_get_reparse_point,
+            _FSCTL_GET_REPARSE_POINT,
             None,
             0,
             buffer,
@@ -201,11 +219,12 @@ def _read_app_execution_alias(path: str) -> AppExecutionAlias | None:
             ctypes.byref(returned),
             None,
         ):
-            return None
+            error = ctypes.get_last_error()
+            return UnreadableAlias(f"could not read its reparse data: Windows error {error}")
         data = buffer.raw[: returned.value]
     finally:
         kernel32.CloseHandle(handle)
-    return _parse_app_execution_alias(data)
+    return _parse_app_execution_alias(data) or UnreadableAlias("unrecognised alias data")
 
 
 def _parse_app_execution_alias(data: bytes) -> AppExecutionAlias | None:

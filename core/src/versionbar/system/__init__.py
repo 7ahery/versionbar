@@ -35,6 +35,13 @@ class AppExecutionAlias:
     target: str
 
 
+@dataclass(frozen=True)
+class UnreadableAlias:
+    """A file that is an App Execution Alias, but whose data could not be read."""
+
+    reason: str
+
+
 class System(Protocol):
     @property
     def os(self) -> OsName: ...
@@ -55,8 +62,11 @@ class System(Protocol):
 
     def run(self, argv: Sequence[str], timeout: float) -> ProcessResult: ...
 
-    def app_execution_alias(self, path: str) -> AppExecutionAlias | None:
+    def app_execution_alias(self, path: str) -> AppExecutionAlias | UnreadableAlias | None:
         """The alias stored in `path`, or None when it is not one (always None off Windows).
+
+        UnreadableAlias when the file is an alias but its data could not be
+        read, so callers can refuse to run it rather than guess.
 
         Reads the file's reparse data only: running an alias can have side
         effects, such as the Store placeholders opening the Microsoft Store.

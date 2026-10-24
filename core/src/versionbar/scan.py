@@ -1,7 +1,6 @@
 """The generic detection engine. It knows nothing about individual tools: all
 tool-specific knowledge comes from definitions."""
 
-import ntpath
 import re
 from collections.abc import Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -11,7 +10,7 @@ from versionbar.decoding import decode_output
 from versionbar.definition import ToolDefinition
 from versionbar.models import Install, ScanResult, Tool, ToolStatus
 from versionbar.system import ProcessResult, System
-from versionbar.system.resolve import is_store_placeholder, path_hits
+from versionbar.system.resolve import ToolHits
 
 DEFAULT_TIMEOUT_SECONDS = 5.0
 # Version commands mostly wait on process start-up, so overlapping them is what
@@ -37,21 +36,17 @@ def scan(system: System, definitions: list[ToolDefinition]) -> ScanResult:
 
 def _submit(
     pool: ThreadPoolExecutor, system: System, definition: ToolDefinition
-) -> tuple[ToolDefinition, _Hits, list[Future[Install | _Failed]]]:
+) -> tuple[ToolDefinition, ToolHits, list[Future[Install | _Failed]]]:
     # Resolution only checks files, so it stays on this thread; a tool's
     # commands start as soon as its paths are known.
-    hits = _Hits.of(system, definition.binaries)
+    hits = ToolHits.of(system, definition.binaries)
     return definition, hits, [pool.submit(_probe, system, definition, path) for path in hits.paths]
 
 
-def _detect(definition: ToolDefinition, hits: _Hits, probes: list[Install | _Failed]) -> Tool:
+def _detect(definition: ToolDefinition, hits: ToolHits, probes: list[Install | _Failed]) -> Tool:
     if not hits.paths:
-        names = ", ".join(definition.binaries)
-        if hits.placeholders:
-            first = f"only Microsoft Store placeholders found on PATH (looked for: {names})"
-        else:
-            first = f"not found on PATH (looked for: {names})"
-        return _tool(definition, "missing", notes=[first, *hits.placeholder_notes(definition)])
+        notes = hits.missing_notes(definition.binaries, definition.name)
+        return _tool(definition, "missing", notes=notes)
 
     # The first hit is what runs when the command is typed. If it cannot
     # report a version the tool is in error; the other installs are dropped
@@ -60,7 +55,7 @@ def _detect(definition: ToolDefinition, hits: _Hits, probes: list[Install | _Fai
     active = probes[0]
     if isinstance(active, _Failed):
         return _tool(
-            definition, active.status, notes=[active.note, *hits.placeholder_notes(definition)]
+            definition, active.status, notes=[active.note, *hits.placeholder_notes(definition.name)]
         )
 
     installs = [active]
@@ -72,7 +67,7 @@ def _detect(definition: ToolDefinition, hits: _Hits, probes: list[Install | _Fai
             notes.append(other.note)
         else:
             installs.append(other)
-    notes += hits.placeholder_notes(definition, active=active.path)
+    notes += hits.placeholder_notes(definition.name, active=active.path)
     return _tool(definition, "found", active=active, installs=installs, notes=notes)
 
 
@@ -126,60 +121,6 @@ def _probe(system: System, definition: ToolDefinition, path: str) -> Install | _
 
 def _failed(status: ToolStatus, message: str, output: str) -> _Failed:
     return _Failed(status, message + (f": {output}" if output else ""))
-
-
-@dataclass(frozen=True)
-class _Hits:
-    """A tool's PATH matches, in the order the OS would try them."""
-
-    # Every match, placeholders included, so their PATH position is known.
-    ordered: list[str]
-    placeholders: frozenset[str]
-
-    @classmethod
-    def of(cls, system: System, binaries: list[str]) -> _Hits:
-        # Binaries keep their declared order, so an earlier name outranks a later one.
-        # Two names can match one file (`git` and `git.exe`); path_hits already
-        # normalised the spelling, so exact equality collapses those. Case-folding
-        # is not repeated here: it only matters across PATH entries, which
-        # path_hits handles per name.
-        ordered = list(
-            dict.fromkeys(hit for binary in binaries for hit in path_hits(system, binary))
-        )
-        placeholders = frozenset(hit for hit in ordered if is_store_placeholder(system, hit))
-        return cls(ordered, placeholders)
-
-    @property
-    def paths(self) -> list[str]:
-        """The matches that are real installs, the only ones ever run."""
-        return [hit for hit in self.ordered if hit not in self.placeholders]
-
-    def placeholder_notes(self, definition: ToolDefinition, active: str | None = None) -> list[str]:
-        notes = []
-        for hit in self.ordered:
-            if hit not in self.placeholders:
-                continue
-            note = (
-                f"{hit} is a Microsoft Store placeholder, not an install"
-                f" (it only offers to install {definition.name} from the Store); it was not run"
-            )
-            if active is not None and self._shadows(hit, active):
-                note += (
-                    f", but it comes first on PATH, so typing `{_command_name(hit)}`"
-                    f" runs it instead of {active}"
-                )
-            notes.append(note)
-        return notes
-
-    def _shadows(self, placeholder: str, active: str) -> bool:
-        # Only a placeholder for the same command name is what typing that
-        # command reaches; `python.exe` does not hide a later `python3.exe`.
-        same_command = _command_name(placeholder).casefold() == _command_name(active).casefold()
-        return same_command and self.ordered.index(placeholder) < self.ordered.index(active)
-
-
-def _command_name(path: str) -> str:
-    return ntpath.splitext(ntpath.basename(path))[0]
 
 
 def _decode(process: ProcessResult) -> str:
