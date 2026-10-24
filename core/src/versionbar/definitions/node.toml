@@ -1,3 +1,4 @@
+#:schema ../../../../schema/definition.schema.json
 id = "node"
 name = "Node.js"
 os = ["windows", "linux"]

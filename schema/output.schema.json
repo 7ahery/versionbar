@@ -1,0 +1,240 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CommandOutput",
+  "description": "Every document the CLI prints with --json. Scan results (list, show) carry schema_version 1, which changes only on breaking changes.",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/ScanResult"
+    },
+    {
+      "$ref": "#/$defs/CaptureOutcome"
+    },
+    {
+      "$ref": "#/$defs/CaptureFailure"
+    }
+  ],
+  "$defs": {
+    "CaptureFailure": {
+      "additionalProperties": false,
+      "description": "What `debug capture --json` prints when nothing was recorded.",
+      "properties": {
+        "outcome": {
+          "$ref": "#/$defs/FailureOutcome"
+        },
+        "tool": {
+          "description": "The tool id that was asked for.",
+          "type": "string"
+        },
+        "message": {
+          "description": "Human-readable explanation.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "outcome",
+        "tool",
+        "message"
+      ],
+      "title": "CaptureFailure",
+      "type": "object"
+    },
+    "CaptureOutcome": {
+      "additionalProperties": false,
+      "description": "What `debug capture --json` prints after writing a capture file.",
+      "properties": {
+        "outcome": {
+          "const": "captured",
+          "default": "captured",
+          "type": "string"
+        },
+        "tool": {
+          "description": "The tool id that was captured.",
+          "type": "string"
+        },
+        "destination": {
+          "description": "Path of the capture file that was written.",
+          "type": "string"
+        },
+        "exit_code": {
+          "description": "Exit code of the tool's version command (recorded even when non-zero).",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "outcome",
+        "tool",
+        "destination",
+        "exit_code"
+      ],
+      "title": "CaptureOutcome",
+      "type": "object"
+    },
+    "FailureOutcome": {
+      "description": "Why nothing was captured. More values may be added without a breaking change; handle unknown ones.",
+      "enum": [
+        "unknown-tool",
+        "unsupported-os",
+        "not-found",
+        "timeout",
+        "launch-error",
+        "write-failed"
+      ],
+      "type": "string"
+    },
+    "Install": {
+      "additionalProperties": false,
+      "description": "One installation of a tool.",
+      "properties": {
+        "version": {
+          "description": "The version as the tool prints it, vendor suffixes included.",
+          "type": "string"
+        },
+        "path": {
+          "description": "Absolute path of the executable that was run.",
+          "type": "string"
+        },
+        "source": {
+          "description": "`path`, or the id of the provider that reported the install.",
+          "type": "string"
+        },
+        "via": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The manager whose shim serves this install, or null."
+        },
+        "raw": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Decoded version output the version was parsed from, or null."
+        }
+      },
+      "required": [
+        "version",
+        "path",
+        "source",
+        "via",
+        "raw"
+      ],
+      "title": "Install",
+      "type": "object"
+    },
+    "OsName": {
+      "enum": [
+        "windows",
+        "linux"
+      ],
+      "type": "string"
+    },
+    "ScanResult": {
+      "additionalProperties": false,
+      "description": "The result of one live scan: what `list --json` and `show --json` print.\n\n`platform` and `status` may gain values without a schema_version bump; handle\nunknown ones (for example with a default branch).",
+      "properties": {
+        "schema_version": {
+          "default": 1,
+          "description": "Changes only on breaking changes to this format.",
+          "type": "integer"
+        },
+        "scanned_at": {
+          "description": "When the scan ran, RFC 3339 in UTC.",
+          "format": "date-time",
+          "type": "string"
+        },
+        "platform": {
+          "$ref": "#/$defs/OsName"
+        },
+        "tools": {
+          "description": "`list`: every tool known on this OS, missing ones included. `show`: the requested ones.",
+          "items": {
+            "$ref": "#/$defs/Tool"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "scanned_at",
+        "platform",
+        "tools"
+      ],
+      "title": "ScanResult",
+      "type": "object"
+    },
+    "Tool": {
+      "additionalProperties": false,
+      "description": "One tool and every install of it that was found.",
+      "properties": {
+        "id": {
+          "description": "Stable tool id, as used on the command line (e.g. `git`).",
+          "type": "string"
+        },
+        "name": {
+          "description": "Display name.",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/ToolStatus"
+        },
+        "active": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Install"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The install that runs when you type the command, or null when there is none."
+        },
+        "installs": {
+          "description": "Every install found, the active one first.",
+          "items": {
+            "$ref": "#/$defs/Install"
+          },
+          "type": "array"
+        },
+        "notes": {
+          "default": [],
+          "description": "Human-readable explanations for the status (why missing, what failed); not for parsing.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "status",
+        "active",
+        "installs",
+        "notes"
+      ],
+      "title": "Tool",
+      "type": "object"
+    },
+    "ToolStatus": {
+      "description": "More values may be added without a schema_version bump; handle unknown ones.",
+      "enum": [
+        "found",
+        "missing",
+        "error",
+        "timeout"
+      ],
+      "type": "string"
+    }
+  }
+}

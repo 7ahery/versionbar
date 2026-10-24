@@ -1,44 +1,81 @@
 """The JSON contract (ADR 0005). These models are the single source of truth;
-bump SCHEMA_VERSION only for breaking changes."""
+bump SCHEMA_VERSION only for breaking changes.
 
-from typing import Literal
+Docstrings on models and fields become descriptions in the generated schema
+and TS types, so they are written for consumers of the JSON.
+"""
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict
+from typing import Annotated, Literal
+
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from versionbar.system import OsName
 
 SCHEMA_VERSION = 1
 
-type ToolStatus = Literal["found", "missing", "error", "timeout"]
+# Descriptions sit on the enum types, not the fields: a field description next
+# to a `$ref` makes the TS generator inline the enum instead of naming it.
+type ToolStatus = Annotated[
+    Literal["found", "missing", "error", "timeout"],
+    Field(
+        description="More values may be added without a schema_version bump; handle unknown ones."
+    ),
+]
 
 
 class StrictModel(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    # Output always carries every field, defaults included, so the generated
+    # output schema marks them required and consumers need no fallbacks.
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        json_schema_serialization_defaults_required=True,
+        use_attribute_docstrings=True,
+    )
 
 
 class Install(StrictModel):
+    """One installation of a tool."""
+
     version: str
+    """The version as the tool prints it, vendor suffixes included."""
     path: str
-    # `path`, or the id of the Provider that reported the install.
+    """Absolute path of the executable that was run."""
     source: str
+    """`path`, or the id of the provider that reported the install."""
     via: str | None = None
-    # Decoded version output, kept so consumers can see what the version was parsed from.
+    """The manager whose shim serves this install, or null."""
     raw: str | None = None
+    """Decoded version output the version was parsed from, or null."""
 
 
 class Tool(StrictModel):
+    """One tool and every install of it that was found."""
+
     id: str
+    """Stable tool id, as used on the command line (e.g. `git`)."""
     name: str
+    """Display name."""
     status: ToolStatus
     active: Install | None
-    # Every install found, the active one included.
+    """The install that runs when you type the command, or null when there is none."""
     installs: list[Install]
-    # Human-readable explanations for a status (why missing, what failed).
+    """Every install found, the active one first."""
     notes: list[str] = []
+    """Human-readable explanations for the status (why missing, what failed); not for parsing."""
 
 
 class ScanResult(StrictModel):
+    """The result of one live scan: what `list --json` and `show --json` print.
+
+    `platform` and `status` may gain values without a schema_version bump; handle
+    unknown ones (for example with a default branch).
+    """
+
     schema_version: int = SCHEMA_VERSION
+    """Changes only on breaking changes to this format."""
     scanned_at: AwareDatetime
+    """When the scan ran, RFC 3339 in UTC."""
     platform: OsName
     tools: list[Tool]
+    """`list`: every tool known on this OS, missing ones included. `show`: the requested ones."""

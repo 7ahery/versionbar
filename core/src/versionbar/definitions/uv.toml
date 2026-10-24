@@ -1,3 +1,4 @@
+#:schema ../../../../schema/definition.schema.json
 id = "uv"
 name = "uv"
 os = ["windows", "linux"]

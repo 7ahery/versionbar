@@ -18,16 +18,13 @@ from fakes import (
     FakeSystem,
     capture_from_bytes,
     load_capture,
+    run_cli,
     windows_with_git,
 )
 
 OUT = r"C:\captures"
 GIT_FILE = OUT + r"\windows-git-2.55.0.windows.2.json"
 GIT_PATH = r"C:\Program Files\Git\cmd\git.exe"
-
-
-def run_cli(system: FakeSystem, *args: str):
-    return CliRunner().invoke(app, list(args), obj=system)
 
 
 def capture(system: FakeSystem, tool: str = "git", *extra: str):

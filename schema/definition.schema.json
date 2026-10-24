@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Detection": {
+      "additionalProperties": false,
+      "description": "The fields an OS override may replace.",
+      "properties": {
+        "binaries": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "version_args": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "version_regex": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VersionRegex"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Detection",
+      "type": "object"
+    },
+    "OsName": {
+      "enum": [
+        "windows",
+        "linux"
+      ],
+      "type": "string"
+    },
+    "VersionRegex": {
+      "description": "Python regex with a named group `(?P<version>...)`.",
+      "pattern": "\\(\\?P<version>",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A declarative tool definition: one TOML file, detected by the generic engine.",
+  "properties": {
+    "id": {
+      "description": "Stable id used on the command line and in the JSON, e.g. `git`.",
+      "type": "string"
+    },
+    "name": {
+      "description": "Display name.",
+      "type": "string"
+    },
+    "os": {
+      "description": "The operating systems the tool is detected on.",
+      "items": {
+        "$ref": "#/$defs/OsName"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "binaries": {
+      "description": "Command names to look up on PATH, in order; PATHEXT applies on Windows.",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "version_args": {
+      "description": "Arguments that make the tool print its version.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "version_regex": {
+      "$ref": "#/$defs/VersionRegex"
+    },
+    "overrides": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Detection"
+      },
+      "default": {},
+      "description": "Per-OS replacements for `binaries`, `version_args` or `version_regex`.",
+      "propertyNames": {
+        "$ref": "#/$defs/OsName"
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "os",
+    "binaries",
+    "version_args",
+    "version_regex"
+  ],
+  "title": "ToolDefinition",
+  "type": "object"
+}

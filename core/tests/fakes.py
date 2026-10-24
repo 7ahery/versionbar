@@ -10,7 +10,10 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from typer.testing import CliRunner
+
 from versionbar.capture import CaptureFile
+from versionbar.cli import app
 from versionbar.system import AppExecutionAlias, OsName, ProcessResult, UnreadableAlias
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -144,3 +147,8 @@ def windows_with_git(git_dir: str = r"C:\Program Files\Git\cmd") -> FakeSystem:
     )
     system.add_executable(rf"{git_dir}\git.exe", load_capture(GIT_WINDOWS))
     return system
+
+
+def run_cli(system: FakeSystem, *args: str):
+    """Invoke the CLI in-process with `system` injected as the machine."""
+    return CliRunner().invoke(app, list(args), obj=system)

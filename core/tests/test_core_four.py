@@ -2,9 +2,6 @@
 
 import json
 
-from typer.testing import CliRunner
-
-from versionbar.cli import app
 from versionbar.system import ProcessResult, UnreadableAlias
 
 from fakes import (
@@ -19,16 +16,13 @@ from fakes import (
     Capture,
     FakeSystem,
     load_capture,
+    run_cli,
 )
 
 GIT = r"C:\Program Files\Git\cmd\git.exe"
 NODE = r"C:\Users\dev\AppData\Local\nvm\.nodejs\node.exe"
 UV = r"C:\Users\dev\.local\bin\uv.exe"
 PYTHON = r"C:\Program Files\Python314\python.exe"
-
-
-def run_cli(system: FakeSystem, *args: str):
-    return CliRunner().invoke(app, list(args), obj=system)
 
 
 def windows(*directories: str) -> FakeSystem:

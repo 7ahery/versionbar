@@ -6,7 +6,8 @@ from typing import Annotated
 import typer
 
 from versionbar import __version__
-from versionbar.capture import DEFAULT_OUT_DIR, CaptureError, capture_tool
+from versionbar.capture import DEFAULT_OUT_DIR, CaptureError, CaptureFailure, capture_tool
+from versionbar.contract import output_schema
 from versionbar.definition import builtin_definitions
 from versionbar.models import ScanResult
 from versionbar.scan import scan
@@ -122,6 +123,16 @@ def _print_human(system: System, result: ScanResult, *, show: bool) -> None:
     (print_show if show else print_list)(result, terminal=terminal, color=color)
 
 
+@app.command("schema")
+def schema_command(
+    json_output: bool = typer.Option(
+        False, "--json", help="Accepted for consistency; the schema is always JSON."
+    ),
+) -> None:
+    """Print the JSON Schema of every `--json` output (JSON Schema draft 2020-12)."""
+    typer.echo(json.dumps(output_schema(), indent=2))
+
+
 # Contributor tooling, not product surface: hidden from help so the public
 # command list stays `list` (and what later tickets add).
 debug_app = typer.Typer(hidden=True, help="Contributor diagnostics.", rich_markup_mode=None)
@@ -140,8 +151,8 @@ def debug_capture(
         outcome = capture_tool(_system(ctx), builtin_definitions(), tool, out)
     except CaptureError as error:
         if json_output:
-            failure = {"outcome": error.outcome, "tool": tool, "message": error.message}
-            typer.echo(json.dumps(failure, indent=2))
+            failure = CaptureFailure(outcome=error.outcome, tool=tool, message=error.message)
+            typer.echo(failure.model_dump_json(indent=2))
         else:
             typer.echo(f"capture failed ({error.outcome}): {error.message}", err=True)
         # Asking for a tool this build cannot capture is a usage error (2),
