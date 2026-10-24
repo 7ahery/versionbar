@@ -16,6 +16,10 @@ _Avoid_: Instance, copy, binary
 The Install that runs when you type the Tool's command: the first resolvable hit on PATH.
 _Avoid_: Default, current, primary
 
+**Store placeholder**:
+A Microsoft Store App Execution Alias, such as `python.exe` in `WindowsApps`, that only offers to install the app from the Store. Recognised without running it and never an Install.
+_Avoid_: Stub install, Store Python (that is a real Install from the Store)
+
 **Source**:
 Where an Install was found: `path`, or a Provider id (`nvm`, `uv`, `py`, `rustup`, `dotnet`).
 _Avoid_: Origin, location

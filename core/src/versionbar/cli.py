@@ -65,7 +65,10 @@ def list_command(
 @app.command("show")
 def show_command(
     ctx: typer.Context,
-    tools: Annotated[list[str], typer.Argument(metavar="TOOL...", help="Tool ids.")],
+    tools: Annotated[
+        list[str],
+        typer.Argument(metavar="TOOL...", help="Tool ids, such as git, node, python or uv."),
+    ],
     json_output: bool = typer.Option(False, "--json", help=_JSON_HELP),
 ) -> None:
     """Show every install of the given tools found on PATH.

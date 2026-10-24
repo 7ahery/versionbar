@@ -11,6 +11,8 @@ from versionbar.system import ProcessResult
 
 from fakes import (
     GIT_LINUX,
+    PYTHON_314_WINDOWS,
+    STORE_PYTHON_PLACEHOLDER,
     WINDOWS_PATHEXT,
     Capture,
     FakeSystem,
@@ -209,6 +211,32 @@ def test_tool_missing_from_path_fails_without_writing_a_fixture() -> None:
     assert result.exit_code == 1
     assert "not-found" in result.stderr
     assert system.files == {}
+
+
+def test_store_placeholders_are_never_run_or_captured() -> None:
+    apps = r"C:\Users\dev\AppData\Local\Microsoft\WindowsApps"
+    system = FakeSystem(
+        os="windows", env={"PATH": rf"{apps};C:\Python314", "PATHEXT": WINDOWS_PATHEXT}
+    )
+    system.add_app_execution_alias(rf"{apps}\python.exe", STORE_PYTHON_PLACEHOLDER)
+    system.add_executable(r"C:\Python314\python.exe", load_capture(PYTHON_314_WINDOWS))
+
+    result = capture(system, "python", "--json")
+
+    assert result.exit_code == 0, result.output
+    assert system.runs == [(r"C:\Python314\python.exe", "--version")]
+
+
+def test_only_store_placeholders_is_not_found() -> None:
+    apps = r"C:\Users\dev\AppData\Local\Microsoft\WindowsApps"
+    system = FakeSystem(os="windows", env={"PATH": apps, "PATHEXT": WINDOWS_PATHEXT})
+    system.add_app_execution_alias(rf"{apps}\python.exe", STORE_PYTHON_PLACEHOLDER)
+
+    result = capture(system, "python", "--json")
+
+    assert result.exit_code == 1
+    assert json.loads(result.stdout)["outcome"] == "not-found"
+    assert system.runs == []
 
 
 def test_timeout_and_launch_failure_are_errors_not_fixtures() -> None:

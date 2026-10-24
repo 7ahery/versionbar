@@ -20,7 +20,7 @@ from versionbar.definition import ToolDefinition
 from versionbar.models import StrictModel
 from versionbar.scan import DEFAULT_TIMEOUT_SECONDS
 from versionbar.system import OsName, System
-from versionbar.system.resolve import path_hits
+from versionbar.system.resolve import is_store_placeholder, path_hits
 
 CAPTURE_FORMAT = 1
 DEFAULT_OUT_DIR = "versionbar-captures"
@@ -94,7 +94,10 @@ def capture_tool(
         raise CaptureError("unsupported-os", f"{tool_id} is not available on {system.os}")
     definition = definition.for_os(system.os)
 
-    path = next((hit for binary in definition.binaries for hit in path_hits(system, binary)), None)
+    # The first install the scan would probe: a Store placeholder is not one,
+    # and running it could open the Store.
+    hits = (hit for binary in definition.binaries for hit in path_hits(system, binary))
+    path = next((hit for hit in hits if not is_store_placeholder(system, hit)), None)
     if path is None:
         names = ", ".join(definition.binaries)
         raise CaptureError("not-found", f"{tool_id} not found on PATH (looked for: {names})")
