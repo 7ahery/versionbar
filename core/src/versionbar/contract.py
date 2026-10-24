@@ -47,8 +47,9 @@ def output_schema() -> dict[str, Any]:
         "$schema": DIALECT,
         "title": "CommandOutput",
         "description": (
-            f"Every document the CLI prints with --json. Scan results (list, show) carry "
-            f"schema_version {SCHEMA_VERSION}, which changes only on breaking changes."
+            f"Every document the CLI prints with --json. Scan results (list, show) and check "
+            f"results carry schema_version {SCHEMA_VERSION}, which changes only on breaking "
+            f"changes."
         ),
         "anyOf": [{"$ref": f"#/$defs/{model.__name__}"} for model in OUTPUT_MODELS],
         **defs,

@@ -11,6 +11,7 @@ import re
 from dataclasses import dataclass
 from typing import Literal, cast
 
+from versionbar import PROG
 from versionbar.models import (
     SCHEMA_VERSION,
     CheckResult,
@@ -20,14 +21,14 @@ from versionbar.models import (
     Tool,
 )
 
-SPEC_HELP = """\
+SPEC_HELP = f"""\
 A requirement is a tool id (the tool must be installed) or `tool@spec` (the
 tool's active install must also satisfy the version spec).
 
 A spec is one or more clauses joined by commas, and all must hold:
 `>=`, `>`, `<=`, `<` or `==`, then a version of dot-separated numbers.
 Quote requirements in the shell, where `>` and `<` redirect:
-`versionbar check 'node@>=20' 'python@>=3.12,<4' git`.
+`{PROG} check 'node@>=20' 'python@>=3.12,<4' git`.
 
 Only the leading dot-separated numbers of the installed version take part, and
 missing trailing parts count as 0. So git's `2.55.0.windows.2` is 2.55.0,

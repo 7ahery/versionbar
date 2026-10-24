@@ -14,7 +14,7 @@ from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, Base64Bytes, Field
 
-from versionbar import __version__
+from versionbar import PROG, __version__
 from versionbar.decoding import detect_encoding
 from versionbar.definition import ToolDefinition
 from versionbar.models import StrictModel
@@ -151,7 +151,7 @@ def capture_tool(
         stdout_text=stdout_text,
         stderr_text=stderr_text,
         provenance=Provenance(
-            method="versionbar debug capture",
+            method=f"{PROG} debug capture",
             versionbar_version=__version__,
             os_id=system.os,
             os_description=system.platform_description,

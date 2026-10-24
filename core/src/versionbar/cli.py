@@ -5,7 +5,7 @@ from typing import Annotated
 
 import typer
 
-from versionbar import __version__
+from versionbar import PROG, __version__
 from versionbar.capture import DEFAULT_OUT_DIR, CaptureError, CaptureFailure, capture_tool
 from versionbar.check import (
     SPEC_HELP,
@@ -24,7 +24,7 @@ from versionbar.system import System
 # human renderer is imported only on the human path.
 
 app = typer.Typer(
-    name="versionbar",
+    name=PROG,
     help="Inventory the dev tools installed on this machine. With no command, runs `list`.",
     add_completion=False,
     rich_markup_mode=None,
@@ -145,7 +145,7 @@ def check_command(
     if not requirements:
         problems.append("check needs at least one requirement, e.g. check 'node@>=20' git")
     if problems:
-        hint = "see `versionbar check --help` for the syntax"
+        hint = f"see `{PROG} check --help` for the syntax"
         raise _usage_error([*problems, hint, f"known tools: {', '.join(known)}"])
 
     wanted = [known[tool] for tool in dict.fromkeys(r.tool for r in parsed)]
