@@ -2,14 +2,14 @@
 
 Inventories the dev tools installed on a machine. The `versionbar` CLI (Python core) is the product; a Windows tray app is one consumer of it.
 
-**Status: early M1.** The CLI detects one tool (git) live. More tools, `check` and `tools` arrive in later slices. The tray app launches and opens its popup, which does not show scan results yet.
+**Status: M1.** The CLI detects the core four live: git, node, python and uv. More tools, `check` and `tools` arrive in later slices. The tray app launches and opens its popup, which does not show scan results yet.
 
 ## Usage
 
 ```sh
 versionbar               # same as `versionbar list`
 versionbar list          # table: each tool's active version, path and count of other installs
-versionbar show git ...  # every install of the given tools, the active one first (also: `--json`)
+versionbar show python node  # every install of the given tools, the active one first (also: `--json`)
 versionbar list --json   # machine-readable ScanResult (also: `versionbar --json`)
 versionbar schema        # JSON Schema of every --json output
 versionbar --help        # every command has --help
@@ -60,12 +60,23 @@ A scan always completes and always lists every tool; one broken or slow tool nev
 | Active install exited non-zero | `error` | `null`, `[]` | `<path> exited with code <n>: <its output>` |
 | Active install printed no recognisable version | `error` | `null`, `[]` | `<path> printed no version: <its output>` |
 | An other install failed in any of these ways | `found` | that install left out | one note per failed install, same wording |
+| Only Microsoft Store placeholders on PATH | `missing` | `null`, `[]` | `only Microsoft Store placeholders found on PATH (looked for: …)`, then one note per placeholder |
+
+### Microsoft Store placeholders and VersionBar's own Python
+
+Windows puts `python.exe` and `python3.exe` App Execution Aliases in `%LOCALAPPDATA%\Microsoft\WindowsApps` that do not run Python: they belong to App Installer and offer to install Python from the Store (run from a terminal, they exit with code 9009). VersionBar recognises them from the alias data stored in the file itself (the App Installer's `PythonRedirector` app), without running them, and never reports them as installs. Each placeholder found gets a note, also when a real Python is found beside it; if a placeholder comes before the active install on PATH, its note says that typing the command runs the placeholder instead. Other aliases in that folder, including real tools from the same package such as `winget`, are run normally.
+
+The core itself runs on a uv-managed Python, and `uv run`/`uvx` put that environment's scripts folder first on PATH. That folder is left out of resolution, so the Python running VersionBar is never reported as your active Python; only the PATH you have is inspected. The rule is about the virtual environment VersionBar runs in, whoever created it: if you install `versionbar` into a project venv of your own and run it with that venv activated, that venv's `Scripts` (or `bin`) folder is hidden too, and its Python is not reported. Install it with `uv tool install` or run it with `uvx` to see the venv's Python.
+
+If the data of a `python.exe` or `python3.exe` alias cannot be read, VersionBar assumes it is a placeholder, does not run it, and says so in a note: skipping a real Python costs a note, running a placeholder could open the Store.
 
 "Its output" is everything the command printed, stdout then stderr, decoded. Version commands run in parallel (up to 16 at once), each with a 5-second timeout; when one times out, its whole process tree is killed (so a hung program started by a `.cmd` shim cannot stall the scan). Output is decoded per stream: UTF-16 (with a BOM, or detected by its NUL bytes, as `wsl --version` prints it) or UTF-8, with Windows line endings normalised to `\n`; a version printed only on stderr (as `ssh -V` does) is found too. Captures keep the raw bytes, so every decoding case replays exactly in tests.
 
 ### Scan timing
 
-The target is a full scan in about a second. Typical timing on the development machine (Windows 11, 2026-10-24), scanning 15 real tools (18 version commands, including `npm.cmd` and `code.cmd`) in-process, median of five runs: **0.35 s** in parallel versus 0.90 s one at a time. Python and uv start-up add to this for a CLI invocation. This is a measurement, not a test: the suite proves parallelism with synchronisation in the fake system rather than with wall-clock thresholds.
+The target is a full scan in about a second. Typical timing on the development machine (Windows 11, 2026-10-24), scanning 15 real tools (18 version commands, including `npm.cmd` and `code.cmd`) in-process, median of five runs: **0.35 s** in parallel versus 0.90 s one at a time. Python and uv start-up add to this for a CLI invocation.
+
+The first full scan of the built-in core four (git, node, python and uv; four version commands, two git installs among them; the two Store placeholders are not run), same machine, 2026-10-24, median of five runs: **0.07 s** in-process and **0.65 s** for a whole `versionbar list --json` invocation, which is mostly interpreter start-up. This is a measurement, not a test: the suite proves parallelism with synchronisation in the fake system rather than with wall-clock thresholds.
 
 ## Tool definitions and fixtures
 

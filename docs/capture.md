@@ -10,7 +10,7 @@ The command is hidden from `--help` on purpose: it is contributor tooling, not p
 uv run --project core versionbar debug capture <tool> [--out <folder>] [--json]
 ```
 
-- `<tool>` is a tool id from a built-in definition (for example `git`). It runs exactly the definition's version command for the current OS, on the first match found on `PATH`. Nothing is installed or modified.
+- `<tool>` is a tool id from a built-in definition (for example `git`). It runs exactly the definition's version command for the current OS, on the first match found on `PATH` that a scan would run: Microsoft Store placeholders and the scripts folder of the environment running VersionBar are skipped, as in a scan. Nothing is installed or modified. To capture an install that is not first on your PATH (for example a uv-managed Python on a machine whose bare `python` is a Store placeholder), run the command with `PATH` narrowed to its folder and say so in `provenance.notes`.
 - The file is written to `--out` (default `versionbar-captures/`) as `<os>-<tool>-<version>.json`, for example `windows-git-2.55.0.windows.2.json`. The command prints the destination; with `--json` it prints `{"outcome": "captured", "tool", "destination", "exit_code"}`.
 - A command that runs but fails (non-zero exit) is still captured, with its true exit status. That is evidence too.
 - Failures write no file, so a failed capture never looks like a fixture. With `--json` the error is `{"outcome", "tool", "message"}`.
@@ -29,7 +29,7 @@ One JSON file per capture:
 | `stdout_b64`, `stderr_b64` | The raw bytes, base64-encoded. These are authoritative; decoding (including UTF-16 from WSL) is the engine's job. |
 | `encoding` | Capture-time guess (`utf-8`, `utf-16`, `utf-16-le`) used only for the two text fields below. |
 | `stdout_text`, `stderr_text` | Decoded for human readers and bug reports. Never read back by the fake. |
-| `provenance` | `method`, `versionbar_version`, `os_id`, `os_description`, `resolved_path`, `command` (exact argv), `captured_at` (UTC), `runner` (CI image and run URL, or null), `notes`. |
+| `provenance` | `method`, `versionbar_version`, `os_id`, `os_description`, `resolved_path`, `command` (exact argv), `captured_at` (UTC), `runner` (CI image and run URL, or null), `notes`. On Windows, a path inside your profile folder is written as `%USERPROFILE%\...` in `resolved_path` and `command` (matched case-insensitively, whole folder names only), so the file does not carry your account name. |
 
 The model is `CaptureFile` in `core/src/versionbar/capture.py`; the fake in `core/tests/fakes.py` loads it with that same model.
 
@@ -63,4 +63,4 @@ Copy the files you want into `core/tests/fixtures/<tool>/` and review them like 
 
 ## Attaching a capture to a bug report
 
-Attach the `.json` file from `debug capture` to the issue. It contains the bytes needed to reproduce the problem plus the OS and resolved path, but also your PATH-resolved install location, so skim `provenance.resolved_path` first.
+Attach the `.json` file from `debug capture` to the issue. It contains the bytes needed to reproduce the problem plus the OS and resolved path. Your profile folder is already replaced by `%USERPROFILE%`, but an install elsewhere (or a tool that prints its own path) can still reveal names, so skim `provenance.resolved_path` and the `*_text` fields first.

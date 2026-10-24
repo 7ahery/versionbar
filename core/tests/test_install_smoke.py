@@ -37,7 +37,7 @@ def installed_command(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 def test_installed_help_works(installed_command: Path) -> None:
     result = subprocess.run(
-        [str(installed_command), "--help"], capture_output=True, text=True, check=False
+        [str(installed_command), "--help"], capture_output=True, encoding="utf-8", check=False
     )
     assert result.returncode == 0
     assert "versionbar" in result.stdout.lower()
@@ -70,7 +70,9 @@ def test_installed_list_json_finds_git_on_the_real_machine(installed_command: Pa
 
 
 def test_installed_bare_command_prints_a_table(installed_command: Path) -> None:
-    result = subprocess.run([str(installed_command)], capture_output=True, text=True, check=False)
+    result = subprocess.run(
+        [str(installed_command)], capture_output=True, encoding="utf-8", check=False
+    )
     assert result.returncode == 0, result.stderr
     assert any(line.startswith("git") for line in result.stdout.splitlines())
 
@@ -78,7 +80,7 @@ def test_installed_bare_command_prints_a_table(installed_command: Path) -> None:
 def test_installed_version_matches_package_metadata(installed_command: Path) -> None:
     expected = tomllib.loads((CORE_DIR / "pyproject.toml").read_text("utf-8"))["project"]["version"]
     result = subprocess.run(
-        [str(installed_command), "--version"], capture_output=True, text=True, check=False
+        [str(installed_command), "--version"], capture_output=True, encoding="utf-8", check=False
     )
     assert result.returncode == 0
     assert result.stdout.strip() == expected

@@ -1,0 +1,10 @@
+#:schema ../../../../schema/definition.schema.json
+id = "python"
+name = "Python"
+os = ["windows", "linux"]
+# `python` first: it is the name a Windows install provides and the one people
+# type. `python3` covers machines (most Linux ones) that only ship that name.
+binaries = ["python", "python3"]
+version_args = ["--version"]
+# Keeps pre-release and build suffixes such as `3.15.0a1` or `3.14.8+`.
+version_regex = 'Python (?P<version>\d+\.\d+\.\d+\S*)'

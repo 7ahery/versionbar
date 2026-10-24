@@ -20,7 +20,7 @@ from versionbar.definition import ToolDefinition
 from versionbar.models import StrictModel
 from versionbar.scan import DEFAULT_TIMEOUT_SECONDS
 from versionbar.system import OsName, System
-from versionbar.system.resolve import path_hits
+from versionbar.system.resolve import ToolHits
 
 CAPTURE_FORMAT = 1
 DEFAULT_OUT_DIR = "versionbar-captures"
@@ -120,7 +120,9 @@ def capture_tool(
         raise CaptureError("unsupported-os", f"{tool_id} is not available on {system.os}")
     definition = definition.for_os(system.os)
 
-    path = next((hit for binary in definition.binaries for hit in path_hits(system, binary)), None)
+    # The install a scan would report as active, by the scan's own rules (so
+    # a Store placeholder, which could open the Store, is never run).
+    path = next(iter(ToolHits.of(system, definition.binaries).paths), None)
     if path is None:
         names = ", ".join(definition.binaries)
         raise CaptureError("not-found", f"{tool_id} not found on PATH (looked for: {names})")
@@ -153,8 +155,8 @@ def capture_tool(
             versionbar_version=__version__,
             os_id=system.os,
             os_description=system.platform_description,
-            resolved_path=path,
-            command=argv,
+            resolved_path=_redact_profile(system, path),
+            command=[_redact_profile(system, argv[0]), *argv[1:]],
             captured_at=system.now(),
             runner=_runner(system),
         ),
@@ -168,6 +170,23 @@ def capture_tool(
     except OSError as error:
         raise CaptureError("write-failed", f"could not write {destination}: {error}") from error
     return CaptureOutcome(tool=tool_id, destination=destination, exit_code=process.exit_code)
+
+
+def _redact_profile(system: System, path: str) -> str:
+    # Capture files end up in public issues and committed fixtures; the
+    # profile folder carries the account name, which is not evidence.
+    if system.os != "windows":
+        return path
+    profile = ntpath.normpath(system.getenv("USERPROFILE") or "").rstrip("\\")
+    # Only a real folder below a drive or share root: a root such as `C:\`
+    # names no account and would rewrite every path on the drive.
+    _, rest = ntpath.splitdrive(profile)
+    if not rest.strip("\\.") or not ntpath.isabs(profile):
+        return path
+    # Whole folder names only: `C:\Users\jane2` is not inside `C:\Users\jane`.
+    if path.casefold().startswith(profile.casefold() + "\\"):
+        return "%USERPROFILE%" + path[len(profile) :]
+    return path
 
 
 def _guess_encoding(*streams: bytes) -> str:
