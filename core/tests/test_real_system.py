@@ -72,10 +72,7 @@ def batch_wrapper(folder: Path, name: str = "tool.cmd") -> Path:
     folder.mkdir(parents=True, exist_ok=True)
     script = folder / name
     script.write_bytes(
-        b"@echo off\r\n"
-        b'echo ran> "%~dp0ran.txt"\r\n'
-        b"echo args=%*\r\n"
-        b"echo cmdline=%CMDCMDLINE%\r\n"
+        b'@echo off\r\necho ran> "%~dp0ran.txt"\r\necho args=%*\r\necho cmdline=%CMDCMDLINE%\r\n'
     )
     return script
 

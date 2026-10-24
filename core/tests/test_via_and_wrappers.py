@@ -47,9 +47,7 @@ def with_rules(monkeypatch, tool_id: str, **fields: object) -> None:
 
 
 def windows(path: list[str], **env: str) -> FakeSystem:
-    return FakeSystem(
-        os="windows", env={"PATH": ";".join(path), "PATHEXT": WINDOWS_PATHEXT, **env}
-    )
+    return FakeSystem(os="windows", env={"PATH": ";".join(path), "PATHEXT": WINDOWS_PATHEXT, **env})
 
 
 def tool(system: FakeSystem, tool_id: str) -> dict:
