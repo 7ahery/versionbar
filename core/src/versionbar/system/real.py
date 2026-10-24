@@ -47,6 +47,13 @@ class _LocalSystem:
             return os.path.isfile(path)
         return os.path.isfile(path) and os.access(path, os.X_OK)
 
+    def read_file_head(self, path: str, limit: int) -> bytes | None:
+        try:
+            with open(path, "rb") as file:
+                return file.read(limit)
+        except OSError:
+            return None
+
     def run(self, argv: Sequence[str], timeout: float) -> ProcessResult:
         # Not subprocess.run: after a timeout it kills only the direct child
         # and then, on Windows, waits without limit for the pipes to close. A

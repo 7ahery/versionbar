@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 
+from versionbar.attribution import via_for
 from versionbar.decoding import decode_output
 from versionbar.definition import ToolDefinition
 from versionbar.models import Install, ScanResult, Tool, ToolStatus
@@ -116,7 +117,8 @@ def _probe(system: System, definition: ToolDefinition, path: str) -> Install | _
         )
         return _failed("error", f"{path} {problem}", output)
 
-    return Install(version=match["version"], path=path, source="path", raw=output)
+    via = via_for(system, definition.via, path)
+    return Install(version=match["version"], path=path, source="path", via=via, raw=output)
 
 
 def _failed(status: ToolStatus, message: str, output: str) -> _Failed:

@@ -53,6 +53,7 @@ class FakeSystem:
     files: dict[str, bytes] = field(default_factory=dict)
     _aliases: dict[str, AppExecutionAlias | UnreadableAlias] = field(default_factory=dict)
     runtime_dirs: list[str] = field(default_factory=list)
+    _contents: dict[str, bytes] = field(default_factory=dict)
     # Lets a test make the destination unwritable without touching a real disk.
     write_error: str | None = None
     # Called on the scanning thread before each command answers, so a test can
@@ -73,6 +74,14 @@ class FakeSystem:
         # Placeholders get no captures, so running one fails the test.
         self.add_executable(path, *captures)
         self._aliases[self._key(path)] = alias
+
+    def add_content(self, path: str, data: bytes) -> None:
+        """What reading the file at `path` returns; files without content are unreadable."""
+        self._contents[self._key(path)] = data
+
+    def read_file_head(self, path: str, limit: int) -> bytes | None:
+        data = self._contents.get(self._key(path))
+        return None if data is None else data[:limit]
 
     def app_execution_alias(self, path: str) -> AppExecutionAlias | UnreadableAlias | None:
         return self._aliases.get(self._key(path))

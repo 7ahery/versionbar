@@ -152,6 +152,29 @@ def test_a_well_formed_definition_validates_and_loads() -> None:
     ToolDefinition.model_validate(VALID_DEFINITION)
 
 
+WITH_VIA = changed(
+    via=[
+        {"manager": "pyenv", "dirs": ["{PYENV_ROOT}/shims", "{HOME}/.pyenv/shims"]},
+        {"manager": "corepack", "content_regex": r"corepack[\\/]dist"},
+        {"manager": "volta", "dirs": ["{VOLTA_HOME}/bin"], "content_regex": "volta"},
+    ],
+    overrides={"windows": {"via": [{"manager": "pyenv", "dirs": ["{PYENV}/shims"]}]}},
+)
+
+
+def test_a_definition_with_via_rules_validates_and_loads() -> None:
+    assert errors(definition_validator(), WITH_VIA) == []
+    loaded = ToolDefinition.model_validate(WITH_VIA)
+    assert [rule.manager for rule in loaded.via] == ["pyenv", "corepack", "volta"]
+    assert [rule.manager for rule in loaded.for_os("windows").via] == ["pyenv"]
+
+
+def test_a_content_regex_that_does_not_compile_is_rejected_by_the_loader() -> None:
+    # Like version_regex, only the loader can compile the pattern.
+    with pytest.raises(ValidationError, match="content_regex"):
+        ToolDefinition.model_validate(changed(via=[{"manager": "x", "content_regex": "(unclosed"}]))
+
+
 INVALID_DEFINITIONS = {
     "unknown key": changed(encoding="utf-16"),
     "misspelt key": {**without("binaries"), "binary": ["git"]},
@@ -165,6 +188,21 @@ INVALID_DEFINITIONS = {
     "override with no binaries": changed(overrides={"windows": {"binaries": []}}),
     "override regex without a version group": changed(
         overrides={"linux": {"version_regex": r"(\S+)"}}
+    ),
+    "via rule without a condition": changed(via=[{"manager": "pyenv"}]),
+    "via rule with no folders": changed(via=[{"manager": "pyenv", "dirs": []}]),
+    "via rule without a manager": changed(via=[{"dirs": ["{PYENV}/shims"]}]),
+    "via rule with an empty manager": changed(via=[{"manager": "", "dirs": ["{PYENV}"]}]),
+    "via rule with an unknown key": changed(via=[{"manager": "volta", "env": "VOLTA_HOME"}]),
+    "via folder at a fixed path": changed(via=[{"manager": "volta", "dirs": ["C:/volta/bin"]}]),
+    "via folder not starting with a variable": changed(
+        via=[{"manager": "pyenv", "dirs": ["~/{PYENV}/shims"]}]
+    ),
+    "via folder with an unclosed variable": changed(
+        via=[{"manager": "pyenv", "dirs": ["{PYENV/shims"]}]
+    ),
+    "override via rule without a condition": changed(
+        overrides={"windows": {"via": [{"manager": "pyenv"}]}}
     ),
 }
 
