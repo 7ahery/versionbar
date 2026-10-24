@@ -2,7 +2,7 @@
 
 The VersionBar tray app runs its scanner with [uv](https://docs.astral.sh/uv/). VersionBar
 never installs uv or any other tool for you. When something goes wrong the popup shows what
-happened and what to do. Every screen has a **Retry** button, which scans again.
+happened and what to do. Every error screen has a **Retry** button, which scans again.
 
 ## "uv was not found"
 
@@ -18,13 +18,15 @@ The app looks for uv on your PATH, then in the folder named by `UV_INSTALL_DIR`,
    The popup has a **Copy command** button for this, and an **Open the uv install guide**
    button for the other ways to install it
    (<https://docs.astral.sh/uv/getting-started/installation/>).
-2. Press **Retry**. A new terminal is not needed, but if uv still is not found, restart
-   VersionBar so it sees your updated PATH.
+2. Quit and restart VersionBar. A running VersionBar keeps the PATH it started with, so it
+   cannot see a uv that was installed afterwards.
+3. If uv was already installed in a place VersionBar looks (listed above), press **Retry**
+   instead of restarting.
 
 ## "One-time setup: preparing Python environment…" is slow, or then fails
 
 The first scan creates VersionBar's own Python environment in
-`%LOCALAPPDATA%\io.github.7ahery.versionbar\core-env`. uv may download and install a Python
+`%LOCALAPPDATA%\io.github.7ahery.versionbar\core-env`. uv may download and install Python
 and packages for it, so this can take a few minutes; the app allows 180 seconds for it. It
 happens once. VersionBar never installs or changes your tools.
 

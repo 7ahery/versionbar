@@ -129,6 +129,8 @@ describe("uv is missing", () => {
     expect(await screen.findByText("uv was not found")).toBeDefined();
     expect(screen.getByText("winget install astral-sh.uv")).toBeDefined();
     expect(screen.getByText(/does not install uv/)).toBeDefined();
+    // The running app keeps the PATH it started with, so restarting is the expected step.
+    expect(screen.getByText(/quit and restart VersionBar/)).toBeDefined();
     expect(
       screen.getByRole("button", { name: "Open the uv install guide" }),
     ).toBeDefined();

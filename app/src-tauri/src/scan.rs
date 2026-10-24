@@ -198,21 +198,23 @@ impl Scanner {
         // "uv missing" without a flash of the setup screen, and a folder that appears
         // while the scan runs must not change which timeout this scan uses.
         let uv = (self.config.find_uv)();
-        let first_run = self.unsettled.load(Ordering::SeqCst) || !self.config.environment.exists();
+        let mut first_run = false;
         if !self.update(|state| {
             if state.scanning {
                 return false;
+            }
+            // Decided under the lock, together with claiming the scan, so a refresh never
+            // reads `unsettled` while the previous scan is still settling it. Only a scan
+            // that really runs may start the unsettled period.
+            first_run = self.unsettled.load(Ordering::SeqCst) || !self.config.environment.exists();
+            if first_run {
+                self.unsettled.store(true, Ordering::SeqCst);
             }
             state.scanning = true;
             state.setting_up = uv.is_some() && first_run;
             true
         }) {
             return false;
-        }
-        // Only a scan that really runs may start the unsettled period (an overlapping
-        // request returned above).
-        if first_run {
-            self.unsettled.store(true, Ordering::SeqCst);
         }
 
         let result = self.scan(uv, first_run);

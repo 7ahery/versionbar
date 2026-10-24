@@ -140,7 +140,9 @@ Not run in the live tray: the tray badge was checked only by drawing the badged 
 the bottom-right corner, with a thin white ring, legible on a dark background). Still to check
 by hand on a machine without uv (rename `uv.exe` out of PATH, `UV_INSTALL_DIR` and
 `%USERPROFILE%\.local\bin`): the tray shows the badge and the tooltip says "uv was not
-found"; after installing uv and pressing Retry the badge and plain tooltip come back; the
+found"; after installing uv and restarting VersionBar (the running app keeps the PATH it started
+with; Retry alone only helps if uv is somewhere it already looks) the badge and plain tooltip
+come back; the
 "Open the uv install guide" button opens the browser (it uses `explorer.exe <url>`, which is
 unverified in the running app); "Copy command" and "Copy error" put text on the clipboard
 (the web clipboard API inside WebView2 is unverified in the running app). Ticket 31's manual QA
@@ -152,7 +154,7 @@ The popup can now tell the user what to do when there is nothing to show.
 
 - **First run versus later runs.** Before starting uv, the shell checks whether the
   `core-env` folder exists in the app data folder. If not, this is the first run: uv has to
-  create the environment and may download Python and packages, so it gets 180 seconds instead
+  create the environment and may download and install Python and packages, so it gets 180 seconds instead
   of 30, and the state says `setting_up` so the popup shows "One-time setup: preparing Python
   environment…" instead of a bare spinner. The check happens once, before the scan starts,
   so a folder that appears during the run does not shorten that run. The first-run rules
@@ -166,16 +168,16 @@ The popup can now tell the user what to do when there is nothing to show.
   announced, so a missing uv goes straight to its screen without flashing the setup screen.
 - **Failure.** The popup shows the shell's one-line message and the last 12 lines of uv's
   error output; Copy error copies the message and all of the error output. For timeouts and
-  nonzero exits (and on the setup screen) it also says: "uv may download and install a Python
+  nonzero exits (and on the setup screen) it also says: "uv may download and install Python
   and packages for VersionBar's own environment. VersionBar never installs or changes your
   tools." Failures to start uv or unreadable output do not get that sentence, since downloads
   are not the likely cause.
 - **Tray warning.** While the last scan found no uv, the tray icon gets a small warning dot
-  and the tooltip says "uv was not found". The next scan that finds uv restores both, even if that scan then fails for another reason (the
-  failure screen takes over the message). A refresh skipped because a scan is already running
-  does not touch the tray. The dot is
-  drawn from the normal icon at run time (`badge.rs`), so there is no second image to keep in
-  step. The tray is updated from the scan thread after the scan ends, not from the state
+  and the tooltip says "uv was not found". The next scan that finds uv restores both, even if
+  that scan then fails for another reason (the failure screen takes over the message). A
+  refresh skipped because a scan is already running does not touch the tray. The dot is drawn
+  from the normal icon at run time (`badge.rs`), so there is no second image to keep in step.
+  The tray is updated from the scan thread after the scan ends, not from the state
   callback: that callback runs while the state is locked, a tray change waits for the main
   thread, and the main thread may be waiting for the same lock inside `get_state`.
 - **Opening the install guide.** The popup cannot open links (no shell or opener plugin, on

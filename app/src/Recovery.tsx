@@ -16,7 +16,7 @@ export const UV_INSTALL_COMMAND = "winget install astral-sh.uv";
 const STDERR_LINES_SHOWN = 12;
 
 const DOWNLOAD_NOTE =
-  "uv may download and install a Python and packages for VersionBar's own environment. VersionBar never installs or changes your tools.";
+  "uv may download and install Python and packages for VersionBar's own environment. VersionBar never installs or changes your tools.";
 
 export function SettingUpScreen() {
   return (
@@ -49,7 +49,9 @@ export function MissingUvScreen({
       <h2 className="text-sm font-semibold">uv was not found</h2>
       <p className="text-xs text-muted-foreground">
         VersionBar uses uv to run its scanner. VersionBar does not install uv
-        for you. Run this in a terminal, then press Retry:
+        for you. Run this in a terminal, then quit and restart VersionBar so it
+        sees the new PATH. If uv is already installed somewhere VersionBar can
+        see, press Retry.
       </p>
       <code className="block w-full rounded-md bg-muted px-3 py-2 text-left font-mono text-xs select-text">
         {UV_INSTALL_COMMAND}
@@ -77,11 +79,11 @@ export function FailedScreen({
   const message = outcome.message ?? "The scan failed.";
   const stderr = outcome.stderr?.trim() ?? "";
   const shown = stderr.split("\n").slice(-STDERR_LINES_SHOWN).join("\n");
-  // The whole error, so a bug report has what the screen had to cut.
   // Only for failures that can come from uv's own download or setup; a failure to start uv or
   // unreadable output has nothing to do with downloads.
   const mentionsDownloads =
     outcome.reason === "timeout" || outcome.reason === "exit";
+  // The whole error, so a bug report has what the screen had to cut.
   const report = stderr ? `${message}\n\n${stderr}` : message;
 
   return (
