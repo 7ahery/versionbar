@@ -109,7 +109,7 @@ The first full scan of the built-in core four (git, node, python and uv; four ve
 
 ## Tool definitions and fixtures
 
-Built-in tools are TOML files in `core/src/versionbar/definitions/` (keys: `id`, `name`, `os`, `binaries`, `version_args`, `version_regex` with a named `version` group, and optional per-OS `overrides.<os>` replacing `binaries`, `version_args` or `version_regex`). The engine has no per-tool code.
+Built-in tools are TOML files in `core/src/versionbar/definitions/` (keys: `id`, `name`, `os`, `binaries`, `version_args`, `version_regex` with a named `version` group, optional `[[via]]` shim rules, and optional per-OS `overrides.<os>` replacing `binaries`, `version_args`, `version_regex` or `via`). The engine has no per-tool code. See [docs/definitions.md](docs/definitions.md) for every key, Windows wrappers and shim attribution.
 
 Tests run the CLI over a fake system (`core/tests/fakes.py`) whose command output comes only from real captures in `core/tests/fixtures/<tool>/`. Each capture records its provenance (OS, resolved path, exact command, date) beside the output; see `docs/capture.md` to record one.
 

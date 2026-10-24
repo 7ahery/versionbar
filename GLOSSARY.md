@@ -28,6 +28,14 @@ _Avoid_: Origin, location
 The manager whose shim serves an Install (`corepack`, `volta`, `pyenv`).
 _Avoid_: Shim owner, wrapper
 
+**Wrapper**:
+A `.cmd` or `.bat` file on PATH that starts the real program, such as `npm.cmd` or `code.cmd`. It is what typing the command runs, so an Install's path is the wrapper's.
+_Avoid_: Launcher, script (the extensionless script beside a wrapper is never run)
+
+**Shim**:
+A Wrapper or executable that a manager puts on PATH to forward to the version it selects. Installs reached through one carry a Via.
+_Avoid_: Proxy, stub
+
 **Provider**:
 Python code that lists a version manager's Installs, including ones that are not on PATH.
 _Avoid_: Plugin, adapter, manager integration

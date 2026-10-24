@@ -62,6 +62,13 @@ class System(Protocol):
 
     def run(self, argv: Sequence[str], timeout: float) -> ProcessResult: ...
 
+    def read_file_head(self, path: str, limit: int) -> bytes | None:
+        """At most the first `limit` bytes of the file at `path`, or None if it cannot be read.
+
+        For recognising shims by what their manager wrote into them, without running them.
+        """
+        ...
+
     def app_execution_alias(self, path: str) -> AppExecutionAlias | UnreadableAlias | None:
         """The alias stored in `path`, or None when it is not one (always None off Windows).
 
