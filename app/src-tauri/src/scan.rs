@@ -28,10 +28,49 @@ pub const SUPPORTED_SCHEMA_VERSION: u64 = 1;
 pub const SCAN_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// How long to keep reading output after the process has exited or been killed. A grandchild
-/// that inherited the pipes could otherwise keep the scan waiting forever.
+/// that inherited the pipes could otherwise keep the scan waiting forever. When that happens
+/// the scan goes on with what arrived and the reader thread is left behind until the pipe
+/// closes: a blocked read cannot be cancelled, and the core makes the same trade-off for the
+/// tools it runs (`_DRAIN_SECONDS` in core/src/versionbar/system/real.py).
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(1);
 
 const POLL: Duration = Duration::from_millis(20);
+
+/// The release app has no console, so without this flag every process it starts would flash
+/// one.
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// Inherited uv settings that would change which project, Python, environment or dependency
+/// set the fixed invocation uses, or contradict its flags. They are removed so a scan always
+/// runs the bundled core as shipped. Network, index, cache and proxy settings are kept: a user
+/// behind a mirror or proxy needs them for the first-run download. Checked against
+/// `uv run --help` for uv 0.12; docs/app/bundled-core.md explains the groups.
+const OVERRIDDEN_UV_VARIABLES: &[&str] = &[
+    // Which Python: the invocation insists on a uv-managed one (AGENTS.md rule 7).
+    "UV_PYTHON",
+    "UV_MANAGED_PYTHON",
+    "UV_NO_MANAGED_PYTHON",
+    "UV_SYSTEM_PYTHON",
+    "UV_PYTHON_PREFERENCE",
+    // Which project and environment: the bundled core, in the app data folder.
+    "UV_PROJECT",
+    "UV_WORKING_DIR",
+    "UV_NO_PROJECT",
+    "UV_ISOLATED",
+    // How the environment is synced: exactly the bundled lock file, without dev tools.
+    "UV_LOCKED",
+    "UV_FROZEN",
+    "UV_NO_SYNC",
+    "UV_NO_DEV",
+    "UV_NO_DEFAULT_GROUPS",
+    "UV_NO_GROUP",
+    "UV_NO_EDITABLE",
+    "UV_NO_SOURCES",
+    "UV_NO_SOURCES_PACKAGE",
+    // A dotenv file would load arbitrary variables into the core's process.
+    "UV_ENV_FILE",
+];
 
 /// Finds uv afresh for every scan, so installing uv while the app runs needs no restart.
 pub type FindUv = Box<dyn Fn() -> Option<PathBuf> + Send + Sync>;
@@ -90,7 +129,7 @@ pub enum FailureReason {
     /// uv could not be started at all.
     Launch,
     Timeout,
-    /// uv or the core exited with a nonzero code.
+    /// uv or the core exited with a nonzero code, or how it ended could not be observed.
     Exit,
     /// stdout was not a JSON object.
     Malformed,
@@ -200,13 +239,15 @@ fn check_scan(stdout: Vec<u8>) -> Result<Box<RawValue>, (FailureReason, String)>
         )
     };
     let text = String::from_utf8(stdout).map_err(|_| malformed())?;
-    let text = text.trim();
+    // Parsed once; the text is kept exactly as printed, minus surrounding whitespace.
+    let scan = RawValue::from_string(text).map_err(|_| malformed())?;
     // serde would also accept a JSON array as `Envelope` (fields by position), so insist on
     // an object before looking inside.
-    if !text.starts_with('{') {
+    if !scan.get().starts_with('{') {
         return Err(malformed());
     }
-    let envelope: Envelope = serde_json::from_str(text).map_err(|_| malformed())?;
+    // Can still fail on valid JSON, for instance a repeated `schema_version` key.
+    let envelope: Envelope = serde_json::from_str(scan.get()).map_err(|_| malformed())?;
     match envelope.schema_version {
         Some(version) if version.as_u64() == Some(SUPPORTED_SCHEMA_VERSION) => {}
         Some(version) => {
@@ -224,7 +265,7 @@ fn check_scan(stdout: Vec<u8>) -> Result<Box<RawValue>, (FailureReason, String)>
             ));
         }
     }
-    RawValue::from_string(text.to_owned()).map_err(|_| malformed())
+    Ok(scan)
 }
 
 struct Output {
@@ -254,11 +295,12 @@ fn core_command(uv: &Path, config: &ScanConfig) -> Command {
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    for name in OVERRIDDEN_UV_VARIABLES {
+        command.env_remove(name);
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        // The release app has no console, so without this every scan would flash one.
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         command.creation_flags(CREATE_NO_WINDOW);
     }
     command
@@ -278,29 +320,42 @@ fn run_core(uv: &Path, config: &ScanConfig) -> Result<Output, Outcome> {
     let deadline = Instant::now() + config.timeout;
     let status = loop {
         match child.try_wait() {
-            Ok(Some(status)) => break Some(status),
-            Ok(None) if Instant::now() >= deadline => break None,
+            Ok(Some(status)) => break status,
+            Ok(None) if Instant::now() >= deadline => {
+                return Err(stop(
+                    child,
+                    stderr,
+                    FailureReason::Timeout,
+                    format!(
+                        "The scan did not finish within {} seconds.",
+                        config.timeout.as_secs_f64()
+                    ),
+                ));
+            }
             Ok(None) => thread::sleep(POLL),
-            Err(_) => break None,
+            // Not a timeout: the scan may still be running, but its end can no longer be
+            // observed, so it is stopped rather than left running unwatched.
+            Err(error) => {
+                return Err(stop(
+                    child,
+                    stderr,
+                    FailureReason::Exit,
+                    format!("Could not tell whether the scan finished: {error}"),
+                ));
+            }
         }
-    };
-    let Some(status) = status else {
-        kill_tree(&mut child);
-        let stderr = stderr.finish();
-        return Err(failed(
-            FailureReason::Timeout,
-            format!(
-                "The scan did not finish within {} seconds.",
-                config.timeout.as_secs_f64()
-            ),
-            &stderr,
-        ));
     };
     Ok(Output {
         status,
         stdout: stdout.finish(),
         stderr: stderr.finish(),
     })
+}
+
+/// Ends a scan that did not exit by itself, keeping whatever it wrote to stderr.
+fn stop(mut child: Child, stderr: Collected, reason: FailureReason, message: String) -> Outcome {
+    kill_tree(&mut child);
+    failed(reason, message, &stderr.finish())
 }
 
 /// Output read on a background thread, so a full pipe never blocks the process.
@@ -349,7 +404,7 @@ fn kill_tree(child: &mut Child) {
                 .stdout(Stdio::null())
                 .stderr(Stdio::null());
             use std::os::windows::process::CommandExt;
-            taskkill.creation_flags(0x0800_0000);
+            taskkill.creation_flags(CREATE_NO_WINDOW);
             let _ = taskkill.status();
         }
     }
@@ -366,15 +421,16 @@ pub fn find_uv(var: &dyn Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
     let name = if cfg!(windows) { "uv.exe" } else { "uv" };
     let on_path = var("PATH")
         .into_iter()
-        .flat_map(|path| std::env::split_paths(&path).collect::<Vec<_>>())
-        // Relative entries depend on the working directory; the core skips them too.
-        .filter(|dir| dir.is_absolute());
+        .flat_map(|path| std::env::split_paths(&path).collect::<Vec<_>>());
     let install_dir = var("UV_INSTALL_DIR").map(PathBuf::from);
     let home = var(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
         .map(|home| PathBuf::from(home).join(".local").join("bin"));
     on_path
         .chain(install_dir)
         .chain(home)
+        // Relative (and empty) entries would depend on the working directory, which nobody
+        // chose; the core skips them in PATH too.
+        .filter(|dir| dir.is_absolute())
         .map(|dir| dir.join(name))
         .find(|candidate| candidate.is_file())
 }

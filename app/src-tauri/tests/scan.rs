@@ -542,3 +542,53 @@ fn a_directory_named_like_uv_is_not_uv() {
 
     assert_eq!(lookup(&[("PATH", path_of(&[&root.join("bin")]))]), None);
 }
+
+/// `target` written relative to the working directory, the way a relative variable would be
+/// resolved if the lookup did not reject it.
+fn relative_from_cwd(target: &Path) -> PathBuf {
+    let cwd = std::env::current_dir().unwrap();
+    let from: Vec<_> = cwd.components().collect();
+    let to: Vec<_> = target.components().collect();
+    let common = from.iter().zip(&to).take_while(|(a, b)| a == b).count();
+    assert!(
+        common > 0,
+        "{} and {} share no root",
+        cwd.display(),
+        target.display()
+    );
+    let mut relative = PathBuf::new();
+    for _ in common..from.len() {
+        relative.push("..");
+    }
+    relative.extend(&to[common..]);
+    relative
+}
+
+#[test]
+fn relative_or_empty_lookup_folders_are_ignored() {
+    // They would depend on the app's working directory, which nobody chose; PATH entries are
+    // treated the same way.
+    let root = scratch("lookup-relative");
+    let install = root.join("install");
+    let home = root.join("home");
+    place_uv(&install);
+    place_uv(&home.join(".local").join("bin"));
+    let (install, home) = (relative_from_cwd(&install), relative_from_cwd(&home));
+    assert!(install.join(exe("uv")).is_file(), "{}", install.display());
+
+    assert_eq!(
+        lookup(&[
+            ("UV_INSTALL_DIR", install.into()),
+            (home_var(), home.into())
+        ]),
+        None
+    );
+    assert_eq!(
+        lookup(&[
+            ("PATH", OsString::new()),
+            ("UV_INSTALL_DIR", OsString::new()),
+            (home_var(), OsString::new())
+        ]),
+        None
+    );
+}
