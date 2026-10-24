@@ -2,7 +2,7 @@
 
 Inventories the dev tools installed on a machine. The `versionbar` CLI (Python core) is the product; a Windows tray app is one consumer of it.
 
-**Status: M1.** The CLI detects the core four live: git, node, python and uv. More tools, `check` and `tools` arrive in later slices. The tray app launches and opens its popup, which does not show scan results yet.
+**Status: M1.** The CLI detects the core four live: git, node, python and uv. More tools and `tools` arrive in later slices. The tray app launches and opens its popup, which does not show scan results yet.
 
 ## Usage
 
@@ -11,6 +11,7 @@ versionbar               # same as `versionbar list`
 versionbar list          # table: each tool's active version, path and count of other installs
 versionbar show python node  # every install of the given tools, the active one first (also: `--json`)
 versionbar list --json   # machine-readable ScanResult (also: `versionbar --json`)
+versionbar check git 'node@>=20' 'python@>=3.12,<4'  # exit 0 only if every requirement holds
 versionbar schema        # JSON Schema of every --json output
 versionbar --help        # every command has --help
 ```
@@ -47,6 +48,34 @@ Every run scans the machine live; nothing is cached. Human output uses colour on
 - `notes` are human-readable diagnostics explaining a status (for example why a tool is missing, or the captured message of a failed version command). They are for people and logs, not for parsing. They are the only diagnostic field; see below for what each status puts there.
 
 `versionbar schema` prints the JSON Schema (draft 2020-12) of every `--json` output, generated from the core's Pydantic models. The same schema and the UI's TS types are committed under [`schema/`](schema/README.md), which also describes the compatibility rules.
+
+### Requirement checks
+
+`versionbar check <tool>[@<spec>]...` scans live (only the tools named) and tests each requirement against the tool's **active install**; an inactive install, such as another version a manager holds, never satisfies a requirement on its active one's behalf.
+
+- `git` means "must be installed". `git@>=2.40` also needs a version. A spec is one or more clauses joined by commas, all of which must hold: `>=`, `>`, `<=`, `<` or `==` followed by a dotted number, e.g. `>=3.12,<4`. Spaces around clauses are ignored. Quote requirements in the shell, because `>` and `<` are redirections: `versionbar check 'node@>=20' 'python@>=3.12'`.
+- Versions are compared by their leading dot-separated numbers, numerically, with missing trailing parts counted as 0. Anything after them is ignored: git's `2.55.0.windows.2` is 2.55.0, OpenSSH's `9.5p2` is 9.5. A pre-release marker straight after the numbers (`a`, `alpha`, `b`, `beta`, `c`, `rc`, `pre`, `preview`, `dev`, any case, optionally after `-` or `.` and followed by digits) ranks just below that release: `3.14.0rc1` fails `>=3.14` but passes `>=3.13` and `<3.14`; two pre-releases of the same numbers compare equal. `==2.55` therefore matches `2.55.0` but not `2.55.1`; write `>=2.55,<2.56` for "any 2.55.x". A version with no leading number can still satisfy a presence-only requirement, but fails any spec with outcome `not-comparable`. There is no `!=`, `~=` or bare-version form (`node@20` is a usage error, not a guess).
+- Exit codes: `0` every requirement passed; `1` at least one failed, including a missing, erroring or timed-out tool; `2` the request is malformed (no requirements, bad syntax, unknown tool, a tool that does not exist on this OS). Usage errors are plain text on stderr even with `--json`, list every problem found, and run no scan.
+- Human output has one line per requirement (`pass` or `FAIL`, the requirement as written, and the reason). `--json` prints a `CheckResult`:
+
+```json
+{
+  "schema_version": 1,
+  "scanned_at": "2026-10-23T21:04:52Z",
+  "platform": "windows",
+  "passed": false,
+  "requirements": [
+    {
+      "requirement": "git@>=3", "tool": "git", "spec": ">=3", "passed": false,
+      "outcome": "unmet", "version": "2.55.0.windows.2",
+      "path": "C:\\Program Files\\Git\\cmd\\git.exe",
+      "message": "git 2.55.0.windows.2 does not satisfy >=3"
+    }
+  ]
+}
+```
+
+`outcome` is `passed`, `unmet`, `not-comparable`, `missing`, `error` or `timeout`; `version` and `path` are `null` when the tool has no active install; `message` is for people. The same requirement may appear several times (each is reported, the tool is scanned once). `schema_version` is the same counter as in a scan result; new fields or outcomes are non-breaking under the [compatibility rules](schema/README.md).
 
 ### Failures and partial results
 

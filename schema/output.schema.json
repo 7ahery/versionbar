@@ -1,10 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "CommandOutput",
-  "description": "Every document the CLI prints with --json. Scan results (list, show) carry schema_version 1, which changes only on breaking changes.",
+  "description": "Every document the CLI prints with --json. Scan results (list, show) and check results carry schema_version 1, which changes only on breaking changes.",
   "anyOf": [
     {
       "$ref": "#/$defs/ScanResult"
+    },
+    {
+      "$ref": "#/$defs/CheckResult"
     },
     {
       "$ref": "#/$defs/CaptureOutcome"
@@ -67,6 +70,45 @@
         "exit_code"
       ],
       "title": "CaptureOutcome",
+      "type": "object"
+    },
+    "CheckResult": {
+      "additionalProperties": false,
+      "description": "The result of `check --json`: one live scan, then every requirement tested against the\nactive install of its tool. The exit code is 0 exactly when `passed` is true.",
+      "properties": {
+        "schema_version": {
+          "default": 1,
+          "description": "Changes only on breaking changes to this format; the same counter as ScanResult's.",
+          "type": "integer"
+        },
+        "scanned_at": {
+          "description": "When the scan ran, RFC 3339 in UTC.",
+          "format": "date-time",
+          "type": "string"
+        },
+        "platform": {
+          "$ref": "#/$defs/OsName"
+        },
+        "passed": {
+          "description": "True when every requirement passed.",
+          "type": "boolean"
+        },
+        "requirements": {
+          "description": "One entry per requirement, in the order given.",
+          "items": {
+            "$ref": "#/$defs/RequirementResult"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "scanned_at",
+        "platform",
+        "passed",
+        "requirements"
+      ],
+      "title": "CheckResult",
       "type": "object"
     },
     "FailureOutcome": {
@@ -138,6 +180,88 @@
         "linux"
       ],
       "type": "string"
+    },
+    "RequirementOutcome": {
+      "description": "`passed`: met. Every other value is a failure: `unmet` (the active version is outside the range), `not-comparable` (the active version has no leading number to compare), `missing`, `error` or `timeout` (the tool has no usable active install; same meaning as the tool status). More values may be added without a schema_version bump; handle unknown ones.",
+      "enum": [
+        "passed",
+        "unmet",
+        "not-comparable",
+        "missing",
+        "error",
+        "timeout"
+      ],
+      "type": "string"
+    },
+    "RequirementResult": {
+      "additionalProperties": false,
+      "description": "The verdict on one requirement given to `check`.",
+      "properties": {
+        "requirement": {
+          "description": "The requirement exactly as given, e.g. `node@>=20`.",
+          "type": "string"
+        },
+        "tool": {
+          "description": "Tool id the requirement is about.",
+          "type": "string"
+        },
+        "spec": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The version spec after `@` (e.g. `>=20,<23`), or null for a presence-only requirement."
+        },
+        "passed": {
+          "description": "True when the outcome is `passed`.",
+          "type": "boolean"
+        },
+        "outcome": {
+          "$ref": "#/$defs/RequirementOutcome"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Version of the active install as the tool prints it, or null when there is none."
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Absolute path of the active install, or null when there is none."
+        },
+        "message": {
+          "description": "Human-readable explanation of the verdict; not for parsing.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requirement",
+        "tool",
+        "spec",
+        "passed",
+        "outcome",
+        "version",
+        "path",
+        "message"
+      ],
+      "title": "RequirementResult",
+      "type": "object"
     },
     "ScanResult": {
       "additionalProperties": false,
