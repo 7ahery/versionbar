@@ -35,7 +35,7 @@ class AppSettings(_ConfigModel):
     """Settings only the tray app uses; the CLI ignores them."""
 
     update_check: bool = True
-    """Whether the app checks for VersionBar updates. False means it never asks."""
+    """Whether the app checks for updates of itself. False means it never asks."""
 
 
 class ConfigFile(_ConfigModel):

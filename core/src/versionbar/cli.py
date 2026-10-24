@@ -14,10 +14,10 @@ from versionbar.check import (
     evaluate,
     parse_requirement,
 )
-from versionbar.config import InvalidConfig, Registry, Settings, config_path, load_settings
+from versionbar.config import InvalidConfig, Registry, Settings, load_settings
 from versionbar.contract import output_schema
 from versionbar.definition import ToolDefinition, builtin_definitions
-from versionbar.models import ConfigProblem, ConfigResult, ScanResult
+from versionbar.models import ConfigResult, ScanResult
 from versionbar.scan import scan
 from versionbar.system import System
 
@@ -238,18 +238,20 @@ def config_command(
     Exits with code 3 when the config file cannot be used, naming each problem.
     """
     system = _system(ctx)
+    settings: Settings | None = None
     try:
-        settings: Settings | None = load_settings(system, builtin_definitions())
-        problems: list[ConfigProblem] = []
+        settings = load_settings(system, builtin_definitions())
+        result = ConfigResult(
+            config_path=settings.path,
+            config_exists=settings.exists,
+            problems=[],
+            preferences=settings.preferences(),
+        )
     except InvalidConfig as error:
-        settings, problems = None, error.problems
-    path = config_path(system)
-    result = ConfigResult(
-        config_path=path,
-        config_exists=settings.exists if settings else True,
-        problems=problems,
-        preferences=settings.preferences() if settings else None,
-    )
+        # Still a full answer: the app needs the path to open the file for fixing.
+        result = ConfigResult(
+            config_path=error.path, config_exists=True, problems=error.problems, preferences=None
+        )
     if json_output:
         typer.echo(result.model_dump_json(indent=2))
     else:

@@ -45,6 +45,18 @@ One complete, live run of detection over all Tools, producing a ScanResult.
 Refresh is the user action that triggers a Scan; `check` is the separate command that tests requirements against one.
 _Avoid_: Poll, run
 
+**Config file**:
+The user's optional TOML file of settings (custom Tools, hidden Tools, timeouts, pins and order, the app's update check), shared by the CLI and the app and read on every run.
+_Avoid_: Settings file, preferences file
+
+**Custom tool**:
+A Tool defined in the Config file rather than built in, in the same definition format. One with a built-in's id replaces that built-in.
+_Avoid_: User tool, plugin
+
+**Preferences**:
+The part of the Config file the app needs, reported by the preferences query (`config --json`): the update check, pins and order.
+_Avoid_: Options
+
 **ScanResult**:
 The versioned JSON document a Scan produces: `schema_version`, `scanned_at`, `platform` and the Tools with their Installs.
 _Avoid_: Report, snapshot, inventory
