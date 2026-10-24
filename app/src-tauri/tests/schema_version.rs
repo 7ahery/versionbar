@@ -10,8 +10,8 @@ use tray_shell::scan::SUPPORTED_SCHEMA_VERSION;
 #[test]
 fn supported_schema_version_matches_the_generated_schema() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../schema/output.schema.json");
-    let text = fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
+    let text =
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
     let schema: Value = serde_json::from_str(&text).expect("output schema is valid JSON");
     let version = &schema["$defs"]["ScanResult"]["properties"]["schema_version"]["default"];
 

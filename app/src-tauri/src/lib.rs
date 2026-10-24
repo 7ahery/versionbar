@@ -77,7 +77,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![get_state, refresh])
         .setup(|app| {
             create_tray(app.handle())?;
-            let scanner = Arc::new(Scanner::new(scan_config(app.handle())?, announce(app.handle())));
+            let scanner = Arc::new(Scanner::new(
+                scan_config(app.handle())?,
+                announce(app.handle()),
+            ));
             app.manage(scanner.clone());
             // Scan at launch so the popup has data by the time it is first opened.
             start_refresh(scanner);

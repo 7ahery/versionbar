@@ -66,3 +66,45 @@ The Rust part of the app now does four things, all of them app lifecycle (ADR-00
   updating the reviewed list, `deny.toml` bans the shell plugin, and
   `tests/product_identity.rs` keeps the app version equal to the core's and the display
   name the same in the Tauri config and the UI.
+
+## Ticket 21 (2026-10-24)
+
+Checked with `npm run dev` on the same machine: at launch the shell ran the bundled core from
+the debug resource folder, uv created `%LOCALAPPDATA%\io.github.7ahery.versionbar\core-env`
+(with the bytecode cache in `core-env\pycache`) and no file appeared in the bundled `core/`
+folder. The same `uv run` invocation, run by hand against that folder, printed a
+`schema_version` 1 scan in about a second once the environment existed.
+
+Not yet checked by hand: the popup list itself in the running app (it is covered by the
+mocked-IPC UI tests), Refresh from the popup, and a run from an installed build (ticket 23).
+
+## Rust: what and why (ticket 21)
+
+The Rust shell can now run a scan and hand the result to the popup. Bundling and the exact
+invocation are described in `docs/app/bundled-core.md`.
+
+- **Finding uv.** Before every scan it looks for `uv.exe` on PATH, then in `UV_INSTALL_DIR`,
+  then in `%USERPROFILE%\.local\bin`. The last two cover an app started at login without the
+  terminal's PATH. If uv is nowhere, it reports "uv missing" and runs nothing. It never
+  installs uv.
+- **Running the core.** It starts uv with one fixed command line (`run --frozen --no-dev
+  --managed-python --project <bundled core> -- versionbar list --json`). The Python
+  environment and Python's bytecode files go in the app data folder, never in the install
+  folder. No console window flashes. If the scan takes longer than 30 seconds, it kills uv
+  and everything uv started.
+- **Checking the result.** It accepts the output only if it is a JSON object whose
+  `schema_version` is 1. It reads no other field and passes the text on unchanged.
+  Anything else (start failure, timeout, nonzero exit with its error output, non-JSON,
+  another version) is recorded as a failure with a reason, and the last good result stays.
+- **Holding state.** It keeps the latest and the previous good result in memory, plus
+  whether a scan is running and how the last one ended. A refresh while a scan runs is
+  ignored, so two scans never run at once.
+- **Talking to the popup.** Two new commands: `get_state` (read the state) and `refresh`
+  (start a scan; takes no arguments). A `scan-updated` event carries the new state when a
+  scan starts and ends. The popup gained exactly four permissions: those two commands plus
+  listening and un-listening for events. `tests/capabilities.rs` lists them. It still cannot
+  run programs or pass arguments to the core.
+- **Startup.** One scan starts at launch, so the popup has data by the time it opens.
+- **Dependencies.** `serde` and `serde_json` became direct dependencies. They were already
+  built as part of Tauri, so nothing new is downloaded. `serde_json` gained its `raw_value`
+  feature, which keeps scan results as untouched text.

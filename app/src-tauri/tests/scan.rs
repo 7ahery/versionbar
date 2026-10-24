@@ -212,7 +212,11 @@ fn the_core_runs_with_fixed_arguments_and_the_environment_in_app_data() {
         rig.recorded_environment(),
         [
             rig.dir.join("core-env").display().to_string(),
-            rig.dir.join("core-env").join("pycache").display().to_string(),
+            rig.dir
+                .join("core-env")
+                .join("pycache")
+                .display()
+                .to_string(),
         ]
     );
 }
@@ -285,7 +289,10 @@ fn a_nonzero_exit_is_a_failure_that_carries_stderr_and_keeps_the_last_result() {
 
     assert_eq!(state["outcome"]["kind"], json!("failed"));
     assert_eq!(state["outcome"]["reason"], json!("exit"));
-    assert_eq!(state["outcome"]["stderr"], json!("error: no interpreter found"));
+    assert_eq!(
+        state["outcome"]["stderr"],
+        json!("error: no interpreter found")
+    );
     assert!(
         state["outcome"]["message"]
             .as_str()
@@ -383,7 +390,10 @@ fn without_uv_the_outcome_is_uv_missing_and_nothing_runs() {
 fn a_uv_that_cannot_be_started_is_a_launch_failure() {
     let rig = printing("launch", &real_scan());
     let mut config = rig.config(TIMEOUT);
-    let gone = rig.dir.join("deleted").join(if cfg!(windows) { "uv.exe" } else { "uv" });
+    let gone = rig
+        .dir
+        .join("deleted")
+        .join(if cfg!(windows) { "uv.exe" } else { "uv" });
     config.find_uv = Box::new(move || Some(gone.clone()));
     let scanner = scanner(config);
 
@@ -413,7 +423,10 @@ fn every_change_is_announced_and_a_refresh_during_a_scan_is_skipped() {
         assert!(Instant::now() < deadline, "scan never started");
         thread::sleep(Duration::from_millis(10));
     }
-    assert!(!scanner.refresh(), "a second scan must not start while one runs");
+    assert!(
+        !scanner.refresh(),
+        "a second scan must not start while one runs"
+    );
     assert!(first.join().unwrap());
 
     assert_eq!(rig.calls(), 1);

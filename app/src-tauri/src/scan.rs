@@ -172,7 +172,8 @@ impl Scanner {
                 &output.stderr,
             ));
         }
-        check_scan(output.stdout).map_err(|(reason, message)| failed(reason, message, &output.stderr))
+        check_scan(output.stdout)
+            .map_err(|(reason, message)| failed(reason, message, &output.stderr))
     }
 }
 
