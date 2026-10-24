@@ -81,6 +81,19 @@ class System(Protocol):
         ...
 
     @property
+    def config_dir(self) -> str:
+        """The platform's per-user config folder for VersionBar. It may not exist yet."""
+        ...
+
+    def read_file(self, path: str) -> bytes:
+        """The whole file at `path`.
+
+        Raises FileNotFoundError when there is no such file, and OSError when
+        it exists but cannot be read, so callers can tell absent from broken.
+        """
+        ...
+
+    @property
     def platform_description(self) -> str:
         """Human-readable OS name and version, recorded as capture provenance."""
         ...

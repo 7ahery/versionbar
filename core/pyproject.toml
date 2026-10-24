@@ -6,7 +6,7 @@ readme = "README.md"
 license = "MIT"
 authors = [{ name = "Michael Tahery" }]
 requires-python = ">=3.14"
-dependencies = ["typer>=0.12", "rich>=13", "pydantic>=2.11"]
+dependencies = ["typer>=0.12", "rich>=13", "pydantic>=2.11", "platformdirs>=4"]
 
 [project.scripts]
 versionbar = "versionbar.cli:main"

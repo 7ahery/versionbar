@@ -129,3 +129,13 @@ class CheckResult(StrictModel):
     """True when every requirement passed."""
     requirements: list[RequirementResult]
     """One entry per requirement, in the order given."""
+
+
+class ConfigProblem(StrictModel):
+    """One thing wrong with the user config file."""
+
+    key: str | None
+    """Where in the file, as a dotted TOML key with list indexes (e.g. `tools[0].version_regex`),
+    or null when the problem is the whole file (unreadable, not UTF-8, not valid TOML)."""
+    message: str
+    """Human-readable description of the problem; not for parsing."""

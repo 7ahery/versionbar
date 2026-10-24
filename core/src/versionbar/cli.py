@@ -14,6 +14,7 @@ from versionbar.check import (
     evaluate,
     parse_requirement,
 )
+from versionbar.config import InvalidConfig, Registry, Settings, load_settings
 from versionbar.contract import output_schema
 from versionbar.definition import ToolDefinition, builtin_definitions
 from versionbar.models import ScanResult
@@ -85,7 +86,17 @@ def show_command(
     first; the rest are other installs it shadows.
     """
     system = _system(ctx)
-    _emit(system, scan(system, _requested_definitions(system, tools)), json_output, show=True)
+    settings = _settings(system)
+    _emit(
+        system,
+        scan(
+            system,
+            _requested_definitions(system, settings.registry, tools),
+            settings.timeout_for,
+        ),
+        json_output,
+        show=True,
+    )
 
 
 def _usage_error(lines: list[str]) -> typer.Exit:
@@ -95,23 +106,41 @@ def _usage_error(lines: list[str]) -> typer.Exit:
     return typer.Exit(2)
 
 
-def _known_tools(system: System) -> dict[str, ToolDefinition]:
-    return {d.id: d for d in builtin_definitions() if system.os in d.os}
+# Distinct from usage errors (2) and check failures (1), so a caller (the app
+# included) can tell "fix your config file" apart without parsing text.
+INVALID_CONFIG_EXIT_CODE = 3
 
 
-def _unknown_tool_problem(system: System, name: str) -> str:
-    elsewhere = any(d.id == name for d in builtin_definitions() if system.os not in d.os)
+def _settings(system: System) -> Settings:
+    try:
+        return load_settings(system, builtin_definitions())
+    except InvalidConfig as error:
+        # Plain stderr, as with usage errors, so `--json` never prints half a document.
+        typer.echo(error.describe(), err=True)
+        raise typer.Exit(INVALID_CONFIG_EXIT_CODE) from error
+
+
+def _known_tools(system: System, registry: Registry) -> dict[str, ToolDefinition]:
+    return {d.id: d for d in registry.on(system.os)}
+
+
+def _unknown_tool_problem(system: System, registry: Registry, name: str) -> str:
+    elsewhere = any(d.id == name for d in registry.definitions if system.os not in d.os)
     return f"{name} is not available on {system.os}" if elsewhere else f"Unknown tool: {name}"
 
 
-def _requested_definitions(system: System, names: list[str]) -> list[ToolDefinition]:
+def _requested_definitions(
+    system: System, registry: Registry, names: list[str]
+) -> list[ToolDefinition]:
     """Definitions for tool ids given on the command line, in request order, each once.
 
     Exits with the usage-error code on ids that are unknown or belong to another OS.
     """
-    known = _known_tools(system)
+    known = _known_tools(system, registry)
     wanted = list(dict.fromkeys(names))
-    problems = [_unknown_tool_problem(system, name) for name in wanted if name not in known]
+    problems = [
+        _unknown_tool_problem(system, registry, name) for name in wanted if name not in known
+    ]
     if problems:
         raise _usage_error([*problems, f"known tools: {', '.join(known)}"])
     return [known[name] for name in wanted]
@@ -130,7 +159,9 @@ def check_command(
     json_output: bool = typer.Option(False, "--json", help=_JSON_HELP),
 ) -> None:
     system = _system(ctx)
-    known = _known_tools(system)
+    settings = _settings(system)
+    registry = settings.registry
+    known = _known_tools(system, registry)
     parsed: list[Requirement] = []
     problems: list[str] = []
     for text in requirements or []:
@@ -140,7 +171,7 @@ def check_command(
             problems.append(str(error))
             continue
         if requirement.tool not in known:
-            problems.append(f"{text}: {_unknown_tool_problem(system, requirement.tool)}")
+            problems.append(f"{text}: {_unknown_tool_problem(system, registry, requirement.tool)}")
         parsed.append(requirement)
     if not requirements:
         problems.append("check needs at least one requirement, e.g. check 'node@>=20' git")
@@ -149,7 +180,7 @@ def check_command(
         raise _usage_error([*problems, hint, f"known tools: {', '.join(known)}"])
 
     wanted = [known[tool] for tool in dict.fromkeys(r.tool for r in parsed)]
-    result = evaluate(parsed, scan(system, wanted))
+    result = evaluate(parsed, scan(system, wanted, settings.timeout_for))
     if json_output:
         typer.echo(result.model_dump_json(indent=2))
     else:
@@ -163,7 +194,13 @@ def check_command(
 
 def _list(ctx: typer.Context, json_output: bool) -> None:
     system = _system(ctx)
-    _emit(system, scan(system, builtin_definitions()), json_output, show=False)
+    settings = _settings(system)
+    _emit(
+        system,
+        scan(system, settings.listed(system.os), settings.timeout_for),
+        json_output,
+        show=False,
+    )
 
 
 def _emit(system: System, result: ScanResult, json_output: bool, *, show: bool) -> None:

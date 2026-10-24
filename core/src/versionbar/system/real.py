@@ -15,6 +15,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import platformdirs
+
+from versionbar import PROG
 from versionbar.system import AppExecutionAlias, OsName, ProcessResult, System, UnreadableAlias
 
 # How long a timed-out command's tree gets to die and release its pipes.
@@ -146,6 +149,15 @@ class _LocalSystem:
         if tag != _IO_REPARSE_TAG_APPEXECLINK:
             return None
         return _read_app_execution_alias(path)
+
+    @property
+    def config_dir(self) -> str:
+        # Roaming on Windows (%APPDATA%), where per-user settings conventionally
+        # live (uv and ruff keep theirs there too); XDG_CONFIG_HOME on Linux.
+        return platformdirs.user_config_dir(PROG, appauthor=False, roaming=True)
+
+    def read_file(self, path: str) -> bytes:
+        return Path(path).read_bytes()
 
     @property
     def platform_description(self) -> str:
