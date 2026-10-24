@@ -71,6 +71,22 @@ def test_capture_output_validates_against_the_schema(
     assert errors(output_validator(), json.loads(result.stdout)) == []
 
 
+@pytest.mark.parametrize(
+    ("config", "exit_code"),
+    [(None, 0), ('pinned = ["git"]\n[app]\nupdate_check = false\n', 0), ("colour = 1\n", 3)],
+    ids=["no config", "config", "invalid config"],
+)
+def test_config_output_validates_against_the_schema(config: str | None, exit_code: int) -> None:
+    system = windows_with_git()
+    if config is not None:
+        system.add_config(config)
+
+    result = run_cli(system, "config", "--json")
+
+    assert result.exit_code == exit_code, result.output
+    assert errors(output_validator(), json.loads(result.stdout)) == []
+
+
 def scan_output() -> dict:
     return json.loads(run_cli(windows_with_git(), "list", "--json").stdout)
 

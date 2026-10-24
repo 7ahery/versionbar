@@ -13,7 +13,7 @@ from pydantic import Field, ValidationError
 from pydantic_core import ErrorDetails
 
 from versionbar.definition import ToolDefinition
-from versionbar.models import ConfigProblem, StrictModel
+from versionbar.models import ConfigProblem, Preferences, StrictModel
 from versionbar.scan import DEFAULT_TIMEOUT_SECONDS
 from versionbar.system import OsName, System
 
@@ -90,6 +90,10 @@ class Settings:
     exists: bool
     file: ConfigFile
     registry: Registry
+
+    def preferences(self) -> Preferences:
+        app, file = self.file.app, self.file
+        return Preferences(update_check=app.update_check, pinned=file.pinned, order=file.order)
 
     def timeout_for(self, tool_id: str) -> float:
         return self.file.timeouts.get(tool_id, self.file.timeout)

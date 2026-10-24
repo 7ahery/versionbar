@@ -14,10 +14,10 @@ from versionbar.check import (
     evaluate,
     parse_requirement,
 )
-from versionbar.config import InvalidConfig, Registry, Settings, load_settings
+from versionbar.config import InvalidConfig, Registry, Settings, config_path, load_settings
 from versionbar.contract import output_schema
 from versionbar.definition import ToolDefinition, builtin_definitions
-from versionbar.models import ScanResult
+from versionbar.models import ConfigProblem, ConfigResult, ScanResult
 from versionbar.scan import scan
 from versionbar.system import System
 
@@ -226,6 +226,39 @@ def _print_human(system: System, result: ScanResult, *, show: bool) -> None:
 
     terminal, color = _output_style(system)
     (print_show if show else print_list)(result, terminal=terminal, color=color)
+
+
+@app.command("config")
+def config_command(
+    ctx: typer.Context,
+    json_output: bool = typer.Option(False, "--json", help=_JSON_HELP),
+) -> None:
+    """Show where the config file is and the settings it sets. Runs no tool.
+
+    Exits with code 3 when the config file cannot be used, naming each problem.
+    """
+    system = _system(ctx)
+    try:
+        settings: Settings | None = load_settings(system, builtin_definitions())
+        problems: list[ConfigProblem] = []
+    except InvalidConfig as error:
+        settings, problems = None, error.problems
+    path = config_path(system)
+    result = ConfigResult(
+        config_path=path,
+        config_exists=settings.exists if settings else True,
+        problems=problems,
+        preferences=settings and settings.preferences(),
+    )
+    if json_output:
+        typer.echo(result.model_dump_json(indent=2))
+    else:
+        from versionbar.human import print_config
+
+        terminal, color = _output_style(system)
+        print_config(result, settings, terminal=terminal, color=color)
+    if settings is None:
+        raise typer.Exit(INVALID_CONFIG_EXIT_CODE)
 
 
 @app.command("schema")

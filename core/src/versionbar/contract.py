@@ -19,13 +19,19 @@ from pydantic.json_schema import GenerateJsonSchema, models_json_schema
 
 from versionbar.capture import CaptureFailure, CaptureOutcome
 from versionbar.definition import ToolDefinition
-from versionbar.models import SCHEMA_VERSION, CheckResult, ScanResult
+from versionbar.models import SCHEMA_VERSION, CheckResult, ConfigResult, ScanResult
 
 DIALECT = "https://json-schema.org/draft/2020-12/schema"
 
 # Each command's `--json` output. A later command with its own result adds its
 # model here rather than reshaping an existing one.
-OUTPUT_MODELS: list[type[BaseModel]] = [ScanResult, CheckResult, CaptureOutcome, CaptureFailure]
+OUTPUT_MODELS: list[type[BaseModel]] = [
+    ScanResult,
+    CheckResult,
+    ConfigResult,
+    CaptureOutcome,
+    CaptureFailure,
+]
 
 
 class _Generator(GenerateJsonSchema):
@@ -47,9 +53,9 @@ def output_schema() -> dict[str, Any]:
         "$schema": DIALECT,
         "title": "CommandOutput",
         "description": (
-            f"Every document the CLI prints with --json. Scan results (list, show) and check "
-            f"results carry schema_version {SCHEMA_VERSION}, which changes only on breaking "
-            f"changes."
+            f"Every document the CLI prints with --json. Scan results (list, show), check "
+            f"results and config results carry schema_version {SCHEMA_VERSION}, which changes "
+            f"only on breaking changes."
         ),
         "anyOf": [{"$ref": f"#/$defs/{model.__name__}"} for model in OUTPUT_MODELS],
         **defs,
