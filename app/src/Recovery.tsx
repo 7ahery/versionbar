@@ -16,7 +16,7 @@ export const UV_INSTALL_COMMAND = "winget install astral-sh.uv";
 const STDERR_LINES_SHOWN = 12;
 
 const DOWNLOAD_NOTE =
-  "uv may download Python and packages for VersionBar's own environment. VersionBar itself installs nothing.";
+  "uv may download and install a Python and packages for VersionBar's own environment. VersionBar never installs or changes your tools.";
 
 export function SettingUpScreen() {
   return (
@@ -25,7 +25,9 @@ export function SettingUpScreen() {
         className="size-6 animate-spin text-muted-foreground"
         aria-hidden
       />
-      <h2 className="text-sm font-semibold">Preparing environment</h2>
+      <h2 className="text-sm font-semibold">
+        One-time setup: preparing Python environment…
+      </h2>
       <p className="text-xs text-muted-foreground" aria-live="polite">
         The first scan sets up VersionBar&apos;s own Python environment, which
         can take a few minutes. This happens once.
@@ -76,6 +78,10 @@ export function FailedScreen({
   const stderr = outcome.stderr?.trim() ?? "";
   const shown = stderr.split("\n").slice(-STDERR_LINES_SHOWN).join("\n");
   // The whole error, so a bug report has what the screen had to cut.
+  // Only for failures that can come from uv's own download or setup; a failure to start uv or
+  // unreadable output has nothing to do with downloads.
+  const mentionsDownloads =
+    outcome.reason === "timeout" || outcome.reason === "exit";
   const report = stderr ? `${message}\n\n${stderr}` : message;
 
   return (
@@ -90,7 +96,9 @@ export function FailedScreen({
           {shown}
         </pre>
       )}
-      <p className="text-xs text-muted-foreground">{DOWNLOAD_NOTE}</p>
+      {mentionsDownloads && (
+        <p className="text-xs text-muted-foreground">{DOWNLOAD_NOTE}</p>
+      )}
       <div className="flex flex-wrap justify-center gap-2">
         <CopyButton label="Copy error" text={report} />
         <RetryButton scanning={scanning} onRetry={onRetry} />

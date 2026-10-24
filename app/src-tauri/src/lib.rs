@@ -135,11 +135,14 @@ fn announce<R: Runtime>(app: &AppHandle<R>) -> scan::Notify {
 /// Scans on a background thread so neither IPC nor the tray waits for the core. The tray is
 /// updated here, once the scan is over, and not from the state-change callback: that runs
 /// while the state is locked, and a tray change waits for the main thread, which may itself
-/// be waiting for that lock inside `get_state`.
+/// be waiting for that lock inside `get_state`. A refresh that was skipped because a scan was
+/// already running leaves the tray alone: the running scan updates it when it ends, and a
+/// snapshot taken now would be stale.
 fn start_refresh<R: Runtime>(app: AppHandle<R>, scanner: Arc<Scanner>) {
     thread::spawn(move || {
-        scanner.refresh();
-        show_tray_status(&app, &scanner.state());
+        if scanner.refresh() {
+            show_tray_status(&app, &scanner.state());
+        }
     });
 }
 
@@ -185,7 +188,7 @@ fn open_uv_docs() {
         if let Some(root) = std::env::var_os("SystemRoot") {
             let _ = std::process::Command::new(std::path::Path::new(&root).join("explorer.exe"))
                 .arg(UV_INSTALL_DOCS)
-                .creation_flags(0x0800_0000)
+                .creation_flags(scan::CREATE_NO_WINDOW)
                 .spawn();
         }
     }

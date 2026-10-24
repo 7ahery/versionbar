@@ -85,7 +85,10 @@ On the first run uv creates the environment, which can need a Python download. V
 installs nothing itself, but this run makes uv download and install VersionBar's own Python
 and dependencies into the folders above. That run is the "first run": the shell decides it by
 whether the environment folder (`core-env`) exists before it starts uv, and gives it a 180-second
-timeout instead of 30 seconds. While it runs, the state says `setting_up: true`.
+timeout instead of 30 seconds. While it runs, the state says `setting_up: true`. The first-run
+rules (180 seconds, `setting_up`) last until one scan succeeds, so a first run that timed out
+after creating the folder is retried with the same allowance. What users can do about each
+failure is in [../troubleshooting.md](../troubleshooting.md).
 
 ## Finding uv
 

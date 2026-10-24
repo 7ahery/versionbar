@@ -153,21 +153,27 @@ The popup can now tell the user what to do when there is nothing to show.
 - **First run versus later runs.** Before starting uv, the shell checks whether the
   `core-env` folder exists in the app data folder. If not, this is the first run: uv has to
   create the environment and may download Python and packages, so it gets 180 seconds instead
-  of 30, and the state says `setting_up` so the popup shows "Preparing environment" instead of
-  a bare spinner. The check happens once, before the scan starts, so a folder that appears
-  during the run does not shorten that run. Caveat: if a first run times out after uv created
-  the folder, the next scan counts as a later run (30 seconds) and may time out again while uv
-  is still downloading; Retry continues where uv left off.
+  of 30, and the state says `setting_up` so the popup shows "One-time setup: preparing Python
+  environment…" instead of a bare spinner. The check happens once, before the scan starts,
+  so a folder that appears during the run does not shorten that run. The first-run rules
+  then stay in force until one scan succeeds: if a first run times out after uv created the
+  folder, Retry still gets 180 seconds and the setup screen, so uv can finish its download.
+  The same applies if the folder was missing when the app started and the first scans failed
+  for other reasons.
 - **uv missing.** Unchanged logic (nothing is run, nothing is installed). The popup shows a
   copyable `winget install astral-sh.uv`, a button for the official install guide, and Retry
   (the existing `refresh`). Looking for uv now also happens before the "scanning" state is
   announced, so a missing uv goes straight to its screen without flashing the setup screen.
 - **Failure.** The popup shows the shell's one-line message and the last 12 lines of uv's
-  error output; Copy error copies the message and all of the error output. It also says
-  that uv may download Python and packages for VersionBar's own environment, and that
-  VersionBar itself installs nothing.
+  error output; Copy error copies the message and all of the error output. For timeouts and
+  nonzero exits (and on the setup screen) it also says: "uv may download and install a Python
+  and packages for VersionBar's own environment. VersionBar never installs or changes your
+  tools." Failures to start uv or unreadable output do not get that sentence, since downloads
+  are not the likely cause.
 - **Tray warning.** While the last scan found no uv, the tray icon gets a small warning dot
-  and the tooltip says "uv was not found". The first successful scan restores both. The dot is
+  and the tooltip says "uv was not found". The next scan that finds uv restores both, even if that scan then fails for another reason (the
+  failure screen takes over the message). A refresh skipped because a scan is already running
+  does not touch the tray. The dot is
   drawn from the normal icon at run time (`badge.rs`), so there is no second image to keep in
   step. The tray is updated from the scan thread after the scan ends, not from the state
   callback: that callback runs while the state is locked, a tray change waits for the main

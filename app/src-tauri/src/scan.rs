@@ -10,7 +10,10 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
     process::{Child, Command, ExitStatus, Stdio},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     thread,
     time::{Duration, Instant},
 };
@@ -42,7 +45,7 @@ const POLL: Duration = Duration::from_millis(20);
 /// The release app has no console, so without this flag every process it starts would flash
 /// one.
 #[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+pub(crate) const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /// Inherited uv settings that would change which project, Python, environment or dependency
 /// set the fixed invocation uses, or contradict its flags. They are removed so a scan always
@@ -168,6 +171,10 @@ pub struct Scanner {
     config: ScanConfig,
     state: Mutex<ShellState>,
     notify: Notify,
+    /// True from the moment the environment folder is found missing until a scan succeeds.
+    /// A first run that times out can leave a half-built folder behind; without this the
+    /// retry would count as an ordinary scan and get 30 seconds for the rest of the download.
+    unsettled: AtomicBool,
 }
 
 impl Scanner {
@@ -176,6 +183,7 @@ impl Scanner {
             config,
             state: Mutex::default(),
             notify,
+            unsettled: AtomicBool::new(false),
         }
     }
 
@@ -190,7 +198,7 @@ impl Scanner {
         // "uv missing" without a flash of the setup screen, and a folder that appears
         // while the scan runs must not change which timeout this scan uses.
         let uv = (self.config.find_uv)();
-        let first_run = !self.config.environment.exists();
+        let first_run = self.unsettled.load(Ordering::SeqCst) || !self.config.environment.exists();
         if !self.update(|state| {
             if state.scanning {
                 return false;
@@ -200,6 +208,11 @@ impl Scanner {
             true
         }) {
             return false;
+        }
+        // Only a scan that really runs may start the unsettled period (an overlapping
+        // request returned above).
+        if first_run {
+            self.unsettled.store(true, Ordering::SeqCst);
         }
 
         let result = self.scan(uv, first_run);
@@ -211,6 +224,7 @@ impl Scanner {
                     state.previous = state.current.take();
                     state.current = Some(scan);
                     state.outcome = Some(Outcome::Ok);
+                    self.unsettled.store(false, Ordering::SeqCst);
                 }
                 // A failed attempt keeps the last good results so the popup still has data.
                 Err(outcome) => state.outcome = Some(outcome),

@@ -1,6 +1,10 @@
 //! The tray icon's warning variant, drawn from the normal icon at run time so no second image
 //! has to ship and the two can never drift apart.
 
+const FILL: [u8; 4] = [245, 158, 11, 255];
+const MARK: [u8; 4] = [40, 28, 4, 255];
+const RING: [u8; 4] = [255, 255, 255, 255];
+
 /// Returns a copy of `rgba` (8-bit RGBA, row by row, `width` x `height`) with an amber
 /// warning dot containing a dark exclamation mark in the bottom-right corner.
 pub fn with_warning_badge(rgba: &[u8], width: u32, height: u32) -> Vec<u8> {
@@ -16,12 +20,12 @@ pub fn with_warning_badge(rgba: &[u8], width: u32, height: u32) -> Vec<u8> {
             let colour = if distance > radius {
                 continue;
             } else if is_exclamation(px - cx, py - cy, radius) {
-                [40, 28, 4, 255]
+                MARK
             } else if distance > radius * 0.82 {
                 // A thin light ring keeps the dot visible against a dark taskbar.
-                [255, 255, 255, 255]
+                RING
             } else {
-                [245, 158, 11, 255]
+                FILL
             };
             let at = ((y * width + x) * 4) as usize;
             if let Some(pixel) = out.get_mut(at..at + 4) {
@@ -56,7 +60,7 @@ mod tests {
         assert_eq!(badged[0..4], plain[0..4]);
         // A pixel on the dot, away from the exclamation mark, is the opaque amber fill.
         let dot = ((26 * w + 26) * 4) as usize;
-        assert_eq!(badged[dot..dot + 4], [245, 158, 11, 255]);
+        assert_eq!(badged[dot..dot + 4], FILL);
         // The far corner of the square lies outside the round dot.
         let corner = badged.len() - 4;
         assert_eq!(badged[corner..], plain[corner..]);

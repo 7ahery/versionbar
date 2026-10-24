@@ -83,10 +83,12 @@ describe("preparing the environment", () => {
 
     render(<App />);
 
-    expect(await screen.findByText("Preparing environment")).toBeDefined();
-    expect(screen.getByText(/uv may download/)).toBeDefined();
     expect(
-      screen.getByText(/VersionBar itself installs nothing/),
+      await screen.findByText("One-time setup: preparing Python environment…"),
+    ).toBeDefined();
+    expect(screen.getByText(/uv may download and install/)).toBeDefined();
+    expect(
+      screen.getByText(/VersionBar never installs or changes your tools/),
     ).toBeDefined();
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
   });
@@ -94,14 +96,16 @@ describe("preparing the environment", () => {
   it("gives way to the list when the first scan succeeds", async () => {
     shell(empty({ scanning: true, setting_up: true }));
     render(<App />);
-    await screen.findByText("Preparing environment");
+    await screen.findByText("One-time setup: preparing Python environment…");
 
     await act(() =>
       emit("scan-updated", empty({ current: scan, outcome: { kind: "ok" } })),
     );
 
     expect(await screen.findByText("Git")).toBeDefined();
-    expect(screen.queryByText("Preparing environment")).toBeNull();
+    expect(
+      screen.queryByText("One-time setup: preparing Python environment…"),
+    ).toBeNull();
   });
 
   it("is not shown for an ordinary scan", async () => {
@@ -110,7 +114,9 @@ describe("preparing the environment", () => {
     render(<App />);
 
     await screen.findByText("Scanning…");
-    expect(screen.queryByText("Preparing environment")).toBeNull();
+    expect(
+      screen.queryByText("One-time setup: preparing Python environment…"),
+    ).toBeNull();
   });
 });
 
@@ -243,16 +249,33 @@ describe("the scan failed", () => {
     expect(screen.getByRole("button", { name: "Retry" })).toBeDefined();
   });
 
-  it("mentions uv's own downloads accurately", async () => {
-    shell(failure("error: download failed"));
+  it.each(["exit", "timeout"])(
+    "mentions uv's own downloads for a %s failure",
+    async (reason) => {
+      shell(failure("error: download failed", reason));
 
-    render(<App />);
+      render(<App />);
 
-    expect(await screen.findByText(/uv may download/)).toBeDefined();
-    expect(
-      screen.getByText(/VersionBar itself installs nothing/),
-    ).toBeDefined();
-  });
+      expect(
+        await screen.findByText(/uv may download and install/),
+      ).toBeDefined();
+      expect(
+        screen.getByText(/VersionBar never installs or changes your tools/),
+      ).toBeDefined();
+    },
+  );
+
+  it.each(["launch", "malformed", "incompatible"])(
+    "does not mention downloads for a %s failure",
+    async (reason) => {
+      shell(failure("something else", reason));
+
+      render(<App />);
+
+      await screen.findByText("The scan failed (code 2).");
+      expect(screen.queryByText(/uv may download/)).toBeNull();
+    },
+  );
 });
 
 describe("unknown outcomes", () => {
