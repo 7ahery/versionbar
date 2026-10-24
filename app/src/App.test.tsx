@@ -138,6 +138,59 @@ describe("popup", () => {
     expect(screen.queryByText("Scanning…")).toBeNull();
   });
 
+  it("is not left on a stale state when a scan ends while it subscribes", async () => {
+    // Models the real shell: a listener counts only once the shell has handled the listen
+    // request, and an event sent before that reaches nobody.
+    let current = state({ scanning: true, current: null, outcome: null });
+    const handlers: number[] = [];
+    let finishSubscribing: (() => void) | null = null;
+    mockIPC((cmd, args) => {
+      if (cmd === "plugin:app|version") return "0.1.0";
+      if (cmd === "get_state") return current;
+      if (cmd === "plugin:event|listen") {
+        const { handler } = args as { handler: number };
+        return new Promise((resolve) => {
+          finishSubscribing = () => {
+            handlers.push(handler);
+            resolve(handler);
+          };
+        });
+      }
+      if (cmd === "plugin:event|unlisten") return null;
+      throw new Error(`unexpected command ${cmd}`);
+    });
+    // mockIPC installs this bridge; it is how Tauri delivers events to the page.
+    const bridge = (
+      window as unknown as {
+        __TAURI_INTERNALS__: {
+          runCallback: (id: number, data: unknown) => void;
+        };
+      }
+    ).__TAURI_INTERNALS__;
+    const announce = (next: ShellState) => {
+      current = next;
+      for (const handler of handlers) {
+        bridge.runCallback(handler, {
+          event: "scan-updated",
+          id: handler,
+          payload: next,
+        });
+      }
+    };
+
+    render(<App />);
+    await waitFor(() => {
+      expect(finishSubscribing).not.toBeNull();
+    });
+    announce(state());
+    act(() => {
+      finishSubscribing?.();
+    });
+
+    expect(await screen.findByText("Git")).toBeDefined();
+    expect(screen.queryByText("Scanning…")).toBeNull();
+  });
+
   it("keeps showing the last results while a refresh runs", async () => {
     shell(state());
     render(<App />);

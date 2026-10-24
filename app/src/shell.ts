@@ -45,28 +45,33 @@ export function useShellState(): {
 
   useEffect(() => {
     let active = true;
-    // An event is always newer than the get_state answer, which may have been read before
-    // the event was sent, so a late answer must not overwrite it.
+    // Once an event has arrived, the get_state answer adds nothing: any change after the
+    // event was sent comes as another event. An answer that lands after the event may also
+    // have been read before it, so it must not overwrite it.
     let heardEvent = false;
     let unlisten: (() => void) | null = null;
-    listen<ShellState>(SCAN_UPDATED, (event) => {
-      heardEvent = true;
-      if (active) setState(event.payload);
-    }).then(
-      (stop) => {
+    const follow = async () => {
+      try {
+        const stop = await listen<ShellState>(SCAN_UPDATED, (event) => {
+          heardEvent = true;
+          if (active) setState(event.payload);
+        });
         if (active) unlisten = stop;
         else stopQuietly(stop);
-      },
-      // No event bridge (shell gone): get_state below is all we can do.
-      () => {},
-    );
-    invoke<ShellState>("get_state").then(
-      (initial) => {
+      } catch {
+        // No event bridge (shell gone): get_state below is all we can do.
+      }
+      // Only asked once the shell is sending us events: an event sent while the listener
+      // was still being set up reaches nobody, and an earlier answer would then be the
+      // last word and could stay stale (say, "scanning") for good.
+      try {
+        const initial = await invoke<ShellState>("get_state");
         if (active && !heardEvent) setState(initial);
-      },
-      // Without the shell there is nothing to show yet; events may still arrive.
-      () => {},
-    );
+      } catch {
+        // Without the shell there is nothing to show yet; events may still arrive.
+      }
+    };
+    void follow();
     return () => {
       active = false;
       if (unlisten) stopQuietly(unlisten);
