@@ -39,7 +39,8 @@ class _Generator(GenerateJsonSchema):
 def output_schema() -> dict[str, Any]:
     # Serialization mode: the schema describes what the CLI prints, where every
     # field is always present (`via`/`raw` as explicit null, `notes` as a list).
-    _, top = models_json_schema(
+    # Only the shared `{"$defs": ...}` is kept; each model is reached through `anyOf` below.
+    _, defs = models_json_schema(
         [(model, "serialization") for model in OUTPUT_MODELS], schema_generator=_Generator
     )
     return {
@@ -50,7 +51,7 @@ def output_schema() -> dict[str, Any]:
             f"schema_version {SCHEMA_VERSION}, which changes only on breaking changes."
         ),
         "anyOf": [{"$ref": f"#/$defs/{model.__name__}"} for model in OUTPUT_MODELS],
-        **top,
+        **defs,
     }
 
 

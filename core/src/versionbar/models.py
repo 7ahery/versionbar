@@ -5,15 +5,22 @@ Docstrings on models and fields become descriptions in the generated schema
 and TS types, so they are written for consumers of the JSON.
 """
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from versionbar.system import OsName
 
 SCHEMA_VERSION = 1
 
-type ToolStatus = Literal["found", "missing", "error", "timeout"]
+# Descriptions sit on the enum types, not the fields: a field description next
+# to a `$ref` makes the TS generator inline the enum instead of naming it.
+type ToolStatus = Annotated[
+    Literal["found", "missing", "error", "timeout"],
+    Field(
+        description="More values may be added without a schema_version bump; handle unknown ones."
+    ),
+]
 
 
 class StrictModel(BaseModel):
@@ -33,6 +40,7 @@ class Install(StrictModel):
     version: str
     """The version as the tool prints it, vendor suffixes included."""
     path: str
+    """Absolute path of the executable that was run."""
     source: str
     """`path`, or the id of the provider that reported the install."""
     via: str | None = None
@@ -45,7 +53,9 @@ class Tool(StrictModel):
     """One tool and every install of it that was found."""
 
     id: str
+    """Stable tool id, as used on the command line (e.g. `git`)."""
     name: str
+    """Display name."""
     status: ToolStatus
     active: Install | None
     """The install that runs when you type the command, or null when there is none."""
@@ -56,10 +66,16 @@ class Tool(StrictModel):
 
 
 class ScanResult(StrictModel):
-    """The result of one live scan: what `list --json` and `show --json` print."""
+    """The result of one live scan: what `list --json` and `show --json` print.
+
+    `platform` and `status` may gain values without a schema_version bump; handle
+    unknown ones (for example with a default branch).
+    """
 
     schema_version: int = SCHEMA_VERSION
     """Changes only on breaking changes to this format."""
     scanned_at: AwareDatetime
+    """When the scan ran, RFC 3339 in UTC."""
     platform: OsName
     tools: list[Tool]
+    """`list`: every tool known on this OS, missing ones included. `show`: the requested ones."""

@@ -4,14 +4,12 @@ import json
 import threading
 
 import pytest
-from typer.testing import CliRunner
 
 from versionbar import cli, definition
-from versionbar.cli import app
 from versionbar.definition import ToolDefinition
 from versionbar.system import ProcessResult
 
-from fakes import GIT_WINDOWS, WINDOWS_PATHEXT, Capture, FakeSystem, load_capture
+from fakes import GIT_WINDOWS, WINDOWS_PATHEXT, Capture, FakeSystem, load_capture, run_cli
 
 WSL_PATH = r"C:\WINDOWS\system32\wsl.exe"
 GIT_EXE = r"C:\Program Files\Git\cmd\git.exe"
@@ -26,10 +24,6 @@ WSL = ToolDefinition(
     version_args=["--version"],
     version_regex=r"WSL[^:\r\n]*:\s*(?P<version>\d+(?:\.\d+)+)",
 )
-
-
-def run_cli(system: FakeSystem, *args: str):
-    return CliRunner().invoke(app, list(args), obj=system)
 
 
 def windows(*directories: str) -> FakeSystem:

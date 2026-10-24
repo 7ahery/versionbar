@@ -13,18 +13,12 @@ import pytest
 from jsonschema import Draft202012Validator
 from jsonschema.protocols import Validator
 from pydantic import ValidationError
-from typer.testing import CliRunner
 
-from versionbar.cli import app
 from versionbar.definition import ToolDefinition
 
-from fakes import FakeSystem, windows_with_git
+from fakes import FakeSystem, run_cli, windows_with_git
 
 SCHEMA_DIR = Path(__file__).resolve().parents[2] / "schema"
-
-
-def run_cli(system: FakeSystem, *args: str):
-    return CliRunner().invoke(app, list(args), obj=system)
 
 
 def committed(name: str) -> dict:
@@ -150,6 +144,9 @@ def test_every_built_in_definition_validates_against_the_definition_schema() -> 
         assert text.splitlines()[0] == SCHEMA_DIRECTIVE, file.name
 
 
+# The definition tests use ToolDefinition directly rather than the CLI: the TOML
+# definition format is itself a contract (built-ins now, user config later),
+# and ToolDefinition is the loader that enforces it.
 def test_a_well_formed_definition_validates_and_loads() -> None:
     assert errors(definition_validator(), VALID_DEFINITION) == []
     ToolDefinition.model_validate(VALID_DEFINITION)

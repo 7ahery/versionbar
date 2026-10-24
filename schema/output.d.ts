@@ -5,27 +5,48 @@
  */
 export type CommandOutput = ScanResult | CaptureOutcome | CaptureFailure;
 export type OsName = "windows" | "linux";
+/**
+ * More values may be added without a schema_version bump; handle unknown ones.
+ */
 export type ToolStatus = "found" | "missing" | "error" | "timeout";
+/**
+ * Why nothing was captured. More values may be added without a breaking change; handle unknown ones.
+ */
 export type FailureOutcome =
   "unknown-tool" | "unsupported-os" | "not-found" | "timeout" | "launch-error" | "write-failed";
 
 /**
  * The result of one live scan: what `list --json` and `show --json` print.
+ *
+ * `platform` and `status` may gain values without a schema_version bump; handle
+ * unknown ones (for example with a default branch).
  */
 export interface ScanResult {
   /**
    * Changes only on breaking changes to this format.
    */
   schema_version: number;
+  /**
+   * When the scan ran, RFC 3339 in UTC.
+   */
   scanned_at: string;
   platform: OsName;
+  /**
+   * `list`: every tool known on this OS, missing ones included. `show`: the requested ones.
+   */
   tools: Tool[];
 }
 /**
  * One tool and every install of it that was found.
  */
 export interface Tool {
+  /**
+   * Stable tool id, as used on the command line (e.g. `git`).
+   */
   id: string;
+  /**
+   * Display name.
+   */
   name: string;
   status: ToolStatus;
   /**
@@ -49,6 +70,9 @@ export interface Install {
    * The version as the tool prints it, vendor suffixes included.
    */
   version: string;
+  /**
+   * Absolute path of the executable that was run.
+   */
   path: string;
   /**
    * `path`, or the id of the provider that reported the install.
@@ -63,10 +87,22 @@ export interface Install {
    */
   raw: string | null;
 }
+/**
+ * What `debug capture --json` prints after writing a capture file.
+ */
 export interface CaptureOutcome {
   outcome: "captured";
+  /**
+   * The tool id that was captured.
+   */
   tool: string;
+  /**
+   * Path of the capture file that was written.
+   */
   destination: string;
+  /**
+   * Exit code of the tool's version command (recorded even when non-zero).
+   */
   exit_code: number;
 }
 /**
@@ -74,6 +110,12 @@ export interface CaptureOutcome {
  */
 export interface CaptureFailure {
   outcome: FailureOutcome;
+  /**
+   * The tool id that was asked for.
+   */
   tool: string;
+  /**
+   * Human-readable explanation.
+   */
   message: string;
 }

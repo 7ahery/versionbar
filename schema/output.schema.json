@@ -22,9 +22,11 @@
           "$ref": "#/$defs/FailureOutcome"
         },
         "tool": {
+          "description": "The tool id that was asked for.",
           "type": "string"
         },
         "message": {
+          "description": "Human-readable explanation.",
           "type": "string"
         }
       },
@@ -38,6 +40,7 @@
     },
     "CaptureOutcome": {
       "additionalProperties": false,
+      "description": "What `debug capture --json` prints after writing a capture file.",
       "properties": {
         "outcome": {
           "const": "captured",
@@ -45,12 +48,15 @@
           "type": "string"
         },
         "tool": {
+          "description": "The tool id that was captured.",
           "type": "string"
         },
         "destination": {
+          "description": "Path of the capture file that was written.",
           "type": "string"
         },
         "exit_code": {
+          "description": "Exit code of the tool's version command (recorded even when non-zero).",
           "type": "integer"
         }
       },
@@ -64,6 +70,7 @@
       "type": "object"
     },
     "FailureOutcome": {
+      "description": "Why nothing was captured. More values may be added without a breaking change; handle unknown ones.",
       "enum": [
         "unknown-tool",
         "unsupported-os",
@@ -83,6 +90,7 @@
           "type": "string"
         },
         "path": {
+          "description": "Absolute path of the executable that was run.",
           "type": "string"
         },
         "source": {
@@ -133,7 +141,7 @@
     },
     "ScanResult": {
       "additionalProperties": false,
-      "description": "The result of one live scan: what `list --json` and `show --json` print.",
+      "description": "The result of one live scan: what `list --json` and `show --json` print.\n\n`platform` and `status` may gain values without a schema_version bump; handle\nunknown ones (for example with a default branch).",
       "properties": {
         "schema_version": {
           "default": 1,
@@ -141,6 +149,7 @@
           "type": "integer"
         },
         "scanned_at": {
+          "description": "When the scan ran, RFC 3339 in UTC.",
           "format": "date-time",
           "type": "string"
         },
@@ -148,6 +157,7 @@
           "$ref": "#/$defs/OsName"
         },
         "tools": {
+          "description": "`list`: every tool known on this OS, missing ones included. `show`: the requested ones.",
           "items": {
             "$ref": "#/$defs/Tool"
           },
@@ -168,9 +178,11 @@
       "description": "One tool and every install of it that was found.",
       "properties": {
         "id": {
+          "description": "Stable tool id, as used on the command line (e.g. `git`).",
           "type": "string"
         },
         "name": {
+          "description": "Display name.",
           "type": "string"
         },
         "status": {
@@ -215,6 +227,7 @@
       "type": "object"
     },
     "ToolStatus": {
+      "description": "More values may be added without a schema_version bump; handle unknown ones.",
       "enum": [
         "found",
         "missing",

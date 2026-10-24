@@ -10,9 +10,9 @@ import base64
 import ntpath
 import posixpath
 import re
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import AwareDatetime, Base64Bytes
+from pydantic import AwareDatetime, Base64Bytes, Field
 
 from versionbar import __version__
 from versionbar.decoding import detect_encoding
@@ -66,8 +66,14 @@ class CaptureFile(StrictModel):
     provenance: Provenance
 
 
-type FailureOutcome = Literal[
-    "unknown-tool", "unsupported-os", "not-found", "timeout", "launch-error", "write-failed"
+type FailureOutcome = Annotated[
+    Literal[
+        "unknown-tool", "unsupported-os", "not-found", "timeout", "launch-error", "write-failed"
+    ],
+    Field(
+        description="Why nothing was captured. More values may be added without a breaking"
+        " change; handle unknown ones."
+    ),
 ]
 
 
@@ -81,10 +87,15 @@ class CaptureError(Exception):
 
 
 class CaptureOutcome(StrictModel):
+    """What `debug capture --json` prints after writing a capture file."""
+
     outcome: Literal["captured"] = "captured"
     tool: str
+    """The tool id that was captured."""
     destination: str
+    """Path of the capture file that was written."""
     exit_code: int
+    """Exit code of the tool's version command (recorded even when non-zero)."""
 
 
 class CaptureFailure(StrictModel):
@@ -92,7 +103,9 @@ class CaptureFailure(StrictModel):
 
     outcome: FailureOutcome
     tool: str
+    """The tool id that was asked for."""
     message: str
+    """Human-readable explanation."""
 
 
 def capture_tool(

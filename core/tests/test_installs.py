@@ -2,19 +2,12 @@
 
 import json
 
-from typer.testing import CliRunner
-
 from versionbar import cli, definition
-from versionbar.cli import app
 
-from fakes import GIT_LINUX, GIT_WINDOWS, WINDOWS_PATHEXT, FakeSystem, load_capture
+from fakes import GIT_LINUX, GIT_WINDOWS, WINDOWS_PATHEXT, FakeSystem, load_capture, run_cli
 
 WIN_GIT = r"C:\Program Files\Git\cmd\git.exe"
 SCOOP_GIT = r"C:\Users\dev\scoop\shims\git.exe"
-
-
-def run_cli(system: FakeSystem, *args: str):
-    return CliRunner().invoke(app, list(args), obj=system)
 
 
 def windows_with_two_gits(path: str | None = None) -> FakeSystem:

@@ -22,7 +22,8 @@ A command that gets its own `--json` result adds its model to `OUTPUT_MODELS` in
 
 - A scan result (`list`, `show`) carries `schema_version`, an integer kept separate from the package version. Consumers check it before reading further; the Rust shell reads nothing else.
 - `schema_version` changes only for breaking changes: a field is removed, renamed or retyped, a field becomes nullable, or an enum loses a value.
-- Additions are not breaking and keep the version: a new field, or a new enum value such as a status or platform. Parsers should ignore fields they don't know.
+- Additions are not breaking and keep the version: a new field, or a new enum value such as a `status`, `platform` or capture `outcome`.
+- So consumers must ignore fields they don't know, and must handle enum values they don't know, for example with a default branch that shows the value as-is. The generated TS types repeat this note on `ScanResult`, `ToolStatus` and `FailureOutcome`.
 - The schema describes exactly what this version prints: unknown keys are forbidden and every field is required. So an older copy of the schema rejects output that only gained a field. To validate output, use the schema from the same version (`versionbar schema`).
 - Every field is always printed. Optional values are explicit `null` (`via`, `raw`) or an empty list (`notes`), never omitted.
 - `notes` holds human-readable diagnostics. Don't parse it.

@@ -38,13 +38,13 @@ type VersionRegex = Annotated[
 # A definition that names no OS or no binary can never detect anything, so it
 # is a typo to reject, not a tool to report missing.
 NonEmptyOs = Annotated[list[OsName], Field(min_length=1)]
-Binaries = Annotated[list[str], Field(min_length=1)]
+NonEmptyBinaries = Annotated[list[str], Field(min_length=1)]
 
 
 class Detection(StrictModel):
     """The fields an OS override may replace."""
 
-    binaries: Binaries | None = None
+    binaries: NonEmptyBinaries | None = None
     version_args: list[str] | None = None
     version_regex: VersionRegex | None = None
 
@@ -58,7 +58,7 @@ class ToolDefinition(StrictModel):
     """Display name."""
     os: NonEmptyOs
     """The operating systems the tool is detected on."""
-    binaries: Binaries
+    binaries: NonEmptyBinaries
     """Command names to look up on PATH, in order; PATHEXT applies on Windows."""
     version_args: list[str]
     """Arguments that make the tool print its version."""
