@@ -213,6 +213,33 @@ def test_tool_missing_from_path_fails_without_writing_a_fixture() -> None:
     assert system.files == {}
 
 
+def test_the_user_profile_folder_is_redacted_from_provenance() -> None:
+    # Capture files are attached to public issues and committed as fixtures,
+    # so the account name in the profile path must not travel with them.
+    system = windows_with_git(r"c:\users\Jane.Doe\scoop\shims")
+    # Different case from the PATH spelling: Windows paths are case-insensitive.
+    system.env["USERPROFILE"] = r"C:\Users\jane.doe"
+
+    result = capture(system, "git", "--json")
+
+    assert result.exit_code == 0, result.output
+    provenance = written(system)["provenance"]
+    redacted = r"%USERPROFILE%\scoop\shims\git.exe"
+    assert provenance["resolved_path"] == redacted
+    assert provenance["command"] == [redacted, "--version"]
+    assert "jane" not in system.files[GIT_FILE].decode().lower()
+
+
+def test_a_folder_that_only_starts_like_the_profile_is_kept() -> None:
+    system = windows_with_git(r"C:\Users\jane.doe2\bin")
+    system.env["USERPROFILE"] = r"C:\Users\jane.doe"
+
+    capture(system, "git", "--json")
+
+    provenance = written(system)["provenance"]
+    assert provenance["resolved_path"] == r"C:\Users\jane.doe2\bin\git.exe"
+
+
 def test_store_placeholders_are_never_run_or_captured() -> None:
     apps = r"C:\Users\dev\AppData\Local\Microsoft\WindowsApps"
     system = FakeSystem(

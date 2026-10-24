@@ -15,12 +15,12 @@
     "versionbar_version": "0.1.0",
     "os_id": "windows",
     "os_description": "Windows-11-10.0.26200-SP0",
-    "resolved_path": "C:\\Users\\Michael\\AppData\\Local\\Author Software\\nvm\\.nodejs\\node.exe",
+    "resolved_path": "%USERPROFILE%\\AppData\\Local\\Author Software\\nvm\\.nodejs\\node.exe",
     "command": [
-      "C:\\Users\\Michael\\AppData\\Local\\Author Software\\nvm\\.nodejs\\node.exe",
+      "%USERPROFILE%\\AppData\\Local\\Author Software\\nvm\\.nodejs\\node.exe",
       "--version"
     ],
-    "captured_at": "2026-10-24T08:41:02.738725Z",
+    "captured_at": "2026-10-24T08:54:51.565593Z",
     "runner": null,
     "notes": null
   }

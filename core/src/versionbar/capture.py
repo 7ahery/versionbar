@@ -130,8 +130,8 @@ def capture_tool(
             versionbar_version=__version__,
             os_id=system.os,
             os_description=system.platform_description,
-            resolved_path=path,
-            command=argv,
+            resolved_path=_redact_profile(system, path),
+            command=[_redact_profile(system, argv[0]), *argv[1:]],
             captured_at=system.now(),
             runner=_runner(system),
         ),
@@ -145,6 +145,20 @@ def capture_tool(
     except OSError as error:
         raise CaptureError("write-failed", f"could not write {destination}: {error}") from error
     return CaptureOutcome(tool=tool_id, destination=destination, exit_code=process.exit_code)
+
+
+def _redact_profile(system: System, path: str) -> str:
+    # Capture files end up in public issues and committed fixtures; the
+    # profile folder carries the account name, which is not evidence.
+    if system.os != "windows":
+        return path
+    profile = ntpath.normpath(system.getenv("USERPROFILE") or "").rstrip("\\")
+    if profile in ("", "."):
+        return path
+    # Whole folder names only: `C:\Users\jane2` is not inside `C:\Users\jane`.
+    if path.casefold().startswith(profile.casefold() + "\\"):
+        return "%USERPROFILE%" + path[len(profile) :]
+    return path
 
 
 def _guess_encoding(*streams: bytes) -> str:

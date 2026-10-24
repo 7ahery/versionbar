@@ -29,7 +29,7 @@ One JSON file per capture:
 | `stdout_b64`, `stderr_b64` | The raw bytes, base64-encoded. These are authoritative; decoding (including UTF-16 from WSL) is the engine's job. |
 | `encoding` | Capture-time guess (`utf-8`, `utf-16`, `utf-16-le`) used only for the two text fields below. |
 | `stdout_text`, `stderr_text` | Decoded for human readers and bug reports. Never read back by the fake. |
-| `provenance` | `method`, `versionbar_version`, `os_id`, `os_description`, `resolved_path`, `command` (exact argv), `captured_at` (UTC), `runner` (CI image and run URL, or null), `notes`. |
+| `provenance` | `method`, `versionbar_version`, `os_id`, `os_description`, `resolved_path`, `command` (exact argv), `captured_at` (UTC), `runner` (CI image and run URL, or null), `notes`. On Windows, a path inside your profile folder is written as `%USERPROFILE%\...` in `resolved_path` and `command` (matched case-insensitively, whole folder names only), so the file does not carry your account name. |
 
 The model is `CaptureFile` in `core/src/versionbar/capture.py`; the fake in `core/tests/fakes.py` loads it with that same model.
 
@@ -63,4 +63,4 @@ Copy the files you want into `core/tests/fixtures/<tool>/` and review them like 
 
 ## Attaching a capture to a bug report
 
-Attach the `.json` file from `debug capture` to the issue. It contains the bytes needed to reproduce the problem plus the OS and resolved path, but also your PATH-resolved install location, so skim `provenance.resolved_path` first.
+Attach the `.json` file from `debug capture` to the issue. It contains the bytes needed to reproduce the problem plus the OS and resolved path. Your profile folder is already replaced by `%USERPROFILE%`, but an install elsewhere (or a tool that prints its own path) can still reveal names, so skim `provenance.resolved_path` and the `*_text` fields first.

@@ -15,12 +15,12 @@
     "versionbar_version": "0.1.0",
     "os_id": "windows",
     "os_description": "Windows-11-10.0.26200-SP0",
-    "resolved_path": "C:\\Users\\Michael\\AppData\\Roaming\\uv\\python\\cpython-3.13.16-windows-x86_64-none\\python.exe",
+    "resolved_path": "%USERPROFILE%\\AppData\\Roaming\\uv\\python\\cpython-3.13.16-windows-x86_64-none\\python.exe",
     "command": [
-      "C:\\Users\\Michael\\AppData\\Roaming\\uv\\python\\cpython-3.13.16-windows-x86_64-none\\python.exe",
+      "%USERPROFILE%\\AppData\\Roaming\\uv\\python\\cpython-3.13.16-windows-x86_64-none\\python.exe",
       "--version"
     ],
-    "captured_at": "2026-10-24T08:41:04.864378Z",
+    "captured_at": "2026-10-24T08:54:53.694556Z",
     "runner": null,
     "notes": "PATH narrowed to this uv-managed interpreter for the capture: on the capture machine bare python/python3 resolve only to Microsoft Store placeholders."
   }
