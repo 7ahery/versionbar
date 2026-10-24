@@ -49,6 +49,7 @@ class FakeSystem:
     os_description: str = "Windows-11-10.0.26200-SP0"
     files: dict[str, bytes] = field(default_factory=dict)
     _aliases: dict[str, AppExecutionAlias] = field(default_factory=dict)
+    runtime_dirs: list[str] = field(default_factory=list)
     # Lets a test make the destination unwritable without touching a real disk.
     write_error: str | None = None
     # Called on the scanning thread before each command answers, so a test can

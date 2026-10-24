@@ -30,6 +30,15 @@ class _LocalSystem:
     def getenv(self, name: str) -> str | None:
         return os.environ.get(name)
 
+    @property
+    def runtime_dirs(self) -> list[str]:
+        # Only a virtual environment (what uv run, uvx and the app use) is the
+        # launcher's own. Outside one the interpreter is a base install, which
+        # is only on PATH if the user put it there.
+        if sys.prefix == sys.base_prefix:
+            return []
+        return [os.path.join(sys.prefix, "Scripts" if sys.platform == "win32" else "bin")]
+
     def is_executable(self, path: str) -> bool:
         if self._os == "windows":
             # Windows has no execute bit; PATHEXT decides what is runnable.

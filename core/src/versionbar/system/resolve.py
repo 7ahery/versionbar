@@ -30,9 +30,15 @@ def path_hits(system: System, command: str) -> Iterator[str]:
     else:
         hits = _posix_hits(system, command)
         fold = str
+    # The launcher's folders are not part of the PATH the user typed into.
+    # Compared after the same normalisation as hits, so any spelling matches.
+    paths = ntpath if system.os == "windows" else posixpath
+    runtime = {fold(paths.normpath(directory)) for directory in system.runtime_dirs}
     seen: set[str] = set()
     for hit in hits:
         key = fold(hit)
+        if fold(paths.dirname(hit)) in runtime:
+            continue
         if key not in seen:
             seen.add(key)
             yield hit

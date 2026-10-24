@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from versionbar.system.real import local_system
+from versionbar.system.resolve import path_hits
 
 # The child starts a grandchild that inherits its stdout and outlives it, as a
 # `.cmd` shim's hung program would, then hangs itself.
@@ -50,6 +51,15 @@ def test_large_output_and_exit_code_are_captured_whole() -> None:
     # 200 KiB, every byte value: well beyond a pipe buffer, and binary-exact.
     assert result.stdout == bytes(range(256)) * 800
     assert result.stderr == b""
+
+
+def test_the_interpreter_running_the_core_is_not_found_on_path() -> None:
+    # The suite runs under `uv run`, which puts this environment's scripts
+    # folder first on PATH, as the app's scan command does.
+    name = "python" if sys.platform == "win32" else Path(sys.executable).name
+    hits = [os.path.normcase(hit) for hit in path_hits(local_system(), name)]
+
+    assert os.path.normcase(sys.executable) not in hits
 
 
 def test_an_ordinary_executable_is_not_an_app_execution_alias() -> None:

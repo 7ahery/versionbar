@@ -154,3 +154,48 @@ def test_other_app_execution_aliases_still_run_even_from_the_same_package() -> N
     uv = tools_of(run_cli(system, "list", "--json"))["uv"]
 
     assert (uv["status"], uv["active"]["path"]) == ("found", rf"{WINDOWS_APPS}\uv.exe")
+
+
+# Where the app keeps the environment VersionBar itself runs in; `uv run`
+# puts its Scripts folder first on PATH for the core's process.
+RUNTIME_SCRIPTS = r"C:\Users\dev\AppData\Local\VersionBar\.venv\Scripts"
+RUNTIME_PYTHON = rf"{RUNTIME_SCRIPTS}\python.exe"
+
+
+def launched_by_uv(system: FakeSystem) -> FakeSystem:
+    system.env["PATH"] = f"{RUNTIME_SCRIPTS};{system.env['PATH']}"
+    system.runtime_dirs = [RUNTIME_SCRIPTS]
+    # Real output of the uv-managed 3.14 the environment is built on.
+    system.add_executable(RUNTIME_PYTHON, load_capture(PYTHON_314_WINDOWS))
+    return system
+
+
+def test_the_python_running_versionbar_never_stands_in_for_a_missing_python() -> None:
+    system = launched_by_uv(with_store_placeholders(windows(WINDOWS_APPS)))
+
+    python = tools_of(run_cli(system, "list", "--json"))["python"]
+
+    assert (python["status"], python["active"]) == ("missing", None)
+    assert all(RUNTIME_SCRIPTS not in note for note in python["notes"])
+    assert system.runs == []
+
+
+def test_the_users_own_python_is_active_however_versionbar_was_launched() -> None:
+    system = with_store_placeholders(windows(r"C:\Python313", WINDOWS_APPS))
+    system.add_executable(r"C:\Python313\python.exe", load_capture(PYTHON_313_WINDOWS))
+    launched_by_uv(system)
+
+    python = tools_of(run_cli(system, "list", "--json"))["python"]
+
+    assert [(i["version"], i["path"]) for i in python["installs"]] == [
+        ("3.13.16", r"C:\Python313\python.exe")
+    ]
+
+
+def test_the_runtime_folder_is_recognised_whatever_its_spelling_on_path() -> None:
+    system = launched_by_uv(with_store_placeholders(windows(WINDOWS_APPS)))
+    system.env["PATH"] = system.env["PATH"].replace(RUNTIME_SCRIPTS, RUNTIME_SCRIPTS.lower() + "\\")
+
+    python = tools_of(run_cli(system, "list", "--json"))["python"]
+
+    assert python["status"] == "missing"

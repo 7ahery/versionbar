@@ -41,6 +41,16 @@ class System(Protocol):
 
     def getenv(self, name: str) -> str | None: ...
 
+    @property
+    def runtime_dirs(self) -> Sequence[str]:
+        """PATH folders of the environment VersionBar itself runs in.
+
+        `uv run` and `uvx` put that environment's scripts folder first on PATH,
+        so without this the uv-managed Python running the core would be
+        reported as the user's active Python.
+        """
+        ...
+
     def is_executable(self, path: str) -> bool: ...
 
     def run(self, argv: Sequence[str], timeout: float) -> ProcessResult: ...
