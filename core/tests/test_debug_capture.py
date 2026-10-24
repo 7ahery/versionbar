@@ -227,6 +227,18 @@ def test_the_user_profile_folder_is_redacted_from_provenance() -> None:
     assert "jane" not in system.files[GIT_FILE].decode().lower()
 
 
+def test_a_profile_at_a_drive_root_redacts_nothing() -> None:
+    # A drive root holds no account name, and treating it as the profile
+    # would rewrite every path on that drive.
+    for profile in ("C:\\", "C:", "c:\\."):
+        system = windows_with_git()
+        system.env["USERPROFILE"] = profile
+
+        capture(system, "git", "--json")
+
+        assert written(system)["provenance"]["resolved_path"] == GIT_PATH, profile
+
+
 def test_a_folder_that_only_starts_like_the_profile_is_kept() -> None:
     system = windows_with_git(r"C:\Users\jane.doe2\bin")
     system.env["USERPROFILE"] = r"C:\Users\jane.doe"

@@ -178,7 +178,10 @@ def _redact_profile(system: System, path: str) -> str:
     if system.os != "windows":
         return path
     profile = ntpath.normpath(system.getenv("USERPROFILE") or "").rstrip("\\")
-    if profile in ("", "."):
+    # Only a real folder below a drive or share root: a root such as `C:\`
+    # names no account and would rewrite every path on the drive.
+    _, rest = ntpath.splitdrive(profile)
+    if not rest.strip("\\.") or not ntpath.isabs(profile):
         return path
     # Whole folder names only: `C:\Users\jane2` is not inside `C:\Users\jane`.
     if path.casefold().startswith(profile.casefold() + "\\"):
