@@ -83,8 +83,9 @@ environment.
 
 On the first run uv creates the environment, which can need a Python download. VersionBar
 installs nothing itself, but this run makes uv download and install VersionBar's own Python
-and dependencies into the folders above. Ticket 22 adds the setup screen and the 180-second
-first-run timeout; until then every scan uses the 30-second timeout.
+and dependencies into the folders above. That run is the "first run": the shell decides it by
+whether the environment folder (`core-env`) exists before it starts uv, and gives it a 180-second
+timeout instead of 30 seconds. While it runs, the state says `setting_up: true`.
 
 ## Finding uv
 
@@ -130,11 +131,13 @@ matches what the core does for the tools it runs (`_DRAIN_SECONDS` in
 |---|---|---|
 | `get_state` | command | returns the state below |
 | `refresh` | command | no arguments, returns nothing; starts a scan unless one is running |
+| `open_uv_docs` | command | no arguments, returns nothing; opens the official uv installation guide in the default browser (the address is fixed in Rust) |
 | `scan-updated` | event, Rust to webview | the state below, sent when a scan starts and when it ends |
 
 ```ts
 {
   scanning: boolean;
+  setting_up: boolean;          // true only while a first run (no core-env yet) is scanning
   current: ScanResult | null;   // latest successful scan, as printed by the core
   previous: ScanResult | null;  // the successful scan before it
   outcome: null                 // nothing has finished yet
@@ -150,4 +153,4 @@ nobody, so an earlier `get_state` answer could stay stale. After an event has ar
 `get_state` answer is ignored, since it may have been read before that event.
 
 The TS mirror is `app/src/shell.ts`. Consumers must handle unknown `kind` and `reason` values
-(ticket 22 adds a setup state). State is held in memory only; ticket 24 saves it to disk.
+and treat `setting_up` as optional. State is held in memory only; ticket 24 saves it to disk.

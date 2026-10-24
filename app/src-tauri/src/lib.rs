@@ -12,14 +12,16 @@ use std::{
 
 use tauri::{
     AppHandle, Emitter, Manager, PhysicalPosition, Runtime, WebviewWindow, WindowEvent,
+    image::Image,
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 use tauri_plugin_positioner::{Position, WindowExt};
 
+pub mod badge;
 pub mod scan;
 
-use scan::{SCAN_TIMEOUT, ScanConfig, Scanner, ShellState};
+use scan::{FIRST_RUN_TIMEOUT, SCAN_TIMEOUT, ScanConfig, Scanner, ShellState};
 
 /// Sent to the popup with the full `ShellState` whenever it changes.
 const SCAN_UPDATED: &str = "scan-updated";
@@ -33,6 +35,7 @@ const CORE_ENVIRONMENT: &str = "core-env";
 
 /// Window label of the popup, as declared in tauri.conf.json and the capabilities file.
 const POPUP: &str = "popup";
+const TRAY_ID: &str = "main";
 const MENU_SHOW: &str = "show-versions";
 const MENU_QUIT: &str = "quit";
 
@@ -74,7 +77,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_positioner::init())
         .manage(LastBlurHide::default())
-        .invoke_handler(tauri::generate_handler![get_state, refresh])
+        .invoke_handler(tauri::generate_handler![get_state, refresh, open_uv_docs])
         .setup(|app| {
             create_tray(app.handle())?;
             let scanner = Arc::new(Scanner::new(
@@ -83,7 +86,7 @@ pub fn run() {
             ));
             app.manage(scanner.clone());
             // Scan at launch so the popup has data by the time it is first opened.
-            start_refresh(scanner);
+            start_refresh(app.handle().clone(), scanner);
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -117,6 +120,7 @@ fn scan_config<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<ScanConfig> {
         // Local, not roaming: the environment is large and specific to this machine.
         environment: paths.app_local_data_dir()?.join(CORE_ENVIRONMENT),
         timeout: SCAN_TIMEOUT,
+        first_run_timeout: FIRST_RUN_TIMEOUT,
     })
 }
 
@@ -128,11 +132,69 @@ fn announce<R: Runtime>(app: &AppHandle<R>) -> scan::Notify {
     })
 }
 
-/// Scans on a background thread so neither IPC nor the tray waits for the core.
-fn start_refresh(scanner: Arc<Scanner>) {
+/// Scans on a background thread so neither IPC nor the tray waits for the core. The tray is
+/// updated here, once the scan is over, and not from the state-change callback: that runs
+/// while the state is locked, and a tray change waits for the main thread, which may itself
+/// be waiting for that lock inside `get_state`.
+fn start_refresh<R: Runtime>(app: AppHandle<R>, scanner: Arc<Scanner>) {
     thread::spawn(move || {
         scanner.refresh();
+        show_tray_status(&app, &scanner.state());
     });
+}
+
+/// Marks the tray icon with a warning while uv is missing, so the problem is visible
+/// without opening the popup, and restores it as soon as a scan finds uv.
+fn show_tray_status<R: Runtime>(app: &AppHandle<R>, state: &ShellState) {
+    let Some(tray) = app.tray_by_id(TRAY_ID) else {
+        return;
+    };
+    let name = &app.package_info().name;
+    let missing = state.uv_missing();
+    // Best effort like the window calls: a tray that cannot change must not stop scanning.
+    let _ = tray.set_tooltip(Some(if missing {
+        format!("{name}: uv was not found")
+    } else {
+        name.clone()
+    }));
+    if let Some(icon) = app.default_window_icon() {
+        let icon = if missing {
+            let (w, h) = (icon.width(), icon.height());
+            Image::new_owned(badge::with_warning_badge(icon.rgba(), w, h), w, h)
+        } else {
+            icon.clone()
+        };
+        let _ = tray.set_icon(Some(icon));
+    }
+}
+
+/// The official uv installation page. A fixed address, so the popup cannot make the shell
+/// open anything else.
+const UV_INSTALL_DOCS: &str = "https://docs.astral.sh/uv/getting-started/installation/";
+
+/// Opens the uv installation page in the default browser. The popup cannot open links on its
+/// own (there is deliberately no shell or opener plugin), so this one fixed link has its own
+/// command. It only opens a page; VersionBar installs nothing.
+#[tauri::command]
+fn open_uv_docs() {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // explorer.exe from the Windows folder by full path, like taskkill in scan.rs; it
+        // hands the address to the user's default browser.
+        if let Some(root) = std::env::var_os("SystemRoot") {
+            let _ = std::process::Command::new(std::path::Path::new(&root).join("explorer.exe"))
+                .arg(UV_INSTALL_DOCS)
+                .creation_flags(0x0800_0000)
+                .spawn();
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = std::process::Command::new("xdg-open")
+            .arg(UV_INSTALL_DOCS)
+            .spawn();
+    }
 }
 
 /// The popup's view of the scan state: current and previous results plus progress.
@@ -144,8 +206,8 @@ fn get_state(scanner: tauri::State<'_, Arc<Scanner>>) -> ShellState {
 /// Starts a scan and returns at once; the result arrives as a `scan-updated` event. Does
 /// nothing while a scan is already running.
 #[tauri::command]
-fn refresh(scanner: tauri::State<'_, Arc<Scanner>>) {
-    start_refresh(scanner.inner().clone());
+fn refresh<R: Runtime>(app: AppHandle<R>, scanner: tauri::State<'_, Arc<Scanner>>) {
+    start_refresh(app, scanner.inner().clone());
 }
 
 fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
@@ -159,7 +221,7 @@ fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         ],
     )?;
 
-    let mut tray = TrayIconBuilder::new()
+    let mut tray = TrayIconBuilder::with_id(TRAY_ID)
         .tooltip(&app.package_info().name)
         .menu(&menu)
         .show_menu_on_left_click(false)

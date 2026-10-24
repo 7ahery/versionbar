@@ -65,6 +65,7 @@ impl Rig {
             project: self.dir.join("core"),
             environment: self.dir.join("core-env"),
             timeout,
+            first_run_timeout: timeout,
         }
     }
 
@@ -166,7 +167,7 @@ fn before_any_scan_the_state_is_empty() {
 
     assert_eq!(
         wire(&scanner.state()),
-        json!({"scanning": false, "current": null, "previous": null, "outcome": null})
+        json!({"scanning": false, "setting_up": false, "current": null, "previous": null, "outcome": null})
     );
 }
 
@@ -269,6 +270,7 @@ fn after_success_then(name: &str, fake: Fake, timeout: Duration) -> (Value, Dura
         project: bad.dir.join("core"),
         environment: bad.dir.join("core-env"),
         timeout,
+        first_run_timeout: timeout,
     };
     let scanner = scanner(config);
     scanner.refresh();
@@ -435,6 +437,109 @@ fn every_change_is_announced_and_a_refresh_during_a_scan_is_skipped() {
     assert_eq!(announced[0]["scanning"], json!(true));
     assert_eq!(announced[1]["scanning"], json!(false));
     assert_eq!(announced[1]["outcome"]["reason"], json!("timeout"));
+}
+
+// First run versus later runs: the environment folder decides how long uv may take, because
+// the first run downloads Python and packages (spec "Scan command").
+
+/// Whichever timeout the scanner picks decides how quickly the hanging fake is stopped.
+fn time_a_hanging_scan(name: &str, environment_exists: bool, normal: u64, first: u64) -> Duration {
+    let rig = Rig::new(name, Fake::Hang);
+    if environment_exists {
+        fs::create_dir_all(rig.dir.join("core-env")).unwrap();
+    }
+    let mut config = rig.config(Duration::from_millis(normal));
+    config.first_run_timeout = Duration::from_millis(first);
+    let scanner = scanner(config);
+    let started = Instant::now();
+    scanner.refresh();
+    let elapsed = started.elapsed();
+    assert_eq!(
+        wire(&scanner.state())["outcome"]["reason"],
+        json!("timeout")
+    );
+    elapsed
+}
+
+#[test]
+fn without_an_environment_folder_the_first_run_timeout_applies() {
+    let elapsed = time_a_hanging_scan("first-run-long", false, 300, 1_500);
+    assert!(elapsed >= Duration::from_millis(1_500), "{elapsed:?}");
+}
+
+#[test]
+fn with_an_environment_folder_the_normal_timeout_applies() {
+    let elapsed = time_a_hanging_scan("later-run-short", true, 300, 20_000);
+    assert!(elapsed < Duration::from_secs(10), "{elapsed:?}");
+}
+
+#[test]
+fn the_state_says_setting_up_only_for_a_first_run_and_clears_afterwards() {
+    for (environment_exists, expected) in [(false, true), (true, false)] {
+        let rig = printing(&format!("setup-{environment_exists}"), &real_scan());
+        if environment_exists {
+            fs::create_dir_all(rig.dir.join("core-env")).unwrap();
+        }
+        let announced: Arc<Mutex<Vec<Value>>> = Arc::default();
+        let sink = announced.clone();
+        let scanner = Scanner::new(
+            rig.config(TIMEOUT),
+            Box::new(move |state: &ShellState| sink.lock().unwrap().push(wire(state))),
+        );
+
+        scanner.refresh();
+
+        let announced = announced.lock().unwrap();
+        assert_eq!(announced[0]["scanning"], json!(true));
+        assert_eq!(announced[0]["setting_up"], json!(expected), "{announced:?}");
+        assert_eq!(announced[1]["setting_up"], json!(false));
+    }
+}
+
+#[test]
+fn a_failed_first_run_reports_stderr_and_a_retry_with_uv_working_succeeds() {
+    let bad = Rig::new("retry-bad", Fake::Fail("error: network unreachable", 2));
+    let good = printing("retry-good", &real_scan());
+    let good_uv = good.uv.clone();
+    let chosen = Arc::new(Mutex::new(bad.uv.clone()));
+    let lookup = chosen.clone();
+    let mut config = bad.config(TIMEOUT);
+    config.find_uv = Box::new(move || Some(lookup.lock().unwrap().clone()));
+    let scanner = scanner(config);
+
+    scanner.refresh();
+    let failed = wire(&scanner.state());
+    assert_eq!(failed["outcome"]["kind"], json!("failed"));
+    assert_eq!(
+        failed["outcome"]["stderr"],
+        json!("error: network unreachable")
+    );
+    assert_eq!(failed["current"], Value::Null);
+
+    *chosen.lock().unwrap() = good_uv;
+    scanner.refresh();
+    let recovered = wire(&scanner.state());
+    assert_eq!(recovered["outcome"], json!({"kind": "ok"}));
+    assert_eq!(recovered["current"], parsed(&real_scan()));
+}
+
+#[test]
+fn uv_missing_is_reported_until_uv_appears() {
+    let rig = printing("missing-then-found", &real_scan());
+    let uv = rig.uv.clone();
+    let present = Arc::new(Mutex::new(false));
+    let lookup = present.clone();
+    let mut config = rig.config(TIMEOUT);
+    config.find_uv = Box::new(move || lookup.lock().unwrap().then(|| uv.clone()));
+    let scanner = scanner(config);
+
+    scanner.refresh();
+    assert!(scanner.state().uv_missing());
+    assert_eq!(rig.calls(), 0);
+
+    *present.lock().unwrap() = true;
+    scanner.refresh();
+    assert!(!scanner.state().uv_missing());
 }
 
 // uv lookup: PATH, then UV_INSTALL_DIR, then the default user-local bin (~/.local/bin).

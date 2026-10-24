@@ -132,3 +132,51 @@ invocation are described in `docs/app/bundled-core.md`.
 - **Dependencies.** `serde` and `serde_json` became direct dependencies. They were already
   built as part of Tauri, so nothing new is downloaded. `serde_json` gained its `raw_value`
   feature, which keeps scan results as untouched text.
+
+## Ticket 22 (2026-10-25)
+
+Not run in the live tray: the tray badge was checked only by drawing the badged icon at
+32x32 from `icons/32x32.png` and looking at it (an amber dot with a dark exclamation mark in
+the bottom-right corner, with a thin white ring, legible on a dark background). Still to check
+by hand on a machine without uv (rename `uv.exe` out of PATH, `UV_INSTALL_DIR` and
+`%USERPROFILE%\.local\bin`): the tray shows the badge and the tooltip says "uv was not
+found"; after installing uv and pressing Retry the badge and plain tooltip come back; the
+"Open the uv install guide" button opens the browser (it uses `explorer.exe <url>`, which is
+unverified in the running app); "Copy command" and "Copy error" put text on the clipboard
+(the web clipboard API inside WebView2 is unverified in the running app). Ticket 31's manual QA
+checklist should include these.
+
+## Rust: what and why (ticket 22)
+
+The popup can now tell the user what to do when there is nothing to show.
+
+- **First run versus later runs.** Before starting uv, the shell checks whether the
+  `core-env` folder exists in the app data folder. If not, this is the first run: uv has to
+  create the environment and may download Python and packages, so it gets 180 seconds instead
+  of 30, and the state says `setting_up` so the popup shows "Preparing environment" instead of
+  a bare spinner. The check happens once, before the scan starts, so a folder that appears
+  during the run does not shorten that run. Caveat: if a first run times out after uv created
+  the folder, the next scan counts as a later run (30 seconds) and may time out again while uv
+  is still downloading; Retry continues where uv left off.
+- **uv missing.** Unchanged logic (nothing is run, nothing is installed). The popup shows a
+  copyable `winget install astral-sh.uv`, a button for the official install guide, and Retry
+  (the existing `refresh`). Looking for uv now also happens before the "scanning" state is
+  announced, so a missing uv goes straight to its screen without flashing the setup screen.
+- **Failure.** The popup shows the shell's one-line message and the last 12 lines of uv's
+  error output; Copy error copies the message and all of the error output. It also says
+  that uv may download Python and packages for VersionBar's own environment, and that
+  VersionBar itself installs nothing.
+- **Tray warning.** While the last scan found no uv, the tray icon gets a small warning dot
+  and the tooltip says "uv was not found". The first successful scan restores both. The dot is
+  drawn from the normal icon at run time (`badge.rs`), so there is no second image to keep in
+  step. The tray is updated from the scan thread after the scan ends, not from the state
+  callback: that callback runs while the state is locked, a tray change waits for the main
+  thread, and the main thread may be waiting for the same lock inside `get_state`.
+- **Opening the install guide.** The popup cannot open links (no shell or opener plugin, on
+  purpose). One new command, `open_uv_docs`, takes no arguments and opens one fixed address
+  (`https://docs.astral.sh/uv/getting-started/installation/`) through Windows' own
+  `explorer.exe`, found by full path in the Windows folder. The popup got one more permission
+  for it (`allow-open-uv-docs`, listed in `tests/capabilities.rs`). It opens a web page and
+  starts nothing else.
+- **Copying.** Uses the browser clipboard API from the popup, so no clipboard plugin was
+  added. If the webview refuses, the popup says so and the text stays on screen to select.

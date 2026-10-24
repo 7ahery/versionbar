@@ -23,9 +23,12 @@ use serde_json::value::RawValue;
 /// breaking change the UI was not built for, so it is a failed scan, not data.
 pub const SUPPORTED_SCHEMA_VERSION: u64 = 1;
 
-/// The normal scan timeout (spec "Scan command"). The longer first-run timeout comes with the
-/// setup screen in ticket 22.
+/// The normal scan timeout (spec "Scan command").
 pub const SCAN_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// The first run has to create the core's environment, and uv may download a managed Python
+/// and the core's dependencies to do so, which can take far longer than a scan.
+pub const FIRST_RUN_TIMEOUT: Duration = Duration::from_secs(180);
 
 /// How long to keep reading output after the process has exited or been killed. A grandchild
 /// that inherited the pipes could otherwise keep the scan waiting forever. When that happens
@@ -100,12 +103,18 @@ pub struct ScanConfig {
     /// folder, so it survives updates and needs no write access there (spec story 66).
     pub environment: PathBuf,
     pub timeout: Duration,
+    /// Used instead of `timeout` while `environment` does not exist yet.
+    pub first_run_timeout: Duration,
 }
 
 /// Everything the popup knows, as sent over IPC (`get_state` and the `scan-updated` event).
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct ShellState {
     scanning: bool,
+    /// True while a scan is the first run, which creates the core's environment and may
+    /// download Python and packages. Only ever true together with `scanning`. A separate
+    /// flag rather than an outcome: it describes work in progress, not how an attempt ended.
+    setting_up: bool,
     /// The latest successful scan result, exactly as the core printed it.
     current: Option<Box<RawValue>>,
     /// The successful scan before `current`, so the UI can highlight changes.
@@ -118,9 +127,14 @@ impl ShellState {
     pub fn scanning(&self) -> bool {
         self.scanning
     }
+
+    /// True when the latest finished attempt found no uv.
+    pub fn uv_missing(&self) -> bool {
+        matches!(self.outcome, Some(Outcome::UvMissing))
+    }
 }
 
-/// How one scan attempt ended. Ticket 22 adds a separate "setting up" state.
+/// How one scan attempt ended.
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Outcome {
@@ -172,19 +186,26 @@ impl Scanner {
     /// Runs one scan and waits for it. Returns false without doing anything when a scan is
     /// already running, so overlapping requests never start a second core process.
     pub fn refresh(&self) -> bool {
+        // Both are decided before anything is announced: an absent uv must go straight to
+        // "uv missing" without a flash of the setup screen, and a folder that appears
+        // while the scan runs must not change which timeout this scan uses.
+        let uv = (self.config.find_uv)();
+        let first_run = !self.config.environment.exists();
         if !self.update(|state| {
             if state.scanning {
                 return false;
             }
             state.scanning = true;
+            state.setting_up = uv.is_some() && first_run;
             true
         }) {
             return false;
         }
 
-        let result = self.scan();
+        let result = self.scan(uv, first_run);
         self.update(|state| {
             state.scanning = false;
+            state.setting_up = false;
             match result {
                 Ok(scan) => {
                     state.previous = state.current.take();
@@ -210,9 +231,14 @@ impl Scanner {
         changed
     }
 
-    fn scan(&self) -> Result<Box<RawValue>, Outcome> {
-        let uv = (self.config.find_uv)().ok_or(Outcome::UvMissing)?;
-        let output = run_core(&uv, &self.config)?;
+    fn scan(&self, uv: Option<PathBuf>, first_run: bool) -> Result<Box<RawValue>, Outcome> {
+        let uv = uv.ok_or(Outcome::UvMissing)?;
+        let timeout = if first_run {
+            self.config.first_run_timeout
+        } else {
+            self.config.timeout
+        };
+        let output = run_core(&uv, &self.config, timeout)?;
         if !output.status.success() {
             let code = output
                 .status
@@ -322,7 +348,7 @@ fn core_command(uv: &Path, config: &ScanConfig) -> Command {
     command
 }
 
-fn run_core(uv: &Path, config: &ScanConfig) -> Result<Output, Outcome> {
+fn run_core(uv: &Path, config: &ScanConfig, timeout: Duration) -> Result<Output, Outcome> {
     let mut child = core_command(uv, config).spawn().map_err(|error| {
         failed(
             FailureReason::Launch,
@@ -333,7 +359,7 @@ fn run_core(uv: &Path, config: &ScanConfig) -> Result<Output, Outcome> {
     let stdout = collect(child.stdout.take());
     let stderr = collect(child.stderr.take());
 
-    let deadline = Instant::now() + config.timeout;
+    let deadline = Instant::now() + timeout;
     let status = loop {
         match child.try_wait() {
             Ok(Some(status)) => break status,
@@ -344,7 +370,7 @@ fn run_core(uv: &Path, config: &ScanConfig) -> Result<Output, Outcome> {
                     FailureReason::Timeout,
                     format!(
                         "The scan did not finish within {} seconds.",
-                        config.timeout.as_secs_f64()
+                        timeout.as_secs_f64()
                     ),
                 ));
             }

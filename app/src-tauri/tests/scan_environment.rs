@@ -90,6 +90,7 @@ fn settings_that_would_redirect_the_scan_are_not_passed_to_uv() {
             project: dir.join("core"),
             environment: dir.join("core-env"),
             timeout: Duration::from_secs(30),
+            first_run_timeout: Duration::from_secs(30),
         },
         Box::new(|_: &ShellState| {}),
     );
