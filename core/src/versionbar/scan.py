@@ -10,7 +10,7 @@ from versionbar.decoding import decode_output
 from versionbar.definition import ToolDefinition
 from versionbar.models import Install, ScanResult, Tool, ToolStatus
 from versionbar.system import ProcessResult, System
-from versionbar.system.resolve import path_hits
+from versionbar.system.resolve import ToolHits
 
 DEFAULT_TIMEOUT_SECONDS = 5.0
 # Version commands mostly wait on process start-up, so overlapping them is what
@@ -36,17 +36,17 @@ def scan(system: System, definitions: list[ToolDefinition]) -> ScanResult:
 
 def _submit(
     pool: ThreadPoolExecutor, system: System, definition: ToolDefinition
-) -> tuple[ToolDefinition, list[str], list[Future[Install | _Failed]]]:
+) -> tuple[ToolDefinition, ToolHits, list[Future[Install | _Failed]]]:
     # Resolution only checks files, so it stays on this thread; a tool's
     # commands start as soon as its paths are known.
-    paths = _all_hits(system, definition.binaries)
-    return definition, paths, [pool.submit(_probe, system, definition, path) for path in paths]
+    hits = ToolHits.of(system, definition.binaries)
+    return definition, hits, [pool.submit(_probe, system, definition, path) for path in hits.paths]
 
 
-def _detect(definition: ToolDefinition, paths: list[str], probes: list[Install | _Failed]) -> Tool:
-    if not paths:
-        names = ", ".join(definition.binaries)
-        return _tool(definition, "missing", notes=[f"not found on PATH (looked for: {names})"])
+def _detect(definition: ToolDefinition, hits: ToolHits, probes: list[Install | _Failed]) -> Tool:
+    if not hits.paths:
+        notes = hits.missing_notes(definition.binaries, definition.name)
+        return _tool(definition, "missing", notes=notes)
 
     # The first hit is what runs when the command is typed. If it cannot
     # report a version the tool is in error; the other installs are dropped
@@ -54,7 +54,9 @@ def _detect(definition: ToolDefinition, paths: list[str], probes: list[Install |
     # anyway: waiting for the active result first would double the scan time.)
     active = probes[0]
     if isinstance(active, _Failed):
-        return _tool(definition, active.status, notes=[active.note])
+        return _tool(
+            definition, active.status, notes=[active.note, *hits.placeholder_notes(definition.name)]
+        )
 
     installs = [active]
     notes: list[str] = []
@@ -65,6 +67,7 @@ def _detect(definition: ToolDefinition, paths: list[str], probes: list[Install |
             notes.append(other.note)
         else:
             installs.append(other)
+    notes += hits.placeholder_notes(definition.name, active=active.path)
     return _tool(definition, "found", active=active, installs=installs, notes=notes)
 
 
@@ -118,16 +121,6 @@ def _probe(system: System, definition: ToolDefinition, path: str) -> Install | _
 
 def _failed(status: ToolStatus, message: str, output: str) -> _Failed:
     return _Failed(status, message + (f": {output}" if output else ""))
-
-
-def _all_hits(system: System, binaries: list[str]) -> list[str]:
-    # Binaries keep their declared order, so an earlier name outranks a later one.
-    # Two names can match one file (`git` and `git.exe`); path_hits already
-    # normalised the spelling, so exact equality collapses those. Case-folding
-    # is not repeated here: it only matters across PATH entries, which
-    # path_hits handles per name.
-    hits = dict.fromkeys(hit for binary in binaries for hit in path_hits(system, binary))
-    return list(hits)
 
 
 def _decode(process: ProcessResult) -> str:

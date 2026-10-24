@@ -97,6 +97,10 @@ export interface Install {
  */
 export interface CheckResult {
   /**
+   * Changes only on breaking changes to this format; the same counter as ScanResult's.
+   */
+  schema_version: number;
+  /**
    * When the scan ran, RFC 3339 in UTC.
    */
   scanned_at: string;

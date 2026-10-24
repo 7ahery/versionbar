@@ -56,15 +56,18 @@ def print_show(result: ScanResult, *, terminal: bool, color: bool) -> None:
     """One row per install, the active one first, so `grep git` shows them all."""
     table = Table(box=None, pad_edge=False)
     table.add_column("Tool", style="bold")
-    table.add_column("")
+    # Titled so no header sits over the wrong values: "active" is the install
+    # that runs, "other" one it shadows.
+    table.add_column("Install")
     table.add_column("Version")
     table.add_column("Path", overflow="fold")
     table.add_column("Source")
     notes: list[str] = []
     for tool in result.tools:
         if not tool.installs:
+            # The status goes where a version would be, as in `list`.
             table.add_row(
-                Text(tool.id, style="dim"), Text(tool.status, style="dim red"), "", "", ""
+                Text(tool.id, style="dim"), "", Text(tool.status, style="dim red"), "", ""
             )
         for index, install in enumerate(tool.installs):
             role = Text("active", style="green") if index == 0 else Text("other", style="dim")

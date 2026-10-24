@@ -3,6 +3,7 @@ that touches processes, the environment or the machine's filesystem directly
 (reading the package's own bundled data is not machine access)."""
 
 import contextlib
+import functools
 import os
 import platform
 import signal
@@ -11,11 +12,13 @@ import sys
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
-from versionbar.system import OsName, ProcessResult, System
+from versionbar.system import AppExecutionAlias, OsName, ProcessResult, System, UnreadableAlias
 
 # How long a timed-out command's tree gets to die and release its pipes.
 _DRAIN_SECONDS = 1.0
+_IO_REPARSE_TAG_APPEXECLINK = 0x8000001B
 
 
 class _LocalSystem:
@@ -28,6 +31,15 @@ class _LocalSystem:
 
     def getenv(self, name: str) -> str | None:
         return os.environ.get(name)
+
+    @property
+    def runtime_dirs(self) -> list[str]:
+        # Only a virtual environment (what uv run, uvx and the app use) is the
+        # launcher's own. Outside one the interpreter is a base install, which
+        # is only on PATH if the user put it there.
+        if sys.prefix == sys.base_prefix:
+            return []
+        return [os.path.join(sys.prefix, "Scripts" if sys.platform == "win32" else "bin")]
 
     def is_executable(self, path: str) -> bool:
         if self._os == "windows":
@@ -107,6 +119,18 @@ class _LocalSystem:
                 with contextlib.suppress(OSError):
                     stream.close()
 
+    def app_execution_alias(self, path: str) -> AppExecutionAlias | UnreadableAlias | None:
+        if sys.platform != "win32":
+            return None
+        try:
+            # Cheap filter first: almost every PATH hit is an ordinary file.
+            tag = os.stat(path, follow_symlinks=False).st_reparse_tag
+        except OSError:
+            return None
+        if tag != _IO_REPARSE_TAG_APPEXECLINK:
+            return None
+        return _read_app_execution_alias(path)
+
     @property
     def platform_description(self) -> str:
         return platform.platform()
@@ -118,6 +142,104 @@ class _LocalSystem:
 
     def now(self) -> datetime:
         return datetime.now(UTC)
+
+
+@functools.cache
+def _kernel32() -> Any:
+    """kernel32 with typed prototypes, built once on first use (Windows only)."""
+    if sys.platform != "win32":
+        raise RuntimeError("kernel32 exists only on Windows")
+    import ctypes
+    from ctypes import wintypes
+
+    # use_last_error: GetLastError is copied after every call, so the reason a
+    # call failed survives into the note an unreadable alias gets.
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateFileW.restype = wintypes.HANDLE
+    kernel32.CreateFileW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    kernel32.DeviceIoControl.restype = wintypes.BOOL
+    kernel32.DeviceIoControl.argtypes = [
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD),
+        wintypes.LPVOID,
+    ]
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    return kernel32
+
+
+_FILE_SHARE_ALL = 0x1 | 0x2 | 0x4  # FILE_SHARE_READ | WRITE | DELETE
+_OPEN_EXISTING = 3
+# FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS
+_OPEN_AS_REPARSE_POINT = 0x00200000 | 0x02000000
+_FSCTL_GET_REPARSE_POINT = 0x000900A8
+_MAXIMUM_REPARSE_DATA_BUFFER_SIZE = 16 * 1024
+
+
+def _read_app_execution_alias(path: str) -> AppExecutionAlias | UnreadableAlias:
+    """Read an App Execution Alias's reparse data with FSCTL_GET_REPARSE_POINT.
+
+    Python has no API for this reparse type (os.readlink rejects it), hence
+    ctypes. The file is opened with no access rights and as the reparse point
+    itself, so nothing it points to is opened or run.
+    """
+    if sys.platform != "win32":
+        raise RuntimeError("App Execution Aliases exist only on Windows")
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = _kernel32()
+    handle = kernel32.CreateFileW(
+        path, 0, _FILE_SHARE_ALL, None, _OPEN_EXISTING, _OPEN_AS_REPARSE_POINT, None
+    )
+    if handle in (None, wintypes.HANDLE(-1).value):
+        return UnreadableAlias(f"could not open it: Windows error {ctypes.get_last_error()}")
+    try:
+        buffer = ctypes.create_string_buffer(_MAXIMUM_REPARSE_DATA_BUFFER_SIZE)
+        returned = wintypes.DWORD()
+        if not kernel32.DeviceIoControl(
+            handle,
+            _FSCTL_GET_REPARSE_POINT,
+            None,
+            0,
+            buffer,
+            len(buffer),
+            ctypes.byref(returned),
+            None,
+        ):
+            error = ctypes.get_last_error()
+            return UnreadableAlias(f"could not read its reparse data: Windows error {error}")
+        data = buffer.raw[: returned.value]
+    finally:
+        kernel32.CloseHandle(handle)
+    return _parse_app_execution_alias(data) or UnreadableAlias("unrecognised alias data")
+
+
+def _parse_app_execution_alias(data: bytes) -> AppExecutionAlias | None:
+    # REPARSE_DATA_BUFFER: tag (4), data length (2), reserved (2), then the
+    # undocumented APPEXECLINK payload: a version (3 so far) and NUL-separated
+    # UTF-16 strings: package family, app user model id, target, app type.
+    if len(data) < 12 or int.from_bytes(data[:4], "little") != _IO_REPARSE_TAG_APPEXECLINK:
+        return None
+    if int.from_bytes(data[8:12], "little") != 3:
+        return None
+    strings = data[12:].decode("utf-16-le", errors="replace").split("\0")
+    if len(strings) < 3:
+        return None
+    family, app_id, target = strings[:3]
+    return AppExecutionAlias(package_family=family, app_user_model_id=app_id, target=target)
 
 
 def local_system() -> System:

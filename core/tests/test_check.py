@@ -112,6 +112,8 @@ def test_json_explains_every_requirement() -> None:
     assert code == 1
     assert doc["passed"] is False
     assert doc["platform"] == "windows"
+    assert doc["schema_version"] == 1
+    assert list(doc)[0] == "schema_version"
     assert doc["scanned_at"] == "2026-10-23T21:04:52Z"
     assert [
         (r["requirement"], r["tool"], r["spec"], r["outcome"]) for r in doc["requirements"]
@@ -126,6 +128,56 @@ def test_json_explains_every_requirement() -> None:
     assert ssh["path"] == SSH_PATH
     assert ssh["message"] == "ssh 9.5p2 does not satisfy >=10"
     assert doc["requirements"][0]["message"] == "git 2.55.0.windows.2 is installed"
+
+
+def test_the_readme_example_over_real_node_python_and_git_captures() -> None:
+    system = machine()
+    system.env["PATH"] += r";C:\tools"
+    system.add_executable(r"C:\tools\node.exe", load_capture("node/windows-node-24.21.0.json"))
+    system.add_executable(r"C:\tools\python.exe", load_capture("python/windows-python-3.14.8.json"))
+
+    ok = check("git", "node@>=20", "python@>=3.12,<4", system=system)
+    assert ok.exit_code == 0, ok.output
+    assert len(ok.stdout.splitlines()) == 3
+
+    too_old = check_json("node@>=20,<24", "python@>=3.15", "git", system=system)
+    assert too_old[0] == 1
+    assert [(r["tool"], r["version"], r["outcome"]) for r in too_old[1]["requirements"]] == [
+        ("node", "24.21.0", "unmet"),
+        ("python", "3.14.8", "unmet"),
+        ("git", "2.55.0.windows.2", "passed"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("printed", "requirement", "passes"),
+    [
+        ("3.14.0rc1", "python@>=3.14", False),
+        ("3.14.0rc1", "python@>=3.13", True),
+        ("3.14.0rc1", "python@<3.14", True),
+        ("3.14.0rc1", "python@==3.14", False),
+        ("3.15.0a2", "python@>=3.15", False),
+        ("3.15.0a2", "python@<3.15", True),
+        ("3.14.0-beta.1", "python@<3.14", True),
+        ("3.14.0B2", "python@>=3.14", False),
+        ("3.14.0.dev", "python@>=3.14", False),
+        # Not pre-release markers: ignored like any other suffix.
+        ("3.14.0abc", "python@>=3.14", True),
+        ("3.14.0p2", "python@==3.14", True),
+        ("3.14.0+local", "python@>=3.14", True),
+    ],
+)
+def test_a_prerelease_ranks_just_below_its_release(printed, requirement, passes) -> None:
+    # No real pre-release capture exists on this machine, so the stdout is the
+    # shape the python definition parses; this is a transport-style stand-in.
+    system = FakeSystem(os="linux", env={"PATH": "/usr/bin"})
+    output = ProcessResult(exit_code=0, stdout=f"Python {printed}\n".encode(), stderr=b"")
+    system.add_executable("/usr/bin/python", Capture(("--version",), output))
+
+    result = check(requirement, "--json", system=system)
+
+    assert result.exit_code == (0 if passes else 1), result.output
+    assert json.loads(result.stdout)["requirements"][0]["version"] == printed
 
 
 def test_multiple_requirements_pass_only_when_all_pass() -> None:

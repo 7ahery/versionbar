@@ -1,0 +1,8 @@
+#:schema ../../../../schema/definition.schema.json
+id = "node"
+name = "Node.js"
+os = ["windows", "linux"]
+binaries = ["node"]
+version_args = ["--version"]
+# Node prints `v24.21.0`; the `v` is a prefix, not part of the version.
+version_regex = 'v(?P<version>\d+\.\d+\.\d+\S*)'

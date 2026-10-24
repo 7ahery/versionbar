@@ -76,6 +76,11 @@
       "additionalProperties": false,
       "description": "The result of `check --json`: one live scan, then every requirement tested against the\nactive install of its tool. The exit code is 0 exactly when `passed` is true.",
       "properties": {
+        "schema_version": {
+          "default": 1,
+          "description": "Changes only on breaking changes to this format; the same counter as ScanResult's.",
+          "type": "integer"
+        },
         "scanned_at": {
           "description": "When the scan ran, RFC 3339 in UTC.",
           "format": "date-time",
@@ -97,6 +102,7 @@
         }
       },
       "required": [
+        "schema_version",
         "scanned_at",
         "platform",
         "passed",

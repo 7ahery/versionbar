@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Literal, cast
 
 from versionbar.models import (
+    SCHEMA_VERSION,
     CheckResult,
     RequirementOutcome,
     RequirementResult,
@@ -31,8 +32,12 @@ Quote requirements in the shell, where `>` and `<` redirect:
 Only the leading dot-separated numbers of the installed version take part, and
 missing trailing parts count as 0. So git's `2.55.0.windows.2` is 2.55.0,
 OpenSSH's `9.5p2` is 9.5, and `==2.55` matches `2.55.0` but not `2.55.1`
-(write `>=2.55,<2.56` for "any 2.55.x"). Pre-release markers are ignored, so
-`3.14.0rc1` counts as 3.14.0. A version with no leading number cannot be
+(write `>=2.55,<2.56` for "any 2.55.x"). A pre-release marker straight after
+the numbers (`a`, `alpha`, `b`, `beta`, `c`, `rc`, `pre`, `preview`, `dev`,
+any case, optionally after `-` or `.` and followed by digits) ranks just below
+that release: `3.14.0rc1` fails `>=3.14` but passes `>=3.13` and `<3.14`.
+Two pre-releases of the same numbers compare equal. Any other suffix is
+ignored. A version with no leading number cannot be
 compared: it still satisfies a presence-only requirement but fails any spec.
 
 Only the active install (the one that runs when you type the command) is
@@ -42,9 +47,14 @@ malformed or names an unknown tool."""
 
 type Operator = Literal[">=", ">", "<=", "<", "=="]
 type Release = tuple[int, ...]
+# (release, 0 for a pre-release or 1 for a final release).
+type Key = tuple[Release, int]
 
 _CLAUSE = re.compile(r"(>=|<=|==|>|<)\s*(\d+(?:\.\d+)*)")
 _RELEASE = re.compile(r"\d+(?:\.\d+)*")
+# Directly after the numbers: 3.14.0rc1, 3.15.0a2, 1.0.0-beta.1. The lookahead
+# keeps words that merely start with a marker (`1.0.0abc`) from counting.
+_PRERELEASE = re.compile(r"[-.]?(?:alpha|beta|preview|pre|dev|rc|a|b|c)\d*(?![a-z])", re.IGNORECASE)
 
 
 class RequirementError(ValueError):
@@ -56,7 +66,7 @@ class Requirement:
     text: str
     tool: str
     spec: str | None
-    clauses: tuple[tuple[Operator, Release], ...]
+    clauses: tuple[tuple[Operator, Key], ...]
 
 
 def parse_requirement(text: str) -> Requirement:
@@ -79,7 +89,7 @@ def parse_requirement(text: str) -> Requirement:
                 reason = f"'{part}' is not an operator (>=, >, <=, <, ==) and a dotted number"
             raise RequirementError(f"{text}: {reason}")
         # The pattern admits exactly the Operator values.
-        clauses.append((cast(Operator, match[1]), _release(match[2])))
+        clauses.append((cast(Operator, match[1]), (_release(match[2]), 1)))
     return Requirement(text, tool, spec, tuple(clauses))
 
 
@@ -92,12 +102,17 @@ def _release(version: str) -> Release:
     return tuple(parts)
 
 
-def installed_release(version: str) -> Release | None:
+def installed_key(version: str) -> Key | None:
     match = _RELEASE.match(version)
-    return _release(match[0]) if match else None
+    if match is None:
+        return None
+    # Tuples order the release first; a pre-release (0) then sorts below the
+    # final release (1) of the same numbers, so 3.14.0rc1 is below 3.14.
+    final = 0 if _PRERELEASE.match(version, match.end()) else 1
+    return _release(match[0]), final
 
 
-def _holds(installed: Release, operator: Operator, wanted: Release) -> bool:
+def _holds(installed: Key, operator: Operator, wanted: Key) -> bool:
     match operator:
         case ">=":
             return installed >= wanted
@@ -115,6 +130,7 @@ def evaluate(requirements: list[Requirement], scan: ScanResult) -> CheckResult:
     tools = {tool.id: tool for tool in scan.tools}
     results = [_evaluate_one(requirement, tools[requirement.tool]) for requirement in requirements]
     return CheckResult(
+        schema_version=SCHEMA_VERSION,
         scanned_at=scan.scanned_at,
         platform=scan.platform,
         passed=all(result.passed for result in results),
@@ -148,7 +164,7 @@ def _evaluate_one(requirement: Requirement, tool: Tool) -> RequirementResult:
     version = tool.active.version
     if requirement.spec is None:
         return result("passed", f"{tool.id} {version} is installed")
-    installed = installed_release(version)
+    installed = installed_key(version)
     if installed is None:
         return result(
             "not-comparable",

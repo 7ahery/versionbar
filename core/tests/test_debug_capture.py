@@ -11,6 +11,8 @@ from versionbar.system import ProcessResult
 
 from fakes import (
     GIT_LINUX,
+    PYTHON_314_WINDOWS,
+    STORE_PYTHON_PLACEHOLDER,
     WINDOWS_PATHEXT,
     Capture,
     FakeSystem,
@@ -206,6 +208,71 @@ def test_tool_missing_from_path_fails_without_writing_a_fixture() -> None:
     assert result.exit_code == 1
     assert "not-found" in result.stderr
     assert system.files == {}
+
+
+def test_the_user_profile_folder_is_redacted_from_provenance() -> None:
+    # Capture files are attached to public issues and committed as fixtures,
+    # so the account name in the profile path must not travel with them.
+    system = windows_with_git(r"c:\users\Jane.Doe\scoop\shims")
+    # Different case from the PATH spelling: Windows paths are case-insensitive.
+    system.env["USERPROFILE"] = r"C:\Users\jane.doe"
+
+    result = capture(system, "git", "--json")
+
+    assert result.exit_code == 0, result.output
+    provenance = written(system)["provenance"]
+    redacted = r"%USERPROFILE%\scoop\shims\git.exe"
+    assert provenance["resolved_path"] == redacted
+    assert provenance["command"] == [redacted, "--version"]
+    assert "jane" not in system.files[GIT_FILE].decode().lower()
+
+
+def test_a_profile_at_a_drive_root_redacts_nothing() -> None:
+    # A drive root holds no account name, and treating it as the profile
+    # would rewrite every path on that drive.
+    for profile in ("C:\\", "C:", "c:\\."):
+        system = windows_with_git()
+        system.env["USERPROFILE"] = profile
+
+        capture(system, "git", "--json")
+
+        assert written(system)["provenance"]["resolved_path"] == GIT_PATH, profile
+
+
+def test_a_folder_that_only_starts_like_the_profile_is_kept() -> None:
+    system = windows_with_git(r"C:\Users\jane.doe2\bin")
+    system.env["USERPROFILE"] = r"C:\Users\jane.doe"
+
+    capture(system, "git", "--json")
+
+    provenance = written(system)["provenance"]
+    assert provenance["resolved_path"] == r"C:\Users\jane.doe2\bin\git.exe"
+
+
+def test_store_placeholders_are_never_run_or_captured() -> None:
+    apps = r"C:\Users\dev\AppData\Local\Microsoft\WindowsApps"
+    system = FakeSystem(
+        os="windows", env={"PATH": rf"{apps};C:\Python314", "PATHEXT": WINDOWS_PATHEXT}
+    )
+    system.add_app_execution_alias(rf"{apps}\python.exe", STORE_PYTHON_PLACEHOLDER)
+    system.add_executable(r"C:\Python314\python.exe", load_capture(PYTHON_314_WINDOWS))
+
+    result = capture(system, "python", "--json")
+
+    assert result.exit_code == 0, result.output
+    assert system.runs == [(r"C:\Python314\python.exe", "--version")]
+
+
+def test_only_store_placeholders_is_not_found() -> None:
+    apps = r"C:\Users\dev\AppData\Local\Microsoft\WindowsApps"
+    system = FakeSystem(os="windows", env={"PATH": apps, "PATHEXT": WINDOWS_PATHEXT})
+    system.add_app_execution_alias(rf"{apps}\python.exe", STORE_PYTHON_PLACEHOLDER)
+
+    result = capture(system, "python", "--json")
+
+    assert result.exit_code == 1
+    assert json.loads(result.stdout)["outcome"] == "not-found"
+    assert system.runs == []
 
 
 def test_timeout_and_launch_failure_are_errors_not_fixtures() -> None:

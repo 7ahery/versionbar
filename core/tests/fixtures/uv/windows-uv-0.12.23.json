@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "tool": "uv",
+  "args": [
+    "--version"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "dXYgMC4xMi4yMyAoNDZiODRmZDBiIDIwMjYtMTAtMDMgeDg2XzY0LXBjLXdpbmRvd3MtbXN2YykK",
+  "stderr_b64": "",
+  "encoding": "utf-8",
+  "stdout_text": "uv 0.12.23 (46b84fd0b 2026-10-03 x86_64-pc-windows-msvc)\n",
+  "stderr_text": "",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-11-10.0.26200-SP0",
+    "resolved_path": "%USERPROFILE%\\.local\\bin\\uv.exe",
+    "command": [
+      "%USERPROFILE%\\.local\\bin\\uv.exe",
+      "--version"
+    ],
+    "captured_at": "2026-10-24T08:54:52.283637Z",
+    "runner": null,
+    "notes": null
+  }
+}

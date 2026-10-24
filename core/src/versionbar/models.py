@@ -120,6 +120,8 @@ class CheckResult(StrictModel):
     """The result of `check --json`: one live scan, then every requirement tested against the
     active install of its tool. The exit code is 0 exactly when `passed` is true."""
 
+    schema_version: int = SCHEMA_VERSION
+    """Changes only on breaking changes to this format; the same counter as ScanResult's."""
     scanned_at: AwareDatetime
     """When the scan ran, RFC 3339 in UTC."""
     platform: OsName

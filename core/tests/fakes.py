@@ -14,7 +14,7 @@ from typer.testing import CliRunner
 
 from versionbar.capture import CaptureFile
 from versionbar.cli import app
-from versionbar.system import OsName, ProcessResult
+from versionbar.system import AppExecutionAlias, OsName, ProcessResult, UnreadableAlias
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -51,6 +51,8 @@ class FakeSystem:
     runs: list[tuple[str, ...]] = field(default_factory=list)
     os_description: str = "Windows-11-10.0.26200-SP0"
     files: dict[str, bytes] = field(default_factory=dict)
+    _aliases: dict[str, AppExecutionAlias | UnreadableAlias] = field(default_factory=dict)
+    runtime_dirs: list[str] = field(default_factory=list)
     # Lets a test make the destination unwritable without touching a real disk.
     write_error: str | None = None
     # Called on the scanning thread before each command answers, so a test can
@@ -64,6 +66,16 @@ class FakeSystem:
 
     def add_executable(self, path: str, *captures: Capture) -> None:
         self._executables[self._key(path)] = list(captures)
+
+    def add_app_execution_alias(
+        self, path: str, alias: AppExecutionAlias | UnreadableAlias, *captures: Capture
+    ) -> None:
+        # Placeholders get no captures, so running one fails the test.
+        self.add_executable(path, *captures)
+        self._aliases[self._key(path)] = alias
+
+    def app_execution_alias(self, path: str) -> AppExecutionAlias | UnreadableAlias | None:
+        return self._aliases.get(self._key(path))
 
     def getenv(self, name: str) -> str | None:
         if self.os == "windows":
@@ -99,6 +111,30 @@ class FakeSystem:
 
 GIT_WINDOWS = "git/windows-git-2.55.0.windows.2.json"
 GIT_LINUX = "git/linux-git-2.43.0.json"
+NODE_WINDOWS = "node/windows-node-24.21.0.json"
+UV_WINDOWS = "uv/windows-uv-0.12.23.json"
+PYTHON_314_WINDOWS = "python/windows-python-3.14.8.json"
+PYTHON_313_WINDOWS = "python/windows-python-3.13.16.json"
+
+# Real alias data, read (not run) from the reparse points in the WindowsApps
+# folder of a Windows 11 26200 machine with App Installer 1.29.379.0. On that
+# machine `python.exe` and `python3.exe` both hold the first one.
+_APP_INSTALLER = "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe"
+_APP_INSTALLER_DIR = (
+    r"C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_1.29.379.0_x64__8wekyb3d8bbwe"
+)
+STORE_PYTHON_PLACEHOLDER = AppExecutionAlias(
+    package_family=_APP_INSTALLER,
+    app_user_model_id=f"{_APP_INSTALLER}!PythonRedirector",
+    target=rf"{_APP_INSTALLER_DIR}\AppInstallerPythonRedirector.exe",
+)
+# A real tool from the same App Installer package, so the rule cannot be "any
+# App Installer alias".
+WINGET_ALIAS = AppExecutionAlias(
+    package_family=_APP_INSTALLER,
+    app_user_model_id=f"{_APP_INSTALLER}!winget",
+    target=rf"{_APP_INSTALLER_DIR}\winget.exe",
+)
 
 
 def windows_with_git(git_dir: str = r"C:\Program Files\Git\cmd") -> FakeSystem:
