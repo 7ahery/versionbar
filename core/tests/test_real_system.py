@@ -63,6 +63,67 @@ def test_the_interpreter_running_the_core_is_not_found_on_path() -> None:
     assert os.path.normcase(sys.executable) not in hits
 
 
+windows_only = pytest.mark.skipif(sys.platform != "win32", reason="batch wrappers are Windows-only")
+
+
+def batch_wrapper(folder: Path, name: str = "tool.cmd") -> Path:
+    # Prints the command line cmd.exe was started with and the arguments it
+    # passed on, and leaves a mark, so a test can tell whether it ran at all.
+    folder.mkdir(parents=True, exist_ok=True)
+    script = folder / name
+    script.write_bytes(
+        b'@echo off\r\necho ran> "%~dp0ran.txt"\r\necho args=%*\r\necho cmdline=%CMDCMDLINE%\r\n'
+    )
+    return script
+
+
+@windows_only
+@pytest.mark.parametrize("name", ["tool.cmd", "tool.bat"])
+def test_a_batch_wrapper_in_a_folder_with_spaces_and_parentheses_runs(
+    tmp_path: Path, name: str
+) -> None:
+    # `Program Files (x86)` is where such wrappers commonly live, and the
+    # parentheses are what naive cmd.exe quoting breaks on.
+    script = batch_wrapper(tmp_path / "Program Files (x86)" / "tool", name)
+
+    result = local_system().run([str(script), "--version"], 30)
+
+    assert (result.exit_code, result.launch_error) == (0, None), result
+    lines = result.stdout.decode().splitlines()
+    assert lines[0] == "args=--version"
+    # cmd.exe AutoRun hooks (conda, clink) would otherwise run before every
+    # wrapper: slower, and free to print or change directory.
+    assert " /d " in lines[1].casefold(), lines[1]
+
+
+@windows_only
+@pytest.mark.parametrize(
+    "argument",
+    ["%PATH%", "a&b", "a|b", "a>b", "a^b", '"quoted"', "a b", "a,b", "a;b", "a=b"],
+)
+def test_a_batch_wrapper_is_not_given_arguments_cmd_would_reinterpret(
+    tmp_path: Path, argument: str
+) -> None:
+    script = batch_wrapper(tmp_path / "bin")
+
+    result = local_system().run([str(script), argument], 30)
+
+    assert result.exit_code is None
+    assert result.launch_error is not None
+    assert "cmd.exe" in result.launch_error
+    assert not (tmp_path / "bin" / "ran.txt").exists()
+
+
+@windows_only
+def test_a_batch_wrapper_whose_path_cmd_would_expand_is_not_run(tmp_path: Path) -> None:
+    script = batch_wrapper(tmp_path / "100%USERNAME%")
+
+    result = local_system().run([str(script), "--version"], 30)
+
+    assert result.launch_error is not None
+    assert not (script.parent / "ran.txt").exists()
+
+
 def test_an_ordinary_executable_is_not_an_app_execution_alias() -> None:
     assert local_system().app_execution_alias(sys.executable) is None
 
