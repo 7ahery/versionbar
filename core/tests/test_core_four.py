@@ -11,8 +11,10 @@ from fakes import (
     NODE_WINDOWS,
     PYTHON_313_WINDOWS,
     PYTHON_314_WINDOWS,
+    STORE_PYTHON_PLACEHOLDER,
     UV_WINDOWS,
     WINDOWS_PATHEXT,
+    WINGET_ALIAS,
     FakeSystem,
     load_capture,
 )
@@ -72,5 +74,83 @@ def test_list_reports_the_core_four_with_versions_and_paths() -> None:
     ]
     by_id = {t["id"]: t for t in tools}
     # The build details uv prints after its version stay visible in `raw`.
-    assert by_id["uv"]["active"]["raw"] == "uv 0.12.23 (46b84fd0b 2026-10-03 x86_64-pc-windows-msvc)"
+    assert (
+        by_id["uv"]["active"]["raw"] == "uv 0.12.23 (46b84fd0b 2026-10-03 x86_64-pc-windows-msvc)"
+    )
     assert by_id["node"]["active"]["raw"] == "v24.21.0"
+
+
+WINDOWS_APPS = r"C:\Users\dev\AppData\Local\Microsoft\WindowsApps"
+STORE_PYTHON = rf"{WINDOWS_APPS}\python.exe"
+STORE_PYTHON3 = rf"{WINDOWS_APPS}\python3.exe"
+
+
+def with_store_placeholders(system: FakeSystem) -> FakeSystem:
+    system.add_app_execution_alias(STORE_PYTHON, STORE_PYTHON_PLACEHOLDER)
+    system.add_app_execution_alias(STORE_PYTHON3, STORE_PYTHON_PLACEHOLDER)
+    return system
+
+
+def placeholder_note(path: str) -> str:
+    return (
+        f"{path} is a Microsoft Store placeholder, not an install"
+        " (it only offers to install Python from the Store); it was not run"
+    )
+
+
+def test_store_placeholders_alone_mean_python_is_missing_and_are_never_run() -> None:
+    system = with_store_placeholders(windows(WINDOWS_APPS))
+
+    python = tools_of(run_cli(system, "list", "--json"))["python"]
+
+    assert (python["status"], python["active"], python["installs"]) == ("missing", None, [])
+    assert python["notes"] == [
+        "only Microsoft Store placeholders found on PATH (looked for: python, python3)",
+        placeholder_note(STORE_PYTHON),
+        placeholder_note(STORE_PYTHON3),
+    ]
+    # Running a placeholder can open the Store; it must not even be tried.
+    assert system.runs == []
+
+
+def test_a_real_python_after_the_placeholders_is_active_and_they_stay_noted() -> None:
+    system = with_store_placeholders(core_four())
+    system.env["PATH"] += f";{WINDOWS_APPS}"
+
+    python = tools_of(run_cli(system, "list", "--json"))["python"]
+
+    assert python["status"] == "found"
+    assert [i["path"] for i in python["installs"]] == [PYTHON]
+    assert python["active"]["version"] == "3.14.8"
+    assert python["notes"] == [placeholder_note(STORE_PYTHON), placeholder_note(STORE_PYTHON3)]
+    assert (STORE_PYTHON, "--version") not in system.runs
+    assert (STORE_PYTHON3, "--version") not in system.runs
+
+
+def test_a_placeholder_earlier_on_path_is_named_as_what_typing_the_command_runs() -> None:
+    system = with_store_placeholders(core_four())
+    system.env["PATH"] = f"{WINDOWS_APPS};{system.env['PATH']}"
+
+    python = tools_of(run_cli(system, "list", "--json"))["python"]
+
+    assert python["active"]["path"] == PYTHON
+    assert python["notes"] == [
+        placeholder_note(STORE_PYTHON)
+        + f", but it comes first on PATH, so typing `python` runs it instead of {PYTHON}",
+        # Typing `python3` finds no real install to hide.
+        placeholder_note(STORE_PYTHON3),
+    ]
+
+
+def test_other_app_execution_aliases_still_run_even_from_the_same_package() -> None:
+    # winget's alias belongs to the same App Installer package as the Python
+    # placeholder. With no winget definition, it stands in as `uv` (real uv
+    # output): what matters is that a non-placeholder alias is run normally.
+    system = windows(WINDOWS_APPS)
+    system.add_app_execution_alias(
+        rf"{WINDOWS_APPS}\uv.exe", WINGET_ALIAS, load_capture(UV_WINDOWS)
+    )
+
+    uv = tools_of(run_cli(system, "list", "--json"))["uv"]
+
+    assert (uv["status"], uv["active"]["path"]) == ("found", rf"{WINDOWS_APPS}\uv.exe")

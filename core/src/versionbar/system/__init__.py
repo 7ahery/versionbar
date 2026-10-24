@@ -24,6 +24,17 @@ class ProcessResult:
     launch_error: str | None = None
 
 
+@dataclass(frozen=True)
+class AppExecutionAlias:
+    """What a Windows App Execution Alias (a zero-byte file in a `WindowsApps`
+    folder) launches, read from the file itself without running it."""
+
+    package_family: str
+    # The application user model id, `<package family>!<app>`.
+    app_user_model_id: str
+    target: str
+
+
 class System(Protocol):
     @property
     def os(self) -> OsName: ...
@@ -33,6 +44,14 @@ class System(Protocol):
     def is_executable(self, path: str) -> bool: ...
 
     def run(self, argv: Sequence[str], timeout: float) -> ProcessResult: ...
+
+    def app_execution_alias(self, path: str) -> AppExecutionAlias | None:
+        """The alias stored in `path`, or None when it is not one (always None off Windows).
+
+        Reads the file's reparse data only: running an alias can have side
+        effects, such as the Store placeholders opening the Microsoft Store.
+        """
+        ...
 
     @property
     def platform_description(self) -> str:

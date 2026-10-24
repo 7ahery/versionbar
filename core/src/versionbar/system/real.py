@@ -12,10 +12,11 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
-from versionbar.system import OsName, ProcessResult, System
+from versionbar.system import AppExecutionAlias, OsName, ProcessResult, System
 
 # How long a timed-out command's tree gets to die and release its pipes.
 _DRAIN_SECONDS = 1.0
+_IO_REPARSE_TAG_APPEXECLINK = 0x8000001B
 
 
 class _LocalSystem:
@@ -107,6 +108,18 @@ class _LocalSystem:
                 with contextlib.suppress(OSError):
                     stream.close()
 
+    def app_execution_alias(self, path: str) -> AppExecutionAlias | None:
+        if sys.platform != "win32":
+            return None
+        try:
+            # Cheap filter first: almost every PATH hit is an ordinary file.
+            tag = os.stat(path, follow_symlinks=False).st_reparse_tag
+        except OSError:
+            return None
+        if tag != _IO_REPARSE_TAG_APPEXECLINK:
+            return None
+        return _read_app_execution_alias(path)
+
     @property
     def platform_description(self) -> str:
         return platform.platform()
@@ -118,6 +131,87 @@ class _LocalSystem:
 
     def now(self) -> datetime:
         return datetime.now(UTC)
+
+
+def _read_app_execution_alias(path: str) -> AppExecutionAlias | None:
+    """Read an App Execution Alias's reparse data with FSCTL_GET_REPARSE_POINT.
+
+    Python has no API for this reparse type (os.readlink rejects it), hence
+    ctypes. The file is opened with no access rights and as the reparse point
+    itself, so nothing it points to is opened or run.
+    """
+    if sys.platform != "win32":
+        return None
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    create_file = kernel32.CreateFileW
+    create_file.restype = wintypes.HANDLE
+    create_file.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    device_io_control = kernel32.DeviceIoControl
+    device_io_control.restype = wintypes.BOOL
+    device_io_control.argtypes = [
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD),
+        wintypes.LPVOID,
+    ]
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+
+    share_all = 0x1 | 0x2 | 0x4  # FILE_SHARE_READ | WRITE | DELETE
+    open_existing = 3
+    open_reparse_point = 0x00200000 | 0x02000000  # FILE_FLAG_OPEN_REPARSE_POINT | BACKUP_SEMANTICS
+    fsctl_get_reparse_point = 0x000900A8
+    handle = create_file(path, 0, share_all, None, open_existing, open_reparse_point, None)
+    if handle in (None, wintypes.HANDLE(-1).value):
+        return None
+    try:
+        # MAXIMUM_REPARSE_DATA_BUFFER_SIZE.
+        buffer = ctypes.create_string_buffer(16 * 1024)
+        returned = wintypes.DWORD()
+        if not device_io_control(
+            handle,
+            fsctl_get_reparse_point,
+            None,
+            0,
+            buffer,
+            len(buffer),
+            ctypes.byref(returned),
+            None,
+        ):
+            return None
+        data = buffer.raw[: returned.value]
+    finally:
+        kernel32.CloseHandle(handle)
+    return _parse_app_execution_alias(data)
+
+
+def _parse_app_execution_alias(data: bytes) -> AppExecutionAlias | None:
+    # REPARSE_DATA_BUFFER: tag (4), data length (2), reserved (2), then the
+    # undocumented APPEXECLINK payload: a version (3 so far) and NUL-separated
+    # UTF-16 strings: package family, app user model id, target, app type.
+    if len(data) < 12 or int.from_bytes(data[:4], "little") != _IO_REPARSE_TAG_APPEXECLINK:
+        return None
+    if int.from_bytes(data[8:12], "little") != 3:
+        return None
+    strings = data[12:].decode("utf-16-le", errors="replace").split("\0")
+    if len(strings) < 3:
+        return None
+    family, app_id, target = strings[:3]
+    return AppExecutionAlias(package_family=family, app_user_model_id=app_id, target=target)
 
 
 def local_system() -> System:

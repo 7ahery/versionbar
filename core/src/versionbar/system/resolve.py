@@ -38,6 +38,23 @@ def path_hits(system: System, command: str) -> Iterator[str]:
             yield hit
 
 
+# App Installer redirectors that stand in for an app until it is installed: run,
+# they open the Microsoft Store (or print a pointer to it and exit 9009). Keyed
+# by application user model id because the same package also ships real tools
+# (`winget`). Only the Python redirector has been observed; add others here
+# once seen on a real machine.
+_STORE_PLACEHOLDERS = frozenset({"Microsoft.DesktopAppInstaller_8wekyb3d8bbwe!PythonRedirector"})
+
+
+def is_store_placeholder(system: System, path: str) -> bool:
+    """Whether `path` is a Microsoft Store placeholder rather than an install.
+
+    Decided from the alias data alone, so the placeholder itself never runs.
+    """
+    alias = system.app_execution_alias(path)
+    return alias is not None and alias.app_user_model_id in _STORE_PLACEHOLDERS
+
+
 def _windows_hits(system: System, command: str) -> Iterator[str]:
     # Lowercased so reported paths match how the files are normally named on
     # disk (PATHEXT itself is conventionally uppercase).
