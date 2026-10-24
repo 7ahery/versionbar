@@ -5,6 +5,7 @@ so the JSON here is a contract like the scan's.
 """
 
 import json
+from importlib.resources import files
 
 from fakes import FakeSystem, run_cli, windows_with_git
 
@@ -99,6 +100,42 @@ def test_human_output_of_an_invalid_config_lists_the_problems() -> None:
     assert result.exit_code == 3
     assert WINDOWS_PATH in result.stdout
     assert "timeout: Input should be greater than 0" in result.stdout
+
+
+def starter_config() -> str:
+    # Read as a package resource: that is how it ships, in the wheel and in the
+    # app's bundled core, which copies it verbatim (ticket 27).
+    return (files("versionbar") / "starter_config.toml").read_text("utf-8")
+
+
+def test_the_starter_config_as_shipped_sets_nothing() -> None:
+    code, document = query(with_config(starter_config()))
+
+    assert code == 0
+    assert document["preferences"] == {"update_check": True, "pinned": [], "order": []}
+    assert run_cli(with_config(starter_config()), "list", "--json").stdout == (
+        run_cli(windows_with_git(), "list", "--json").stdout
+    )
+
+
+def test_every_example_in_the_starter_config_is_valid_once_uncommented() -> None:
+    # "# " starts a disabled setting, "##" an explanation.
+    lines = starter_config().splitlines()
+    enabled = "\n".join(line.removeprefix("# ") for line in lines if not line.startswith("##"))
+
+    result = run_cli(with_config(enabled), "config")
+
+    assert result.exit_code == 0, result.output
+    shown = [" ".join(line.split()) for line in result.stdout.splitlines()]
+    assert shown[1:] == [
+        "Update check off",
+        "Pinned node, git",
+        "Order python",
+        "Hidden uv",
+        "Timeout 5 s",
+        "Timeouts git 10 s",
+        "Custom tools ssh",
+    ]
 
 
 def test_the_query_never_runs_a_tool() -> None:

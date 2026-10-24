@@ -248,7 +248,7 @@ def config_command(
         config_path=path,
         config_exists=settings.exists if settings else True,
         problems=problems,
-        preferences=settings and settings.preferences(),
+        preferences=settings.preferences() if settings else None,
     )
     if json_output:
         typer.echo(result.model_dump_json(indent=2))
