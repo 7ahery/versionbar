@@ -3,8 +3,10 @@ the CLI and the app. Read live on every invocation that needs it (the core never
 caches); absence means defaults. Format: docs/config.md.
 """
 
+import json
 import ntpath
 import posixpath
+import re
 import tomllib
 from dataclasses import dataclass
 from typing import Annotated
@@ -14,10 +16,13 @@ from pydantic_core import ErrorDetails
 
 from versionbar.definition import ToolDefinition
 from versionbar.models import ConfigProblem, Preferences, StrictModel
-from versionbar.scan import DEFAULT_TIMEOUT_SECONDS
 from versionbar.system import OsName, System
 
 CONFIG_FILE_NAME = "config.toml"
+
+# Per-command timeout when the config sets none (and for `debug capture`,
+# which never reads the config).
+DEFAULT_TIMEOUT_SECONDS = 5.0
 
 
 # Finite and positive: TOML allows `inf` and `nan`, which would make a hung
@@ -80,6 +85,19 @@ class Registry:
 
     def on(self, os: OsName) -> list[ToolDefinition]:
         return [definition for definition in self.definitions if os in definition.os]
+
+    def known_on(self, os: OsName) -> dict[str, ToolDefinition]:
+        """The tools detected on `os`, by id, in registry order."""
+        return {definition.id: definition for definition in self.on(os)}
+
+    def unknown_tool_problem(self, os: OsName, name: str) -> str:
+        """Why `name` cannot be scanned on `os`: another OS's tool, or no tool at all."""
+        elsewhere = any(d.id == name and os not in d.os for d in self.definitions)
+        return f"{name} is not available on {os}" if elsewhere else f"Unknown tool: {name}"
+
+    def custom(self) -> list[ToolDefinition]:
+        """The definitions that come from the config file, in registry order."""
+        return [definition for definition in self.definitions if definition.id in self.custom_ids]
 
 
 @dataclass(frozen=True)
@@ -163,7 +181,8 @@ def _id_problems(file: ConfigFile, known: set[str]) -> list[ConfigProblem]:
 
     for id in file.timeouts:
         if id not in known:
-            problems.append(ConfigProblem(key=f"timeouts.{id}", message=f'unknown tool "{id}"'))
+            key = f"timeouts.{_key_part(id)}"
+            problems.append(ConfigProblem(key=key, message=f'unknown tool "{id}"'))
 
     placed: dict[str, str] = {}
     for name in ("pinned", "order", "hidden"):
@@ -197,6 +216,15 @@ def _parse(path: str, data: bytes) -> ConfigFile:
         raise InvalidConfig(path, [_problem(detail) for detail in error.errors()]) from None
 
 
+_BARE_KEY = re.compile(r"[A-Za-z0-9_-]+")
+
+
+def _key_part(name: str) -> str:
+    """`name` as TOML writes it in a dotted key: quoted unless it is a bare key,
+    so `timeouts."my.tool"` cannot be misread as a nested table."""
+    return name if _BARE_KEY.fullmatch(name) else json.dumps(name, ensure_ascii=False)
+
+
 # Pydantic's wording for the commonest mistakes, in config-file terms.
 _MESSAGES = {"extra_forbidden": "unknown key", "missing": "missing required key"}
 
@@ -204,6 +232,9 @@ _MESSAGES = {"extra_forbidden": "unknown key", "missing": "missing required key"
 def _problem(detail: ErrorDetails) -> ConfigProblem:
     key = ""
     for part in detail["loc"]:
-        key += f"[{part}]" if isinstance(part, int) else f".{part}" if key else str(part)
+        if isinstance(part, int):
+            key += f"[{part}]"
+        else:
+            key += f".{_key_part(part)}" if key else _key_part(part)
     message = _MESSAGES.get(detail["type"]) or detail["msg"].removeprefix("Value error, ")
     return ConfigProblem(key=key or None, message=message)

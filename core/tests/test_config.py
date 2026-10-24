@@ -180,6 +180,7 @@ def test_a_toml_syntax_error_names_the_file_and_line() -> None:
         ("timeout = 0\n", "  timeout: "),
         ("timeout = inf\n", "  timeout: "),
         ("[timeouts]\ngit = -1\n", "  timeouts.git: "),
+        ('[timeouts]\n"my tool" = "x"\n', '  timeouts."my tool": Input should be a valid number'),
         ('pinned = "git"\n', "  pinned: "),
         ("[app]\nupdate_check = 1\n", "  app.update_check: "),
         (SSH_TOOL.replace("(?P<version>", "(?P<v>"), "  tools[0].version_regex: "),
@@ -205,6 +206,8 @@ def test_every_problem_is_reported_at_once() -> None:
         ('order = ["nod"]\n', '  order[0]: unknown tool "nod"'),
         ('hidden = ["nod"]\n', '  hidden[0]: unknown tool "nod"'),
         ("[timeouts]\nnod = 3\n", '  timeouts.nod: unknown tool "nod"'),
+        # Quoted, as TOML writes them, so the dot is not read as a nested table.
+        ('[timeouts]\n"my.tool" = 3\n', '  timeouts."my.tool": unknown tool "my.tool"'),
         ('pinned = ["git", "uv", "git"]\n', '  pinned[2]: "git" is already listed'),
         ('pinned = ["git"]\norder = ["uv", "git"]\n', '  order[1]: "git" is already in pinned'),
         ('pinned = ["git"]\nhidden = ["git"]\n', '  hidden[0]: "git" is already in pinned'),

@@ -15,10 +15,10 @@ from typing import Annotated, Literal
 from pydantic import AwareDatetime, Base64Bytes, Field
 
 from versionbar import PROG, __version__
+from versionbar.config import DEFAULT_TIMEOUT_SECONDS
 from versionbar.decoding import detect_encoding
 from versionbar.definition import ToolDefinition
 from versionbar.models import StrictModel
-from versionbar.scan import DEFAULT_TIMEOUT_SECONDS
 from versionbar.system import OsName, System
 from versionbar.system.resolve import ToolHits
 

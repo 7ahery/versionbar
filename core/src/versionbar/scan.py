@@ -13,21 +13,14 @@ from versionbar.models import Install, ScanResult, Tool, ToolStatus
 from versionbar.system import ProcessResult, System
 from versionbar.system.resolve import ToolHits
 
-DEFAULT_TIMEOUT_SECONDS = 5.0
 # Version commands mostly wait on process start-up, so overlapping them is what
 # keeps a full scan near a second. The cap keeps a long PATH from launching
 # dozens of processes at once.
 MAX_PARALLEL_COMMANDS = 16
 
 
-def _default_timeout(_tool_id: str) -> float:
-    return DEFAULT_TIMEOUT_SECONDS
-
-
 def scan(
-    system: System,
-    definitions: list[ToolDefinition],
-    timeout_for: Callable[[str], float] = _default_timeout,
+    system: System, definitions: list[ToolDefinition], timeout_for: Callable[[str], float]
 ) -> ScanResult:
     """Detect every definition that applies to this OS, in the given order.
 

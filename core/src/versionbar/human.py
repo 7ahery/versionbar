@@ -88,22 +88,24 @@ def print_show(result: ScanResult, *, terminal: bool, color: bool) -> None:
 def print_config(
     result: ConfigResult, settings: Settings | None, *, terminal: bool, color: bool
 ) -> None:
-    """The file's path, then either every setting in effect or every problem with the file."""
+    """The file's path, then either every problem with the file or every setting in effect.
+
+    `settings` is None exactly when the result has problems.
+    """
     table = Table(box=None, pad_edge=False, show_header=False)
     table.add_column(style="bold", no_wrap=True)
     table.add_column(overflow="fold")
     table.add_row("Config file", result.config_path)
-    if settings is None:
+    if result.problems:
         for index, problem in enumerate(result.problems):
             where = f"{problem.key}: " if problem.key else ""
             table.add_row("Problems" if index == 0 else "", Text(where + problem.message, "red"))
-    else:
+    elif settings is not None:
         if not result.config_exists:
             table.add_row("", Text("not created yet; every default applies", style="dim"))
         file = settings.file
         timeouts = [f"{id} {seconds:g} s" for id, seconds in file.timeouts.items()]
-        registry = settings.registry
-        custom = [d.id for d in registry.definitions if d.id in registry.custom_ids]
+        custom = [definition.id for definition in settings.registry.custom()]
         table.add_row("Update check", "on" if file.app.update_check else "off")
         table.add_row("Pinned", _ids(file.pinned))
         table.add_row("Order", _ids(file.order))

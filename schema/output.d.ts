@@ -183,8 +183,9 @@ export interface ConfigResult {
  */
 export interface ConfigProblem {
   /**
-   * Where in the file, as a dotted TOML key with list indexes (e.g. `tools[0].version_regex`),
-   * or null when the problem is the whole file (unreadable, not UTF-8, not valid TOML).
+   * Where in the file, as a dotted TOML key with list indexes (e.g. `tools[0].version_regex`;
+   * a part that is not a bare key is quoted, e.g. `timeouts."my.tool"`), or null when the
+   * problem is the whole file (unreadable, not UTF-8, not valid TOML).
    */
   key: string | null;
   /**

@@ -127,7 +127,7 @@
               "type": "null"
             }
           ],
-          "description": "Where in the file, as a dotted TOML key with list indexes (e.g. `tools[0].version_regex`),\nor null when the problem is the whole file (unreadable, not UTF-8, not valid TOML)."
+          "description": "Where in the file, as a dotted TOML key with list indexes (e.g. `tools[0].version_regex`;\na part that is not a bare key is quoted, e.g. `timeouts.\"my.tool\"`), or null when the\nproblem is the whole file (unreadable, not UTF-8, not valid TOML)."
         },
         "message": {
           "description": "Human-readable description of the problem; not for parsing.",

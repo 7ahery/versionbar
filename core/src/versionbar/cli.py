@@ -111,22 +111,22 @@ def _usage_error(lines: list[str]) -> typer.Exit:
 INVALID_CONFIG_EXIT_CODE = 3
 
 
-def _settings(system: System) -> Settings:
+def _read_settings(system: System) -> Settings | InvalidConfig:
+    """The config in effect, or why the file cannot be used. The one place the CLI reads it."""
     try:
         return load_settings(system, builtin_definitions())
     except InvalidConfig as error:
+        return error
+
+
+def _settings(system: System) -> Settings:
+    """The config in effect, or exit with the invalid-config code."""
+    settings = _read_settings(system)
+    if isinstance(settings, InvalidConfig):
         # Plain stderr, as with usage errors, so `--json` never prints half a document.
-        typer.echo(error.describe(), err=True)
-        raise typer.Exit(INVALID_CONFIG_EXIT_CODE) from error
-
-
-def _known_tools(system: System, registry: Registry) -> dict[str, ToolDefinition]:
-    return {d.id: d for d in registry.on(system.os)}
-
-
-def _unknown_tool_problem(system: System, registry: Registry, name: str) -> str:
-    elsewhere = any(d.id == name for d in registry.definitions if system.os not in d.os)
-    return f"{name} is not available on {system.os}" if elsewhere else f"Unknown tool: {name}"
+        typer.echo(settings.describe(), err=True)
+        raise typer.Exit(INVALID_CONFIG_EXIT_CODE)
+    return settings
 
 
 def _requested_definitions(
@@ -136,10 +136,10 @@ def _requested_definitions(
 
     Exits with the usage-error code on ids that are unknown or belong to another OS.
     """
-    known = _known_tools(system, registry)
+    known = registry.known_on(system.os)
     wanted = list(dict.fromkeys(names))
     problems = [
-        _unknown_tool_problem(system, registry, name) for name in wanted if name not in known
+        registry.unknown_tool_problem(system.os, name) for name in wanted if name not in known
     ]
     if problems:
         raise _usage_error([*problems, f"known tools: {', '.join(known)}"])
@@ -161,7 +161,7 @@ def check_command(
     system = _system(ctx)
     settings = _settings(system)
     registry = settings.registry
-    known = _known_tools(system, registry)
+    known = registry.known_on(system.os)
     parsed: list[Requirement] = []
     problems: list[str] = []
     for text in requirements or []:
@@ -171,7 +171,7 @@ def check_command(
             problems.append(str(error))
             continue
         if requirement.tool not in known:
-            problems.append(f"{text}: {_unknown_tool_problem(system, registry, requirement.tool)}")
+            problems.append(f"{text}: {registry.unknown_tool_problem(system.os, requirement.tool)}")
         parsed.append(requirement)
     if not requirements:
         problems.append("check needs at least one requirement, e.g. check 'node@>=20' git")
@@ -238,19 +238,21 @@ def config_command(
     Exits with code 3 when the config file cannot be used, naming each problem.
     """
     system = _system(ctx)
-    settings: Settings | None = None
-    try:
-        settings = load_settings(system, builtin_definitions())
+    settings = _read_settings(system)
+    if isinstance(settings, InvalidConfig):
+        # Still a full answer: the app needs the path to open the file for fixing.
+        result = ConfigResult(
+            config_path=settings.path,
+            config_exists=True,
+            problems=settings.problems,
+            preferences=None,
+        )
+    else:
         result = ConfigResult(
             config_path=settings.path,
             config_exists=settings.exists,
             problems=[],
             preferences=settings.preferences(),
-        )
-    except InvalidConfig as error:
-        # Still a full answer: the app needs the path to open the file for fixing.
-        result = ConfigResult(
-            config_path=error.path, config_exists=True, problems=error.problems, preferences=None
         )
     if json_output:
         typer.echo(result.model_dump_json(indent=2))
@@ -258,8 +260,9 @@ def config_command(
         from versionbar.human import print_config
 
         terminal, color = _output_style(system)
-        print_config(result, settings, terminal=terminal, color=color)
-    if settings is None:
+        valid = None if isinstance(settings, InvalidConfig) else settings
+        print_config(result, valid, terminal=terminal, color=color)
+    if result.problems:
         raise typer.Exit(INVALID_CONFIG_EXIT_CODE)
 
 
