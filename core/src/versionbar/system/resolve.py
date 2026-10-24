@@ -45,7 +45,7 @@ def path_hits(system: System, command: str) -> Iterator[str]:
 
 
 # App Installer redirectors that stand in for an app until it is installed: run,
-# they open the Microsoft Store (or print a pointer to it and exit 9009). Keyed
+# they open the Microsoft Store (from a terminal they exit with code 9009). Keyed
 # by application user model id because the same package also ships real tools
 # (`winget`). Only the Python redirector has been observed; add others here
 # once seen on a real machine.
