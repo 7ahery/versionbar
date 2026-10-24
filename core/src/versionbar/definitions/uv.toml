@@ -1,0 +1,8 @@
+id = "uv"
+name = "uv"
+os = ["windows", "linux"]
+binaries = ["uv"]
+version_args = ["--version"]
+# uv prints `uv 0.12.23 (46b84fd0b 2026-10-03 x86_64-pc-windows-msvc)`; the
+# build details after the version stay in `raw`.
+version_regex = '^uv (?P<version>\d+\.\d+\.\d+\S*)'
