@@ -23,7 +23,9 @@
         "visible": false,
         "skipTaskbar": true,
         "alwaysOnTop": true,
-        "shadow": true
+        "shadow": true,
+        "transparent": true,
+        "windowEffects": { "effects": ["mica"] }
       }
     ],
     "security": {

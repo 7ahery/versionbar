@@ -20,6 +20,10 @@ const REVIEWED: &[&str] = &[
     // Opens one fixed page, the official uv installation guide, in the default browser; takes
     // no arguments, so the webview cannot make the shell open anything else.
     "allow-open-uv-docs",
+    // Shows one install in Explorer with the file selected. Takes a path, accepted only as an
+    // existing file on a local drive in plain form (src/reveal.rs); Explorer selects it and
+    // never runs it.
+    "allow-open-containing-folder",
     // Subscribe to and drop the `scan-updated` event. Listening only: the webview cannot
     // emit events.
     "core:event:allow-listen",

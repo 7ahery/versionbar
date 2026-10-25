@@ -92,6 +92,22 @@ export function openUvDocs() {
   invoke("open_uv_docs").catch(() => {});
 }
 
+/**
+ * Shows an install in Explorer with the file selected. Rejects with a sentence for the user
+ * when the shell refuses the path or cannot start Explorer.
+ */
+export async function openContainingFolder(path: string): Promise<void> {
+  try {
+    await invoke("open_containing_folder", { path });
+  } catch (error) {
+    // The shell's own errors are strings written for the user; anything else is the bridge.
+    throw new Error(
+      typeof error === "string" ? error : "Could not open the folder.",
+      { cause: error },
+    );
+  }
+}
+
 /** Unsubscribing can fail while the webview is being torn down; nothing is left to do then. */
 function stopQuietly(stop: () => void) {
   try {
