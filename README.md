@@ -94,10 +94,10 @@ A scan always completes and always lists every tool (except those the config hid
 | What happened | `status` | `active`, `installs` | `notes` |
 | --- | --- | --- | --- |
 | No binary on PATH | `missing` | `null`, `[]` (or the installs providers found) | `not found on PATH (looked for: …)` |
-| Active install did not answer within 5 s (or the configured timeout) | `timeout` | `null`, `[]` | `<path> did not answer within <n> s`, plus `: <its output>` if it printed anything before it was killed |
-| Active install could not be started | `error` | `null`, `[]` | `could not run <path>: <OS error>` |
-| Active install exited non-zero | `error` | `null`, `[]` | `<path> exited with code <n>: <its output>` |
-| Active install printed no recognisable version | `error` | `null`, `[]` | `<path> printed no version: <its output>` |
+| Active install did not answer within 5 s (or the configured timeout) | `timeout` | `null`, `[]` (or the installs providers found) | `<path> did not answer within <n> s`, plus `: <its output>` if it printed anything before it was killed |
+| Active install could not be started | `error` | `null`, `[]` (or the installs providers found) | `could not run <path>: <OS error>` |
+| Active install exited non-zero | `error` | `null`, `[]` (or the installs providers found) | `<path> exited with code <n>: <its output>` |
+| Active install printed no recognisable version | `error` | `null`, `[]` (or the installs providers found) | `<path> printed no version: <its output>` |
 | An other install failed in any of these ways | `found` | that install left out | one note per failed install, same wording |
 | Only Microsoft Store placeholders on PATH | `missing` | `null`, `[]` | `only Microsoft Store placeholders found on PATH (looked for: …)`, then one note per placeholder |
 | A provider failed, or one of its installs did | unchanged | that install left out | `<provider name>: …`, after the PATH notes; installs from PATH and other providers stay |

@@ -369,6 +369,21 @@ def test_source_must_be_a_provider_of_that_tool() -> None:
     assert system.files == {}
 
 
+def test_a_provider_that_cannot_read_its_manager_fails_without_a_traceback() -> None:
+    system = nvm_machine()
+    system.add_unlistable(rf"{NVM_HOME}\installs", "[WinError 5] Access is denied")
+
+    result = capture(system, "node", "--source", "nvm", "--json")
+
+    assert result.exit_code == 1
+    assert json.loads(result.stdout) == {
+        "outcome": "launch-error",
+        "tool": "node",
+        "message": "nvm-windows could not list installs: [WinError 5] Access is denied",
+    }
+    assert system.files == {}
+
+
 def test_source_with_no_install_is_not_found() -> None:
     system = FakeSystem(os="windows", env={"PATH": r"C:\WINDOWS", "PATHEXT": WINDOWS_PATHEXT})
 

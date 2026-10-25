@@ -146,7 +146,12 @@ def capture_tool(
             raise CaptureError("not-found", f"{tool_id} not found on PATH (looked for: {names})")
     else:
         provider = _provider(system, providers, source, tool_id)
-        located = provider.locate(system, tool_id, DEFAULT_TIMEOUT_SECONDS)
+        try:
+            located = provider.locate(system, tool_id, DEFAULT_TIMEOUT_SECONDS)
+        except Exception as error:
+            # As in a scan, a provider's failure is reported, not a crash.
+            message = f"{provider.name} could not list installs: {error}"
+            raise CaptureError("launch-error", message) from error
         path = next(iter(located.executables), None)
         if path is None:
             raise CaptureError("not-found", f"{provider.name} reports no {tool_id} install")

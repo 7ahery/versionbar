@@ -16,7 +16,7 @@ uv run --project core versionbar debug capture <tool> [--source <provider>] [--o
 - A command that runs but fails (non-zero exit) is still captured, with its true exit status. That is evidence too.
 - Failures write no file, so a failed capture never looks like a fixture. With `--json` the error is `{"outcome", "tool", "message"}`.
   - Exit status 2 (usage error, like `show`): `unknown-tool`; `unknown-source` for a `--source` that is no provider, or a provider that reports no installs of that tool; and `unsupported-os` for a known tool with no definition for this OS (message: `<id> is not available on <os>`) or a provider that does not run on it.
-  - Exit status 1: `not-found` (not on `PATH`, or the provider reports no install), `timeout`, `launch-error` (including no exit status), `write-failed`.
+  - Exit status 1: `not-found` (not on `PATH`, or the provider reports no install), `timeout`, `launch-error` (including no exit status, and a `--source` provider that fails to list its installs), `write-failed`.
 
 ## File format (version 1)
 
