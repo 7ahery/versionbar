@@ -84,6 +84,7 @@ describe("usePreferences", () => {
     // Async so the hook's `await invoke` continuation runs inside the act.
     await act(async () => {
       late.release?.(answer(defaults));
+      await Promise.resolve();
     });
     expect(result.current?.config?.preferences?.update_check).toBe(false);
   });
