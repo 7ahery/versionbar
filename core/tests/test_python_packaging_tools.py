@@ -31,10 +31,6 @@ def test_pip_and_pipx_report_the_version_the_tool_printed() -> None:
     assert tools["pipx"]["active"]["path"] == rf"{SCRIPTS}\pipx.exe"
 
 
-def test_pip_does_not_take_the_python_version_from_its_banner() -> None:
-    assert tools_of(machine())["pip"]["active"]["version"] != "3.12"
-
-
 def test_without_installs_they_are_missing() -> None:
     system = FakeSystem(
         os="windows", env={"PATH": r"C:\WINDOWS\system32", "PATHEXT": WINDOWS_PATHEXT}

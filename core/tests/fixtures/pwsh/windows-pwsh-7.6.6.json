@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "tool": "pwsh",
+  "args": [
+    "--version"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "UG93ZXJTaGVsbCA3LjYuNg0K",
+  "stderr_b64": "",
+  "encoding": "utf-8",
+  "stdout_text": "PowerShell 7.6.6\r\n",
+  "stderr_text": "",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-11-10.0.26200-SP0",
+    "resolved_path": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+    "command": [
+      "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+      "--version"
+    ],
+    "captured_at": "2026-10-25T21:12:11.338721Z",
+    "runner": null,
+    "notes": null
+  }
+}
