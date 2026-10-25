@@ -48,6 +48,8 @@ version_regex = 'OpenSSH_(?:for_Windows_)?(?P<version>\d+(?:\.\d+)*[a-z]*\d*)'
 
 Values are typed strictly: `timeout = "5"` or `update_check = 1` is an error, not coerced.
 
+The tray app gives each whole scan a fixed 30 seconds, whatever the file says. A `timeout` or `timeouts.<id>` near or above about 30 seconds (or several long ones, since only a few version commands run at a time) can make the app's scan time out, and the app then keeps its last good results. The CLI has no such limit. See [app/preferences.md](app/preferences.md#timeouts-in-the-config-file).
+
 ### Tool ids
 
 - Every id in `pinned`, `order`, `hidden` and `timeouts` must be a known tool (built-in or custom) on some OS. A tool of another OS is allowed, so one file can serve several machines; it is simply not listed here.

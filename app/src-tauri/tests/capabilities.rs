@@ -15,7 +15,11 @@ const REVIEWED: &[&str] = &[
     "core:app:allow-version",
     // The scan state (current and previous results, progress, last outcome); read only.
     "allow-get-state",
-    // Starts a scan with the shell's fixed `list --json` invocation; takes no arguments.
+    // The preferences answer (config path, problems, pinned/order, update flag) and how the
+    // latest query went; read only, takes no arguments.
+    "allow-get-preferences",
+    // Starts a scan job: the fixed `config --json` then `list --json` invocations; takes no
+    // arguments.
     "allow-refresh",
     // Opens one fixed page, the official uv installation guide, in the default browser; takes
     // no arguments, so the webview cannot make the shell open anything else.
@@ -24,8 +28,8 @@ const REVIEWED: &[&str] = &[
     // existing file on a local drive in plain form (src/reveal.rs); Explorer selects it and
     // never runs it.
     "allow-open-containing-folder",
-    // Subscribe to and drop the `scan-updated` event. Listening only: the webview cannot
-    // emit events.
+    // Subscribe to and drop the `scan-updated` and `preferences-updated` events. Listening
+    // only: the webview cannot emit events.
     "core:event:allow-listen",
     "core:event:allow-unlisten",
 ];

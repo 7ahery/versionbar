@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "config_path": "%USERPROFILE%\\vb-capture\\update-off\\versionbar\\config.toml",
+  "config_exists": true,
+  "problems": [],
+  "preferences": {
+    "update_check": false,
+    "pinned": ["node"],
+    "order": []
+  }
+}
