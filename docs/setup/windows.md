@@ -103,6 +103,10 @@ Step 1's `rustup default` only sets the machine-wide fallback; inside the repo
 `rust-toolchain.toml` wins. The pin is an exact stable release so that a new Rust release
 cannot fail `clippy -D warnings` without a code change.
 
+## Check the toolchain
+
+From a checkout (after `npm install`), `npm run doctor` runs VersionBar's own `check` against node, npm, uv, rustc and cargo with constraints read from the pins above, and prints the fix for anything missing or too old. It ignores your VersionBar config file. It does not replace step 6: it reads versions, so it cannot prove the MSVC linker works.
+
 ## After cloning
 
 Keep the checkout at a short path (for example `C:\src\versionbar`). Tauri's Rust build

@@ -137,6 +137,7 @@ git clone https://github.com/7ahery/versionbar
 cd versionbar
 npm install                                # UI and Tauri CLI dependencies (npm workspace `app/`)
 npm run cli -- --help                      # first run creates core/.venv
+npm run doctor                             # confirm the toolchain meets the repo pins
 cargo install cargo-deny@0.20.2 --locked   # once, for `npm run lint` (same version as CI)
 ```
 
@@ -166,9 +167,10 @@ All work goes through root npm scripts. `lint` and `test` run every part; the `:
 | `npm run build` | Local test build of the installer (releases come from CI) |
 | `npm test` | `test:core`: pytest, CLI tests over the fake system plus an install smoke test (`uv tool install` of `core/`, then run the installed command, including a live `list --json` that must find git, validate against the committed schema and never import Rich). `test:ui`: Vitest, the popup rendered with Tauri's IPC mock. `test:rust`: `cargo test` for the shell |
 | `npm run gen` | Regenerate `schema/` (JSON Schemas and TS types) and the UI's product-name constant from their sources; see [schema/README.md](schema/README.md) |
+| `npm run doctor` | Check that node, npm, uv, rustc and cargo meet the repo pins, using `versionbar check` live on this machine and ignoring your own VersionBar config. Failures name the tool and print the fix; exits 1 if anything is unmet. It checks only the contributor toolchain, not the tray app or installers |
 | `npm run lint` | `lint:core`: ruff check and format check, ty. `lint:repo`: taplo (check and format, including the built-in tool definitions against their schema), actionlint. `lint:gen`: fails if any generated file is stale. `lint:ui`: `tsc --noEmit`, ESLint (typescript-eslint, react-hooks), Prettier. `lint:rust`: rustfmt, clippy `-D warnings`, cargo-deny |
 
-More scripts (`doctor`) arrive with the slices that need them. CI runs the core, repo and UI checks on Windows and Ubuntu and the Rust checks on Windows only (the shell ships only for Windows, and building Tauri on Linux needs extra system packages). It also checks that PR titles follow Conventional Commits.
+CI runs the core, repo and UI checks on Windows and Ubuntu and the Rust checks on Windows only (the shell ships only for Windows, and building Tauri on Linux needs extra system packages). It also checks that PR titles follow Conventional Commits.
 
 ## Tooling choices
 
