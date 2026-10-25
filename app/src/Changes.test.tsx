@@ -11,6 +11,7 @@ import earlierScan from "./test/fixtures/list-windows.json";
 import installsScan from "./test/fixtures/list-windows-installs.json";
 import problemsScan from "./test/fixtures/list-windows-problems.json";
 import providerOnlyScan from "./test/fixtures/list-windows-provider-only.json";
+import uvHiddenScan from "./test/fixtures/list-windows-uv-hidden.json";
 
 /**
  * Change highlighting and ordering, driven through the shell's state and preferences like
@@ -19,6 +20,8 @@ import providerOnlyScan from "./test/fixtures/list-windows-provider-only.json";
  * - `earlier` to `installs`: Git 2.55.0.windows.2 to 2.56.0.windows.3; Node.js gains an
  *   install at the same active version.
  * - `installs` to `providerOnly`: Node.js goes from found to missing (and back in reverse).
+ * - `uvHidden` (a config hiding uv, so uv is absent from the scan) to `installs` or `problems`:
+ *   uv is newly found, or newly failing without a "was".
  * - `installs` to `problems`: Git times out and uv exits with an error (recovered in reverse).
  * Python is missing in all of them. Only cases no capture can show are edited by hand, and
  * say so where they are.
@@ -27,6 +30,7 @@ const earlier = earlierScan as ScanResult;
 const installs = installsScan as ScanResult;
 const problems = problemsScan as ScanResult;
 const providerOnly = providerOnlyScan as ScanResult;
+const uvHidden = uvHiddenScan as ScanResult;
 type Tool = ScanResult["tools"][number];
 
 const GIT_OLD = "2.55.0.windows.2";
@@ -80,12 +84,9 @@ function showMissing() {
   fireEvent.click(screen.getByRole("button", { name: /Show not found/ }));
 }
 
-// Hand-edited scans, only where no capture can exist: a tool absent from a scan, a renamed
-// tool, a reordered array. Nothing here invents a tool's output.
-function without(scan: ScanResult, id: string): ScanResult {
-  return { ...scan, tools: scan.tools.filter((tool) => tool.id !== id) };
-}
-
+// A hand-edited scan, only for the sort tie-breaks: capturing tools whose names differ only
+// in case, or a scan printed in another order, would be contrived. Nothing here invents a
+// tool's output.
 function rename(scan: ScanResult, id: string, name: string): ScanResult {
   return {
     ...scan,
@@ -139,8 +140,7 @@ describe("change highlighting", () => {
   });
 
   it("calls a tool absent from the previous scan newly found", async () => {
-    // No capture lists fewer tools than the catalog; this is a tool added to the catalog.
-    shell(state(installs, without(installs, "uv")));
+    shell(state(installs, uvHidden));
     render(<App />);
     await screen.findByText("Git");
     expect(rowText("uv")).toContain("Newly found");
@@ -173,7 +173,7 @@ describe("change highlighting", () => {
   });
 
   it("calls a tool absent from the previous scan that now fails newly failing", async () => {
-    shell(state(problems, without(problems, "uv")));
+    shell(state(problems, uvHidden));
     render(<App />);
     await screen.findByText("Node.js");
     expect(rowText("uv")).toContain("Newly failing");
