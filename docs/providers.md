@@ -61,6 +61,13 @@ The `Capture tool output` workflow cannot use `--source`: runner images have no 
 - nvm-windows 1 keeps versions in its root, `%NVM_HOME%\v<version>\` by default, and points `NVM_SYMLINK` (a link on PATH) at the selected one. Both layouts are read. A version-1 root moved away from `NVM_HOME` with `root:` in `settings.txt` is not read.
 - Only folders named `v<major>.<minor>.<patch>` are versions; anything else (`.cache`, `installs`, `nvm.exe`) is ignored.
 
+## rustup (Rust)
+
+- Reports the tools `rustc` and `cargo`. Runs `rustup toolchain list -v` with the `rustup` that typing `rustup` runs (PATH), else `%CARGO_HOME%\bin\rustup.exe`, else `%USERPROFILE%\.cargo\bin\rustup.exe`. The listing only reads what is installed: nothing is installed or switched, and no proxy (`rustc`, `cargo`) is run, so a `rust-toolchain.toml` cannot trigger a download. rustup not found: nothing is added and nothing is said.
+- Each listed toolchain folder is one install: `<folder>\bin\rustc.exe` and `<folder>\bin\cargo.exe`, run with the tool's own version command. The proxies in `~\.cargo\bin` are PATH hits and stay `active`; they are not duplicated. A toolchain folder without the tool's executable adds the note `rustup: <folder> has no bin\<tool>.exe, so it is not an install`. `RUSTUP_HOME` and `CARGO_HOME` apply because rustup answers.
+- No toolchains installed adds nothing. A failing listing (cannot start, non-zero exit, timeout, not UTF-8 or not `<name> [(flags)] <absolute path>` lines) is the note `rustup: could not list installs: <why>` on `rustc` and `cargo`; PATH installs are untouched.
+- Windows only for now: the only real capture is from Windows (`core/tests/fixtures/rustup/windows-rustup-toolchain-list-1.29.1.json`), a seed made from the real command's output (user name replaced by `dev`), as its `provenance` says. Re-seed it the same way when rustup's output format changes.
+
 ## uv (Python)
 
 - Runs `uv python list --no-config --only-installed --output-format json` (`--no-config` so a `uv.toml` or `pyproject.toml` in the working directory cannot hide installs) with the `uv` that typing `uv` runs (PATH), else `%UV_INSTALL_DIR%\uv.exe`. `--only-installed` means the catalog of downloadable Pythons is never read, and nothing is downloaded. uv not found: nothing is added and nothing is said.
