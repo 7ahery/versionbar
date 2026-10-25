@@ -22,7 +22,7 @@ class NvmWindows(Provider):
 
 `locate` is called once per scan for each tool in `tools` that the scan includes, on the scan's thread pool.
 
-- **Find the manager through its environment variables**, never fixed paths (`NVM_HOME`, not `%LOCALAPPDATA%\nvm`). Strip surrounding quotes and spaces, and ignore a value that is not absolute.
+- **Find the manager through its environment variables**, never fixed paths (`NVM_HOME`, not `%LOCALAPPDATA%\nvm`). One exception: a manager's documented home-relative default derived from an environment variable (rustup: `%USERPROFILE%\.rustup`, because rustup never sets `RUSTUP_HOME` itself). Strip surrounding quotes and spaces, and ignore a value that is not absolute.
 - **Use only `system`** (hard rule 9): `getenv`, `list_dir`, `is_executable`, `read_file_head`, `read_file`, `run`. Any command you run gets `timeout`.
 - **Return executables**: absolute paths of the installs' programs, in the order to report them (nvm: newest version first, compared numerically). The engine runs each one; the version reported is what it prints.
 - **A manager that is not there contributes nothing**: variable unset, or its folder missing (`list_dir` raises `FileNotFoundError` or `NotADirectoryError`). Return an empty `Located()` and no note.
@@ -63,10 +63,11 @@ The `Capture tool output` workflow cannot use `--source`: runner images have no 
 
 ## rustup (Rust)
 
-- Reports the tools `rustc` and `cargo`. Runs `rustup toolchain list -v` with the `rustup` that typing `rustup` runs (PATH), else `%CARGO_HOME%\bin\rustup.exe`, else `%USERPROFILE%\.cargo\bin\rustup.exe`. The listing only reads what is installed: nothing is installed or switched, and no proxy (`rustc`, `cargo`) is run, so a `rust-toolchain.toml` cannot trigger a download. rustup not found: nothing is added and nothing is said.
-- Each listed toolchain folder is one install: `<folder>\bin\rustc.exe` and `<folder>\bin\cargo.exe`, run with the tool's own version command. The proxies in `~\.cargo\bin` are PATH hits and stay `active`; they are not duplicated. A toolchain folder without the tool's executable adds the note `rustup: <folder> has no bin\<tool>.exe, so it is not an install`. `RUSTUP_HOME` and `CARGO_HOME` apply because rustup answers.
-- No toolchains installed adds nothing. A failing listing (cannot start, non-zero exit, timeout, not UTF-8 or not `<name> [(flags)] <absolute path>` lines) is the note `rustup: could not list installs: <why>` on `rustc` and `cargo`; PATH installs are untouched.
-- Windows only for now: the only real capture is from Windows (`core/tests/fixtures/rustup/windows-rustup-toolchain-list-1.29.1.json`), a seed made from the real command's output (user name replaced by `dev`), as its `provenance` says. Re-seed it the same way when rustup's output format changes.
+- Reports the tools `rustc` and `cargo`. rustup is never run: even `rustup toolchain list` installs the toolchain pinned by a `rust-toolchain.toml` in the working directory, which VersionBar must never do. The provider lists `<RUSTUP_HOME>\toolchains` instead. `RUSTUP_HOME` is used when set (absolute); otherwise rustup's documented default `%USERPROFILE%\.rustup`.
+- That default is a deliberate exception to "find the manager through its environment variables": rustup never sets `RUSTUP_HOME` itself, so nearly every machine relies on the default. A manager's documented home-relative default derived from an environment variable (`USERPROFILE`) is allowed; a literal path is not.
+- Each folder in `toolchains` is one install: `<folder>\bin\rustc.exe` and `<folder>\bin\cargo.exe`, run with the tool's own version command and reported in folder-name order. The proxies in `~\.cargo\bin` are PATH hits and stay `active`; they are not duplicated. A folder without the tool's executable adds the note `rustup: <folder> has no bin\<tool>.exe, so it is not an install`.
+- A missing home or `toolchains` folder, or an empty one, adds nothing and says nothing. An unreadable `toolchains` folder is the note `rustup: could not list installs: <why>`; PATH installs are untouched.
+- Windows only for now: the toolchain layout is only confirmed there. No listing fixture is needed because the provider reads no output of its own; the version output of each toolchain's tools is the real `rustc` and `cargo` captures.
 
 ## uv (Python)
 

@@ -1,52 +1,44 @@
 """The rustup toolchain provider, through the CLI seam.
 
-`rustup toolchain list -v` answers with a real capture (rustup 1.29.1, holding
-the toolchains `stable` and `1.99.1`). Machine state (PATH, environment) is
-synthetic; version output is the real rustc and cargo captures.
+rustup is never run: the toolchains are the folders under `<RUSTUP_HOME>\\toolchains`.
+Machine state (folders, environment) is synthetic; version output is the real
+rustc and cargo captures.
 """
 
 import json
 
-from versionbar.system import ProcessResult
-
 from fakes import (
     CARGO_WINDOWS,
     RUSTC_WINDOWS,
-    RUSTUP_TOOLCHAIN_LIST_WINDOWS,
-    RUSTUP_WINDOWS,
     WINDOWS_PATHEXT,
-    Capture,
     FakeSystem,
     load_capture,
     run_cli,
 )
 
-CARGO_HOME = r"C:\Users\dev\.cargo"
-CARGO_BIN = rf"{CARGO_HOME}\bin"
-RUSTUP = rf"{CARGO_BIN}\rustup.exe"
-TOOLCHAINS = r"C:\Users\dev\.rustup\toolchains"
+CARGO_BIN = r"C:\Users\dev\.cargo\bin"
+RUSTUP_HOME = r"C:\Users\dev\.rustup"
+TOOLCHAINS = rf"{RUSTUP_HOME}\toolchains"
 STABLE = rf"{TOOLCHAINS}\stable-x86_64-pc-windows-msvc"
 PINNED = rf"{TOOLCHAINS}\1.99.1-x86_64-pc-windows-msvc"
-LIST_ARGS = ("toolchain", "list", "-v")
 RUSTC_NOT_FOUND = "not found on PATH (looked for: rustc)"
 
 
-def machine(
-    *, rustup_on_path: bool = True, listing: Capture | None = None, pinned_cargo: bool = True
-) -> FakeSystem:
-    """Two rustup toolchains; the proxies in the cargo bin folder are not on PATH."""
-    path = [r"C:\WINDOWS\system32"] + ([CARGO_BIN] if rustup_on_path else [])
-    system = FakeSystem(os="windows", env={"PATH": ";".join(path), "PATHEXT": WINDOWS_PATHEXT})
-    system.add_executable(
-        RUSTUP, load_capture(RUSTUP_WINDOWS), listing or load_capture(RUSTUP_TOOLCHAIN_LIST_WINDOWS)
+def machine(*, home: str = RUSTUP_HOME, pinned_cargo: bool = True) -> FakeSystem:
+    """Two toolchains under `home`; the proxies in the cargo bin folder are not on PATH."""
+    system = FakeSystem(
+        os="windows",
+        env={
+            "PATH": r"C:\WINDOWS\system32",
+            "PATHEXT": WINDOWS_PATHEXT,
+            "USERPROFILE": r"C:\Users\dev",
+        },
     )
-    for toolchain in (STABLE, PINNED):
-        system.add_executable(rf"{toolchain}\bin\rustc.exe", load_capture(RUSTC_WINDOWS))
-    system.add_executable(rf"{STABLE}\bin\cargo.exe", load_capture(CARGO_WINDOWS))
-    if pinned_cargo:
-        system.add_executable(rf"{PINNED}\bin\cargo.exe", load_capture(CARGO_WINDOWS))
-    else:
-        system.add_folder(rf"{PINNED}\bin")
+    for toolchain in ("stable-x86_64-pc-windows-msvc", "1.99.1-x86_64-pc-windows-msvc"):
+        folder = rf"{home}\toolchains\{toolchain}"
+        system.add_executable(rf"{folder}\bin\rustc.exe", load_capture(RUSTC_WINDOWS))
+        if pinned_cargo or toolchain.startswith("stable"):
+            system.add_executable(rf"{folder}\bin\cargo.exe", load_capture(CARGO_WINDOWS))
     return system
 
 
@@ -66,20 +58,53 @@ def test_every_toolchain_is_a_rustc_and_a_cargo_install_with_source_rustup() -> 
     rustc = tool_of(system, "rustc")
     cargo = tool_of(system, "cargo")
 
+    # Folder order: 1.99.1 sorts before stable.
     assert rustc["active"] is None
     assert installs(rustc) == [
-        ("1.99.1", rf"{STABLE}\bin\rustc.exe", "rustup"),
         ("1.99.1", rf"{PINNED}\bin\rustc.exe", "rustup"),
+        ("1.99.1", rf"{STABLE}\bin\rustc.exe", "rustup"),
     ]
     assert installs(cargo) == [
-        ("1.99.1", rf"{STABLE}\bin\cargo.exe", "rustup"),
         ("1.99.1", rf"{PINNED}\bin\cargo.exe", "rustup"),
+        ("1.99.1", rf"{STABLE}\bin\cargo.exe", "rustup"),
     ]
+
+
+def test_rustup_itself_is_never_run() -> None:
+    system = machine()
+    system.add_executable(rf"{CARGO_BIN}\rustup.exe")
+    system.env["PATH"] += f";{CARGO_BIN}"
+
+    tool_of(system, "rustc")
+
+    assert all(not run[0].lower().endswith("rustup.exe") for run in system.runs)
+
+
+def test_rustup_home_from_the_environment_wins_over_the_default() -> None:
+    elsewhere = r"D:\rust\home"
+    system = machine(home=elsewhere)
+    system.env["RUSTUP_HOME"] = f'"{elsewhere}"'
+
+    paths = [i[1] for i in installs(tool_of(system, "rustc"))]
+
+    assert paths and all(p.startswith(elsewhere) for p in paths)
+
+
+def test_without_rustup_home_the_default_under_the_user_profile_is_read() -> None:
+    assert len(installs(tool_of(machine(), "rustc"))) == 2
+
+
+def test_a_relative_rustup_home_is_ignored() -> None:
+    system = machine()
+    system.env["RUSTUP_HOME"] = r"rust\home"
+
+    assert tool_of(system, "rustc")["installs"] == []
 
 
 def test_a_proxy_on_path_stays_active_and_toolchains_are_added_after_it() -> None:
     system = machine()
     system.add_executable(rf"{CARGO_BIN}\rustc.exe", load_capture(RUSTC_WINDOWS))
+    system.env["PATH"] += f";{CARGO_BIN}"
 
     rustc = tool_of(system, "rustc")
 
@@ -100,53 +125,37 @@ def test_a_toolchain_that_is_also_on_path_is_listed_once() -> None:
     assert system.runs.count((rf"{STABLE}\bin\rustc.exe", "--version")) == 1
 
 
-def test_rustup_found_through_cargo_home_when_not_on_path() -> None:
-    system = machine(rustup_on_path=False)
-    system.env["CARGO_HOME"] = f'"{CARGO_HOME}"'
-
-    assert [i[2] for i in installs(tool_of(system, "rustc"))] == ["rustup", "rustup"]
-
-
-def test_without_rustup_nothing_is_added_and_nothing_is_said() -> None:
-    rustc = tool_of(machine(rustup_on_path=False), "rustc")
-
-    assert rustc["installs"] == []
-    assert rustc["notes"] == [RUSTC_NOT_FOUND]
-
-
-def test_no_toolchains_adds_nothing() -> None:
-    empty = ProcessResult(exit_code=0, stdout=b"", stderr=b"")
-
-    rustc = tool_of(machine(listing=Capture(LIST_ARGS, empty)), "rustc")
-
-    assert rustc["installs"] == []
-    assert rustc["notes"] == [RUSTC_NOT_FOUND]
-
-
-def test_a_failing_listing_is_a_note_and_loses_nothing_else() -> None:
-    for result in (
-        ProcessResult(exit_code=1, stdout=b"", stderr=b""),
-        ProcessResult(exit_code=0, stdout=b"\xff\xfe garbage \x00", stderr=b""),
-        ProcessResult(exit_code=0, stdout=b"this is not a listing\n", stderr=b""),
-        ProcessResult(exit_code=None, stdout=b"", stderr=b"", launch_error="access denied"),
-        ProcessResult(exit_code=None, stdout=b"", stderr=b"", timed_out=True),
-    ):
-        rustc = tool_of(machine(listing=Capture(LIST_ARGS, result)), "rustc")
-
-        assert rustc["installs"] == []
-        assert rustc["notes"][0] == RUSTC_NOT_FOUND
-        assert rustc["notes"][-1].startswith("rustup: could not list installs: ")
-
-
-def test_a_hanging_listing_gives_up_after_the_tools_timeout() -> None:
-    system = machine(listing=Capture(LIST_ARGS, ProcessResult(0, b"", b""), seconds=60))
+def test_no_rustup_home_folder_adds_nothing_and_says_nothing() -> None:
+    system = machine()
+    system.env["RUSTUP_HOME"] = r"D:\missing"
+    system.env.pop("USERPROFILE")
 
     rustc = tool_of(system, "rustc")
 
-    assert (
-        rustc["notes"][-1]
-        == "rustup: could not list installs: rustup toolchain list did not answer within 5 s"
-    )
+    assert rustc["installs"] == []
+    assert rustc["notes"] == [RUSTC_NOT_FOUND]
+
+
+def test_an_empty_toolchains_folder_adds_nothing() -> None:
+    system = machine()
+    system.env["RUSTUP_HOME"] = r"D:\empty"
+    system.add_folder(r"D:\empty\toolchains")
+
+    rustc = tool_of(system, "rustc")
+
+    assert rustc["installs"] == []
+    assert rustc["notes"] == [RUSTC_NOT_FOUND]
+
+
+def test_an_unreadable_toolchains_folder_is_a_note_and_loses_nothing_else() -> None:
+    system = machine()
+    system.env["RUSTUP_HOME"] = r"D:\locked"
+    system.add_unlistable(r"D:\locked\toolchains", "access denied")
+
+    rustc = tool_of(system, "rustc")
+
+    assert rustc["installs"] == []
+    assert rustc["notes"][-1].startswith("rustup: could not list installs: ")
 
 
 def test_a_toolchain_without_the_tool_is_a_note_and_the_other_still_counts() -> None:
