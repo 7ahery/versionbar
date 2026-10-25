@@ -102,7 +102,7 @@ def test_a_missing_uv_points_at_the_uv_install() -> None:
 
 def test_an_invalid_config_is_reported_as_such_not_as_a_missing_result() -> None:
     system = machine()
-    system.add_file(system.config_path, b"colour = true\n")
+    system.add_config("colour = true\n")
     checked = run_cli(system, "check", *requirements(), "--json")
     assert checked.exit_code == 3
 
