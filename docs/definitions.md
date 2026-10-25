@@ -76,7 +76,7 @@ Not supported by definitions, by design:
 
 ### Hosting, shell and platform tools (ticket 15): coverage and provenance
 
-Built-in definitions shipped: `gh`, `pwsh`, `code` (Windows and Linux) and `wsl`, `winget` (Windows only). Fixtures are real Windows captures from the maintainer's machine (`wsl` included: its UTF-16 output is decoded from the raw bytes, with no `encoding` key in the definition). `code` resolved to `code.cmd`, so it runs as a wrapper through the shared cmd.exe path. `docker`, `kubectl`, `scoop` and `choco` are not on that machine; they need a capture from the `capture.yml` workflow before their definitions ship.
+Built-in definitions shipped: `gh`, `pwsh`, `code` (Windows and Linux) and `wsl`, `winget` (Windows only). Fixtures are real Windows captures from the maintainer's machine (`wsl` included: its UTF-16 output is decoded from the raw bytes, with no `encoding` key in the definition). `code` resolved to `code.cmd`, so it runs as a wrapper through the shared cmd.exe path. `docker` (Windows and Linux) is also shipped; its capture comes from the `windows-latest` runner via the capture workflow. `kubectl` and `choco` wait for a recapture with a longer timeout (#39), and `scoop` is deferred to #45 (DEV-7).
 
 ### Coverage checklist
 
@@ -87,19 +87,27 @@ The v1 catalog is 32 tools: spec #1's 34 minus `pnpm` and `yarn` (DEV-6). Status
 | VCS / hosting | git | shipped | yes |
 | | gh | shipped (15) | yes |
 | Python | python, uv | shipped | yes |
-| | pip, pipx, poetry | ticket 09 | pending |
+| | pip, pipx | shipped (09) | yes |
+| | poetry | deferred to #45 (DEV-7) | n/a |
 | JS | node, npm | shipped (13) | yes |
 | | bun, deno | ticket 13 | pending |
 | PHP | php, composer | shipped (14) | yes |
 | Other languages | java, go, rustc, cargo, dotnet, ruby | shipped (14) | yes |
-| Containers | docker, kubectl | pending (15) | blocked: not on the maintainer's machine |
+| Containers | docker | shipped (15) | yes (`windows-latest` runner via the capture workflow) |
+| | kubectl | pending (15) | pending recapture with a longer timeout (#39) |
 | Managers | nvm | shipped (13) | yes |
-| | fnm, volta, pyenv | tickets 09 and 13 | pending |
+| | fnm, volta | ticket 13 | pending |
+| | pyenv | deferred to #45 (DEV-7); python attribution shipped (09) | n/a |
 | | rustup | shipped (14) | yes |
 | | winget | shipped (15) | yes |
-| | scoop, choco | pending (15) | blocked: not on the maintainer's machine |
+| | choco | pending (15) | pending recapture with a longer timeout (#39) |
+| | scoop | deferred to #45 (DEV-7) | n/a |
 | Dev shell | pwsh, code, wsl | shipped (15) | yes |
 
 ### JS tools and managers (ticket 13)
 
 Built-in so far: `npm` and `nvm`, with real Windows captures from the maintainer's machine (npm 11.19.0 under nvm's `.nodejs` folder, nvm-windows 2.0.1). `bun`, `deno`, `fnm` and `volta` (with volta attribution for node/npm) are pending real captures: none is installed on the capture machine and the capture workflow cannot take an unmerged definition without a pushed branch. A manager's own version detection is a tool, not a provider; only nvm has a provider ([docs/providers.md](providers.md)).
+
+### Python ecosystem (ticket 09): coverage and provenance
+
+Built-in definitions: `python` (with pyenv attribution, see the `via` rules in its file), `pip` and `pipx`, Windows and Linux. The `pip` and `pipx` fixtures are real captures from the `windows-latest` runner (`Scripts` folder of the hosted Python 3.12.10). `pip --version` prints `pip 26.2.2 from <path> (python 3.12)`, so its regex is anchored on `pip` to avoid the interpreter version. `poetry` and `pyenv` are deferred to #45 (DEV-7): neither was found on the runner. The pyenv tests replay a real python capture at synthetic shim paths. No Linux captures exist, so Linux behaviour is unverified.
