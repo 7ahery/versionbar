@@ -73,3 +73,28 @@ Not supported by definitions, by design:
 
 - Installs found only through an environment variable and not on PATH (`JAVA_HOME` without java on PATH, a manager binary off PATH). They are not what typing the command runs and need a `source` other than `path`, which is provider territory ([docs/providers.md](providers.md)).
 - Setting environment variables for the version command. Corepack shims may download a package manager or pin one into a `package.json` in the current folder when run; if ticket 13 finds that `--version` does either on real machines, the generic fix is a definition key for the probe's environment (for example `COREPACK_ENABLE_NETWORK=0`), which needs a change to the System seam's `run`.
+
+### Hosting, shell and platform tools (ticket 15): coverage and provenance
+
+Built-in definitions shipped: `gh`, `pwsh`, `code` (Windows and Linux) and `wsl`, `winget` (Windows only). Fixtures are real Windows captures from the maintainer's machine (`wsl` included: its UTF-16 output is decoded from the raw bytes, with no `encoding` key in the definition). `code` resolved to `code.cmd`, so it runs as a wrapper through the shared cmd.exe path. `docker`, `kubectl`, `scoop` and `choco` are not on that machine; they need a capture from the `capture.yml` workflow before their definitions ship.
+
+### Coverage checklist
+
+The v1 catalog is 32 tools: spec #1's 34 minus `pnpm` and `yarn` (DEV-6). Status is "shipped" when a definition and a real capture exist.
+
+| Group | Tool | Definition | Real capture |
+|---|---|---|---|
+| VCS / hosting | git | shipped | yes |
+| | gh | shipped (15) | yes |
+| Python | python, uv | shipped | yes |
+| | pip, pipx, poetry | ticket 09 | pending |
+| JS | node | shipped | yes |
+| | npm, bun, deno | ticket 13 | pending |
+| PHP | php, composer | shipped (14) | yes |
+| Other languages | java, go, rustc, cargo, dotnet, ruby | shipped (14) | yes |
+| Containers | docker, kubectl | pending (15) | blocked: not on the maintainer's machine |
+| Managers | nvm, fnm, volta, pyenv | tickets 09 and 13 | pending |
+| | rustup | shipped (14) | yes |
+| | winget | shipped (15) | yes |
+| | scoop, choco | pending (15) | blocked: not on the maintainer's machine |
+| Dev shell | pwsh, code, wsl | shipped (15) | yes |
