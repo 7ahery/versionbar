@@ -45,6 +45,8 @@ app = typer.Typer(
 )
 
 _JSON_HELP = "Print the result as JSON (stable, versioned; no colour or decoration)."
+# Ten minutes is far beyond any real tool's start-up.
+MAX_CAPTURE_TIMEOUT_SECONDS = 600
 
 
 def _system(ctx: typer.Context) -> System:
@@ -353,8 +355,13 @@ def debug_capture(
     json_output: bool = typer.Option(False, "--json", help=_JSON_HELP),
 ) -> None:
     """Run a tool's version command and record its raw output as a replayable fixture."""
-    if not timeout > 0:
-        raise typer.BadParameter("must be more than 0 seconds", param_hint="--timeout")
+    # The upper bound also keeps out inf and huge values, which the process
+    # layer cannot turn into a wait; nan fails both comparisons.
+    if not 0 < timeout <= MAX_CAPTURE_TIMEOUT_SECONDS:
+        raise typer.BadParameter(
+            f"must be more than 0 and at most {MAX_CAPTURE_TIMEOUT_SECONDS} seconds",
+            param_hint="--timeout",
+        )
     try:
         outcome = capture_tool(
             _system(ctx),

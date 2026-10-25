@@ -79,8 +79,17 @@ class _Job:
         for provider, future in self.located:
             try:
                 located = future.result()
+            except Exception as error:
+                # A provider is code reading data it does not control; its
+                # failure is that provider's only, never the scan's.
+                self.provider_notes.append(f"{provider.name}: could not list installs: {error}")
+                continue
+            try:
                 # Read in full before anything is kept, so a provider that
-                # hands back malformed data loses only its own installs.
+                # hands back malformed data loses only its own installs. Only
+                # the errors bad data raises are caught: an engine bug here
+                # must still fail loudly. (Pydantic's ValidationError is a
+                # ValueError.)
                 executables = [(path, _fold(paths, path)) for path in located.executables]
                 finished = [
                     (
@@ -90,9 +99,7 @@ class _Job:
                     for i in located.installs
                 ]
                 notes = [str(note) for note in located.notes]
-            except Exception as error:
-                # A provider is code reading data it does not control; its
-                # failure is that provider's only, never the scan's.
+            except (TypeError, ValueError, AttributeError) as error:
                 self.provider_notes.append(f"{provider.name}: could not list installs: {error}")
                 continue
             self.provider_notes.extend(notes)

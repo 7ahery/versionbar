@@ -12,7 +12,7 @@ uv run --project core versionbar debug capture <tool> [--source <provider>] [--t
 
 - `<tool>` is a tool id from a built-in definition (for example `git`). It runs exactly the definition's version command for the current OS, on the first match found on `PATH` that a scan would run: Microsoft Store placeholders and the scripts folder of the environment running VersionBar are skipped, as in a scan. Nothing is installed or modified. To capture an install that is not first on your PATH (for example a uv-managed Python on a machine whose bare `python` is a Store placeholder), run the command with `PATH` narrowed to its folder and say so in `provenance.notes`.
 - `--source <provider>` (for example `--source nvm`) captures what that provider reads instead: its listing command when it declares one (such as `dotnet --list-sdks` or `py -0p`), otherwise the first install it reports for the tool, wherever it is. `provenance.notes` says which. See [docs/providers.md](providers.md).
-- `--timeout <seconds>` (default 5, the scan's default) is how long the command may take before the capture fails with `timeout`. Raise it for tools that are slow to start on a cold machine. It must be more than 0.
+- `--timeout <seconds>` (default 5, the scan's default) is how long the command may take before the capture fails with `timeout`. Raise it for tools that are slow to start on a cold machine. It must be a finite number above 0 and at most 600; anything else is a usage error (exit status 2).
 - The file is written to `--out` (default `versionbar-captures/`) as `<os>-<tool>-<version>.json`, for example `windows-git-2.55.0.windows.2.json`; a provider's listing command as `<os>-<tool>-<provider>-listing.json`, since a listing names many versions. The command prints the destination; with `--json` it prints `{"outcome": "captured", "tool", "destination", "exit_code"}`.
 - A command that runs but fails (non-zero exit) is still captured, with its true exit status. That is evidence too.
 - Failures write no file, so a failed capture never looks like a fixture. With `--json` the error is `{"outcome", "tool", "message"}`.
@@ -37,7 +37,7 @@ The model is `CaptureFile` in `core/src/versionbar/capture.py`; the fake in `cor
 
 ## Storage
 
-Fixtures live under `core/tests/fixtures/<tool>/`; captures made with `--source` (a provider's listing, or an install it found) under `core/tests/fixtures/<provider>/`. Name them `<os>-<tool>-<version>.json`, which is what the command already produces. Every tool and provider needs a real capture; never write output by hand. A hand-made seed is only acceptable when `provenance.notes` says which machine and command produced it.
+Fixtures live under `core/tests/fixtures/<tool>/`; captures made with `--source` (a provider's listing, or an install it found) under `core/tests/fixtures/<provider>/`. Name them `<os>-<tool>-<version>.json`, or `<os>-<tool>-<provider>-listing.json` for a provider's listing command, which is what the command already produces. Every tool and provider needs a real capture; never write output by hand. A hand-made seed is only acceptable when `provenance.notes` says which machine and command produced it.
 
 ## Capture on a clean Windows runner
 
@@ -61,7 +61,7 @@ Tool ids and `source` must match `[a-z0-9][a-z0-9-]*`, and `timeout` must be a p
 
 - `captures/`: one capture file per successful tool.
 - `outcomes/<tool>.json`: the command's result for every requested tool, including `not-found`, `unknown-tool` and `timeout` failures.
-- `outcomes/provenance.json`: workflow run URL, checked-out commit, requested ref, source and timeout, runner image name and version, and the fixed invocation used.
+- `outcomes/provenance.json`: workflow run URL, checked-out commit, requested ref, source, effective timeout in seconds (5 when unset), runner image name and version, and the fixed invocation used.
 
 Copy the files you want into `core/tests/fixtures/<tool>/` (or `<provider>/` for a `source` run) and review them like any other change. `source` only helps for managers the runner image already has, such as the .NET host or the py launcher; the workflow installs nothing, so other managers are captured with `--source` on your own machine.
 

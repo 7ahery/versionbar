@@ -59,12 +59,14 @@ jobs:
           $ids = @($env:TOOLS -split '[,\s]+' | Where-Object { $_ })
           $commit = $null
           try { $commit = (& git rev-parse HEAD 2>$null) } catch { }
+          # The effective value: unset means the CLI's own default, `--timeout`'s 5 s.
+          $timeout = if ($env:TIMEOUT) { $env:TIMEOUT } else { '5' }
           [ordered]@{
             workflow_run   = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
             commit         = $commit
             requested_ref  = $env:REF
             source         = $env:SOURCE
-            timeout        = $env:TIMEOUT
+            timeout        = $timeout
             image_os       = $env:ImageOS
             image_version  = $env:ImageVersion
             runner_os      = $env:RUNNER_OS

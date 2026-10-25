@@ -419,12 +419,13 @@ def test_timeout_gives_a_slow_command_longer_than_the_default() -> None:
     assert json.loads(shorter.stdout)["message"] == f"{GIT_PATH} did not answer within 1.5 s"
 
 
-def test_timeout_must_be_positive() -> None:
-    for value in ("0", "-1", "soon"):
+def test_timeout_must_be_finite_positive_and_at_most_600_seconds() -> None:
+    for value in ("0", "-1", "soon", "inf", "nan", "1e12", "600.5"):
         result = capture(windows_with_git(), "git", "--timeout", value, "--json")
 
         assert result.exit_code == 2, value
         assert result.stdout == ""
+    assert capture(slow_git(8), "git", "--timeout", "600", "--json").exit_code == 0
 
 
 # A test-only provider that reads its installs from a listing command. The
