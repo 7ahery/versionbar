@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "scanned_at": "2026-10-25T17:48:15.114287Z",
+  "platform": "windows",
+  "tools": [
+    {
+      "id": "git",
+      "name": "Git",
+      "status": "timeout",
+      "active": null,
+      "installs": [],
+      "notes": [
+        "C:\\Program Files\\Git\\ucrt64\\bin\\git.exe did not answer within 0.001 s: git version 2.56.0.windows.3"
+      ]
+    },
+    {
+      "id": "node",
+      "name": "Node.js",
+      "status": "found",
+      "active": {
+        "version": "24.21.0",
+        "path": "%USERPROFILE%\\AppData\\Local\\Author Software\\nvm\\.nodejs\\node.exe",
+        "source": "path",
+        "via": "nvm",
+        "raw": "v24.21.0"
+      },
+      "installs": [
+        {
+          "version": "24.21.0",
+          "path": "%USERPROFILE%\\AppData\\Local\\Author Software\\nvm\\.nodejs\\node.exe",
+          "source": "path",
+          "via": "nvm",
+          "raw": "v24.21.0"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "id": "python",
+      "name": "Python",
+      "status": "missing",
+      "active": null,
+      "installs": [],
+      "notes": [
+        "only Microsoft Store placeholders found on PATH (looked for: python, python3)",
+        "%USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe is a Microsoft Store placeholder, not an install (it only offers to install Python from the Store); it was not run",
+        "%USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps\\python3.exe is a Microsoft Store placeholder, not an install (it only offers to install Python from the Store); it was not run"
+      ]
+    },
+    {
+      "id": "uv",
+      "name": "uv",
+      "status": "error",
+      "active": null,
+      "installs": [],
+      "notes": [
+        "%USERPROFILE%\\.local\\bin\\uv.exe exited with code 2: error: unexpected argument '--no-such-flag' found\n\n  tip: a similar argument exists: '--no-config'\n\nUsage: uv.exe --no-config <COMMAND>\n\nFor more information, try '--help'."
+      ]
+    }
+  ]
+}

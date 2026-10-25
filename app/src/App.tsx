@@ -1,14 +1,12 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { Layers, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { ScanResult } from "schema";
 
 import { cn } from "@/lib/utils";
 import { PRODUCT_NAME } from "@/product";
 import { FailedScreen, MissingUvScreen, SettingUpScreen } from "@/Recovery";
 import { type Outcome, type ShellState, useShellState } from "@/shell";
-
-type Tool = ScanResult["tools"][number];
+import { ToolList } from "@/ToolList";
 
 export default function App() {
   const version = useShellVersion();
@@ -109,39 +107,6 @@ function describeProblem(outcome: Outcome): string | null {
       return "uv was not found, so no scan could run.";
     default:
       return null;
-  }
-}
-
-function ToolList({ tools }: { tools: Tool[] }) {
-  return (
-    <ul className="flex-1 divide-y divide-border overflow-y-auto">
-      {tools.map((tool) => (
-        <li
-          key={tool.id}
-          className="flex items-baseline justify-between gap-4 px-4 py-2 text-sm"
-        >
-          <span className="font-medium">{tool.name}</span>
-          <span className="truncate text-muted-foreground tabular-nums">
-            {activeLabel(tool)}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function activeLabel(tool: Tool): string {
-  if (tool.active) return tool.active.version;
-  // The status is shown as-is for values added after this build (schema/README.md).
-  switch (tool.status as string) {
-    case "missing":
-      return "Not found";
-    case "error":
-      return "Error";
-    case "timeout":
-      return "Timed out";
-    default:
-      return tool.status;
   }
 }
 

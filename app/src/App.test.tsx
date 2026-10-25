@@ -91,7 +91,8 @@ describe("popup", () => {
     expect(within(row("Git")).getByText("2.55.0.windows.2")).toBeDefined();
     expect(within(row("Node.js")).getByText("24.21.0")).toBeDefined();
     expect(within(row("uv")).getByText("0.12.23")).toBeDefined();
-    expect(within(row("Python")).getByText("Not found")).toBeDefined();
+    // Python is missing, so it waits behind the not-found toggle (Tools.test.tsx).
+    expect(screen.queryByText("Python")).toBeNull();
   });
 
   it("says how long ago the shown scan ran", async () => {

@@ -135,6 +135,7 @@ matches what the core does for the tools it runs (`_DRAIN_SECONDS` in
 | `get_state` | command | returns the state below |
 | `refresh` | command | no arguments, returns nothing; starts a scan, or, while one is running, one more scan after it ([state.md](state.md#when-it-refreshes)) |
 | `open_uv_docs` | command | no arguments, returns nothing; opens the official uv installation guide in the default browser (the address is fixed in Rust) |
+| `open_containing_folder` | command | `{ path: string }`; opens Explorer on the folder holding that file, with it selected. Rejects with a sentence for the user when the path is refused or Explorer cannot start ([actions.md](actions.md)) |
 | `scan-updated` | event, Rust to webview | the state below, sent when a scan starts and when it ends |
 
 ```ts

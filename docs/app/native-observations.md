@@ -229,3 +229,59 @@ The shell now keeps its results across restarts and refreshes on its own. Detail
   that edit. Several requests during one scan still lead to only one extra scan.
 - **No new permissions.** The popup can call the same three commands as before; the menu
   item and the timer are inside Rust. `tests/capabilities.rs` is unchanged.
+
+## Ticket 25 (2026-10-25)
+
+Checked with a debug build (`tauri build --debug --no-bundle`, assets embedded) on the same
+machine with the dark system theme: the popup was opened through a second launch, driven with
+synthetic mouse clicks and screenshotted.
+
+### Verified
+
+| Behaviour | Observation |
+| --- | --- |
+| Sizing | The popup keeps ticket 20's size (396×549 physical including the invisible frame, so about 380×540) and placement. Search box, list and status line fit; once rows are expanded the list scrolls with its own scrollbar while the header and search stay put. |
+| Dark theme | Text, borders, badge and scrollbar follow the dark system theme. |
+| Backdrop | The page background is a translucent tint, yet nothing of the windows behind shows through it, so the window has a system backdrop (Mica) behind the page. |
+| Expanding | Clicking Git expands it to both installs with version, "Active", "On PATH", path and the three action buttons. |
+| Copy path | Copied `C:\Program Files\Git\cmd\git.exe` exactly (read back from the Windows clipboard) and "Path copied" appeared in the status line, so the web clipboard API works inside WebView2. |
+| Open containing folder | Opened an Explorer window on `C:\Program Files\Git\cmd` (a path with a space). The popup then hid, since Explorer took focus. |
+| Focus | The search box has focus when the popup opens. |
+
+### Not yet checked
+
+- Light theme (the system theme was not switched on this machine), and switching theme while
+  the popup is open.
+- Whether Explorer visibly selects the file: the window opened on the right folder, but the
+  selection was not inspected.
+- Mica against different wallpapers, and the popup on Windows 10, which has no Mica: the page
+  background is translucent, so without a backdrop the window may show what is behind it.
+  Windows 10 is not a v1 target.
+- Keyboard-only use: Tab order through search, rows, the not-found toggle and the action
+  buttons.
+
+## Rust: what and why (ticket 25)
+
+- **Open containing folder.** One new command, `open_containing_folder`, takes one path from
+  the popup and opens Explorer on the folder holding it, with the file selected. It is a
+  command because the popup cannot start programs on its own (no shell plugin, on purpose).
+- **Checking the path.** The shell never reads the scan, so it cannot tell whether the path
+  came from one. Instead it accepts only a plain path on a local drive (`C:\...`, backslashes,
+  no quotes, wildcards, control characters or extra colons) to a file that exists now.
+  Network paths (`\\server\...`) and device paths (`\\?\...`) are refused before anything
+  touches the disk, because Explorer would contact another machine or device for them. The
+  exact rule is in `docs/app/actions.md`.
+- **What runs.** Only `explorer.exe` from the Windows folder, by full path, with the single
+  argument `/select,"<path>"`. Explorer shows the file and never runs it. The argument is
+  written out by hand because Explorer does not understand Rust's usual quoting of a whole
+  argument; refusing quotes in the path is what makes that safe. The shell does not wait for
+  Explorer, which hands the request to the running Explorer and exits by itself.
+- **Errors.** A refused path, a missing file, an unset Windows folder setting or a failed start
+  each come back to the popup as one sentence it shows.
+- **Permission.** The popup gained exactly one permission, `allow-open-containing-folder`, added
+  to the reviewed list in `tests/capabilities.rs`. `tests/reveal.rs` checks the exact Explorer
+  command for a path with a space and every kind of refused path, without starting Explorer.
+- **Mica.** `tauri.conf.json` asks Windows for the Mica backdrop on the popup and makes the
+  window transparent so the backdrop shows through the page. Mica follows the system light or
+  dark theme by itself. No Rust code changed for it.
+- **Copying** stays in the popup's web clipboard, as before: no clipboard plugin or command.
