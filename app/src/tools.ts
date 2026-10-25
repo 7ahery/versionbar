@@ -52,9 +52,10 @@ function changeOf(current: Tool, previous: Tool | undefined): Change | null {
     }
     return null;
   }
-  // A tool the previous scan did not list, or that was already missing or failing in the
-  // same way, has nothing to announce.
-  if (!previous) return null;
+  // A tool the previous scan did not list that now fails has no earlier state to quote.
+  if (!previous)
+    return failed(current) ? { kind: "failing", from: null } : null;
+  // Already missing or failing the same way: nothing to announce.
   if (current.status === "missing" && previous.status === "found") {
     return { kind: "missing", from: was };
   }

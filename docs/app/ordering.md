@@ -21,7 +21,7 @@ Per tool, matched by id:
 | error or timeout | found | badge "Recovered" (not an upgrade; no earlier version is shown) |
 | found, version `a` | missing | badge "Newly missing (was a)", in the missing section |
 | found, version `a` | error or timeout | badge "Newly failing (was a)", in the main list |
-| missing | error or timeout | badge "Newly failing" |
+| missing, or tool not listed | error or timeout | badge "Newly failing" |
 | anything else (same version, still missing, still failing) | | nothing |
 
 Only the active version counts: a different path or install list with the same active
@@ -37,7 +37,7 @@ Within a section:
 
 1. Pinned ids, in `pinned` order.
 2. Ids in `order` that are not pinned, in `order` order.
-3. Everything else: changed tools first, then by name ignoring case, then by id.
+3. Everything else: tools with any highlighted change first (every badge and `a → b` counts), then by name ignoring case, then by id.
 
 The order is total, so it never depends on the order the core printed. Search filters first;
 the matches keep this order. Ids in the lists that match no tool are ignored.
