@@ -1,0 +1,8 @@
+#:schema ../../../../schema/definition.schema.json
+id = "java"
+name = "Java"
+os = ["windows", "linux"]
+binaries = ["java"]
+version_args = ["-version"]
+# java prints its version banner to stderr, not stdout; the engine searches both streams.
+version_regex = 'version "(?P<version>[^"]+)"'

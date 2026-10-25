@@ -19,6 +19,7 @@ from fakes import (
     run_cli,
 )
 
+CORE_FOUR = ("git", "node", "python", "uv")
 GIT = r"C:\Program Files\Git\cmd\git.exe"
 NODE = r"C:\Users\dev\AppData\Local\nvm\.nodejs\node.exe"
 UV = r"C:\Users\dev\.local\bin\uv.exe"
@@ -53,9 +54,8 @@ def core_four() -> FakeSystem:
 
 def test_list_reports_the_core_four_with_versions_and_paths() -> None:
     result = run_cli(core_four(), "list", "--json")
-
     assert result.exit_code == 0, result.output
-    tools = json.loads(result.stdout)["tools"]
+    tools = [t for t in json.loads(result.stdout)["tools"] if t["id"] in CORE_FOUR]
     assert [(t["id"], t["name"], t["status"]) for t in tools] == [
         ("git", "Git", "found"),
         ("node", "Node.js", "found"),
@@ -94,7 +94,7 @@ def test_mixed_statuses_are_each_reported_without_hiding_the_others(monkeypatch)
     tools = tools_of(run_cli(system, "list", "--json"))
     table = run_cli(system, "list").stdout
 
-    assert {i: t["status"] for i, t in tools.items()} == {
+    assert {i: t["status"] for i, t in tools.items() if i in CORE_FOUR} == {
         "git": "found",
         "node": "error",
         "python": "missing",

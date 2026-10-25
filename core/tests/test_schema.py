@@ -112,6 +112,8 @@ def test_fields_the_cli_always_prints_are_required(field: str) -> None:
     # The UI can rely on every field being present (`via`/`raw` as explicit null,
     # `notes` as a list), so a document without one must not validate.
     document = scan_output()
+    # Row 0 is a missing tool with no `active`; the field check needs a found one first.
+    document["tools"].sort(key=lambda tool: tool["status"] != "found")
     *parents, last = field.split(".")
     target = document
     for key in parents:

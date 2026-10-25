@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "tool": "rustup",
+  "args": [
+    "--version"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "cnVzdHVwIDEuMjkuMSAoZDk1YTM3YjZhIDIwMjYtMDgtMTMpCg==",
+  "stderr_b64": "aW5mbzogVGhpcyBpcyB0aGUgdmVyc2lvbiBmb3IgdGhlIHJ1c3R1cCB0b29sY2hhaW4gbWFuYWdlciwgbm90IHRoZSBydXN0YyBjb21waWxlci4KaW5mbzogdGhlIGN1cnJlbnRseSBhY3RpdmUgYHJ1c3RjYCB2ZXJzaW9uIGlzIGBydXN0YyAxLjk5LjEgKDU4Y2Y4ZjljMyAyMDI2LTEwLTEzKWAK",
+  "encoding": "utf-8",
+  "stdout_text": "rustup 1.29.1 (d95a37b6a 2026-08-13)\n",
+  "stderr_text": "info: This is the version for the rustup toolchain manager, not the rustc compiler.\ninfo: the currently active `rustc` version is `rustc 1.99.1 (58cf8f9c3 2026-10-13)`\n",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-11-10.0.26200-SP0",
+    "resolved_path": "%USERPROFILE%\\.cargo\\bin\\rustup.exe",
+    "command": [
+      "%USERPROFILE%\\.cargo\\bin\\rustup.exe",
+      "--version"
+    ],
+    "captured_at": "2026-10-25T17:45:26.304765Z",
+    "runner": null,
+    "notes": null
+  }
+}

@@ -1,0 +1,8 @@
+#:schema ../../../../schema/definition.schema.json
+id = "cargo"
+name = "Cargo"
+os = ["windows", "linux"]
+binaries = ["cargo"]
+version_args = ["--version"]
+# The commit hash and date after the version stay in `raw`.
+version_regex = '^cargo (?P<version>\d+\.\d+\.\d+\S*)'
