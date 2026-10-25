@@ -21,6 +21,8 @@ use std::{
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 
+use crate::saved;
+
 /// The only scan-result format this build understands. Equal to `SCHEMA_VERSION` in the core
 /// (`tests/schema_version.rs` checks it against the generated schema). Any other value is a
 /// breaking change the UI was not built for, so it is a failed scan, not data.
@@ -108,6 +110,8 @@ pub struct ScanConfig {
     pub timeout: Duration,
     /// Used instead of `timeout` while `environment` does not exist yet.
     pub first_run_timeout: Duration,
+    /// Where the last two successful results are saved, so they survive a restart.
+    pub state_file: PathBuf,
 }
 
 /// Everything the popup knows, as sent over IPC (`get_state` and the `scan-updated` event).
@@ -175,15 +179,31 @@ pub struct Scanner {
     /// A first run that times out can leave a half-built folder behind; without this the
     /// retry would count as an ordinary scan and get 30 seconds for the rest of the download.
     unsettled: AtomicBool,
+    /// A refresh was asked for while a scan ran. Only changed under the state lock.
+    queued: AtomicBool,
+}
+
+/// What one scan was started with, fixed before it is announced.
+struct Job {
+    uv: Option<PathBuf>,
+    first_run: bool,
 }
 
 impl Scanner {
+    /// Starts from the results saved by the last session, if there are usable ones. Nothing
+    /// is scanned here; the caller decides when the first scan runs.
     pub fn new(config: ScanConfig, notify: Notify) -> Self {
+        let mut state = ShellState::default();
+        if let Some(saved) = saved::load(&config.state_file) {
+            state.current = Some(saved.current);
+            state.previous = saved.previous;
+        }
         Scanner {
             config,
-            state: Mutex::default(),
+            state: Mutex::new(state),
             notify,
             unsettled: AtomicBool::new(false),
+            queued: AtomicBool::new(false),
         }
     }
 
@@ -191,49 +211,89 @@ impl Scanner {
         self.state.lock().unwrap().clone()
     }
 
-    /// Runs one scan and waits for it. Returns false without doing anything when a scan is
-    /// already running, so overlapping requests never start a second core process.
+    /// Runs a scan and waits for it. Scans never overlap: a request made while one runs only
+    /// returns false, and the call that owns the running scan does one more scan when it
+    /// ends, because the request may follow a config change the running scan missed. Any
+    /// number of requests made during one scan share that one extra scan. Returns true when
+    /// this call ran the scans.
     pub fn refresh(&self) -> bool {
-        // Both are decided before anything is announced: an absent uv must go straight to
-        // "uv missing" without a flash of the setup screen, and a folder that appears
-        // while the scan runs must not change which timeout this scan uses.
+        // Looked up before anything is announced: an absent uv must go straight to "uv
+        // missing" without a flash of the setup screen.
         let uv = (self.config.find_uv)();
-        let mut first_run = false;
-        if !self.update(|state| {
+        let mut job = None;
+        self.update(|state| {
             if state.scanning {
+                self.queued.store(true, Ordering::SeqCst);
                 return false;
             }
-            // Decided under the lock, together with claiming the scan, so a refresh never
-            // reads `unsettled` while the previous scan is still settling it. Only a scan
-            // that really runs may start the unsettled period.
-            first_run = self.unsettled.load(Ordering::SeqCst) || !self.config.environment.exists();
-            if first_run {
-                self.unsettled.store(true, Ordering::SeqCst);
-            }
-            state.scanning = true;
-            state.setting_up = uv.is_some() && first_run;
-            true
-        }) {
-            return false;
-        }
-
-        let result = self.scan(uv, first_run);
-        self.update(|state| {
-            state.scanning = false;
-            state.setting_up = false;
-            match result {
-                Ok(scan) => {
-                    state.previous = state.current.take();
-                    state.current = Some(scan);
-                    state.outcome = Some(Outcome::Ok);
-                    self.unsettled.store(false, Ordering::SeqCst);
-                }
-                // A failed attempt keeps the last good results so the popup still has data.
-                Err(outcome) => state.outcome = Some(outcome),
-            }
+            job = Some(self.start(state, uv));
             true
         });
-        true
+        let Some(mut job) = job else {
+            return false;
+        };
+
+        loop {
+            let result = self.scan(job.uv, job.first_run);
+            if let Ok(scan) = &result {
+                // Saved before the new results are announced, while this scan still holds
+                // the claim: no other scan can save in between, so the file always ends up
+                // with the latest pair, and the current result read here cannot change
+                // meanwhile.
+                let previous = self.state.lock().unwrap().current.clone();
+                // Best effort: a disk that cannot be written must not cost the user the fresh
+                // results, which stay in memory; the next successful scan tries again.
+                let _ = saved::save(&self.config.state_file, scan, previous.as_deref());
+            }
+            // The extra scan's uv is looked up outside the lock like the first one's. Only a
+            // request that lands in the instant between this check and the lock below pays
+            // for a lookup under the lock.
+            let mut uv_ahead = self
+                .queued
+                .load(Ordering::SeqCst)
+                .then(|| (self.config.find_uv)());
+            let mut next = None;
+            self.update(|state| {
+                state.scanning = false;
+                state.setting_up = false;
+                match result {
+                    Ok(scan) => {
+                        state.previous = state.current.take();
+                        state.current = Some(scan);
+                        state.outcome = Some(Outcome::Ok);
+                        self.unsettled.store(false, Ordering::SeqCst);
+                    }
+                    // A failed attempt keeps the last good results so the popup still has
+                    // data.
+                    Err(outcome) => state.outcome = Some(outcome),
+                }
+                // Started in the same step that ends the scan, so no other refresh can slip
+                // in between and the popup sees one continuous scan.
+                if self.queued.swap(false, Ordering::SeqCst) {
+                    let uv = uv_ahead.take().unwrap_or_else(|| (self.config.find_uv)());
+                    next = Some(self.start(state, uv));
+                }
+                true
+            });
+            match next {
+                Some(following) => job = following,
+                None => return true,
+            }
+        }
+    }
+
+    /// Claims the scan for a new run. Called under the lock, so a refresh never reads
+    /// `unsettled` while the previous scan is still settling it, and only a scan that really
+    /// runs may start the unsettled period. The timeout is fixed here too, so a folder that
+    /// appears while the scan runs does not change it.
+    fn start(&self, state: &mut ShellState, uv: Option<PathBuf>) -> Job {
+        let first_run = self.unsettled.load(Ordering::SeqCst) || !self.config.environment.exists();
+        if first_run {
+            self.unsettled.store(true, Ordering::SeqCst);
+        }
+        state.scanning = true;
+        state.setting_up = uv.is_some() && first_run;
+        Job { uv, first_run }
     }
 
     /// Applies `change` under the lock and announces the new state if `change` returns true.
@@ -271,6 +331,34 @@ impl Scanner {
     }
 }
 
+/// How often the tray rescans on its own (spec story 52).
+pub const REFRESH_INTERVAL: Duration = Duration::from_secs(30 * 60);
+
+/// Scans now, then again `interval` after each scan ends, on a thread of its own, so nothing
+/// waits for it. `after` runs once a scan this schedule started has ended. A tick that lands
+/// while another scan runs is answered like any other refresh (see `Scanner::refresh`). The
+/// thread holds the scanner only while scanning and stops once every other handle on it is
+/// gone, which only happens in tests.
+pub fn refresh_every(
+    scanner: &Arc<Scanner>,
+    interval: Duration,
+    after: impl Fn(&Scanner) + Send + 'static,
+) -> thread::JoinHandle<()> {
+    let scanner = Arc::downgrade(scanner);
+    thread::spawn(move || {
+        loop {
+            let Some(strong) = scanner.upgrade() else {
+                return;
+            };
+            if strong.refresh() {
+                after(&strong);
+            }
+            drop(strong);
+            thread::sleep(interval);
+        }
+    })
+}
+
 fn failed(reason: FailureReason, message: String, stderr: &[u8]) -> Outcome {
     Outcome::Failed {
         reason,
@@ -286,16 +374,24 @@ struct Envelope {
     schema_version: Option<serde_json::Value>,
 }
 
+fn malformed() -> (FailureReason, String) {
+    (
+        FailureReason::Malformed,
+        "The scan printed something that is not a scan result.".to_owned(),
+    )
+}
+
 fn check_scan(stdout: Vec<u8>) -> Result<Box<RawValue>, (FailureReason, String)> {
-    let malformed = || {
-        (
-            FailureReason::Malformed,
-            "The scan printed something that is not a scan result.".to_owned(),
-        )
-    };
     let text = String::from_utf8(stdout).map_err(|_| malformed())?;
     // Parsed once; the text is kept exactly as printed, minus surrounding whitespace.
     let scan = RawValue::from_string(text).map_err(|_| malformed())?;
+    check_envelope(&scan)?;
+    Ok(scan)
+}
+
+/// Accepts a JSON object with the supported `schema_version`, reading nothing else. Also
+/// applied to saved results, which may come from another build.
+pub(crate) fn check_envelope(scan: &RawValue) -> Result<(), (FailureReason, String)> {
     // serde would also accept a JSON array as `Envelope` (fields by position), so insist on
     // an object before looking inside.
     if !scan.get().starts_with('{') {
@@ -320,7 +416,7 @@ fn check_scan(stdout: Vec<u8>) -> Result<Box<RawValue>, (FailureReason, String)>
             ));
         }
     }
-    Ok(scan)
+    Ok(())
 }
 
 struct Output {

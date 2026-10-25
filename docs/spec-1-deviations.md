@@ -33,6 +33,8 @@ One-way doors the spec left open, settled during implementation.
 | DEC-12 | Bundled core and live scan: see details | Spec left the bundle layout and IPC open | — | accepted | 21 (#24) | 1f10001 |
 | DEC-13 | Public `versionbar config --json` is the second fixed core invocation (ADR 0011); config file and keys: see details | App needs preferences without Rust parsing TOML | Rust reads TOML | accepted | 12a (#14) | 7a6495d |
 | DEC-14 | Recovery screens: see details | Spec left first-run and failure UX mechanics open | Opener plugin | accepted | 22 (#26) | 3cb600b |
+| DEC-15 | App saved state: one file `%LOCALAPPDATA%\io.github.7ahery.versionbar\scan-state.json` = `{"format":1,"current":<raw scan>,"previous":<raw scan\|null>}`, written to `.tmp`, fsynced, renamed over; any invalid part discards the whole file; outcome not saved (restored state has `outcome: null`). Owner doc `docs/app/state.md` | One atomic rename rotates the pair; wrapper versioned apart from `schema_version` | Two files (current.json / previous.json) | accepted | 24 (#28) | 622bf17 |
+| DEC-16 | Refresh coalescing: a request during a running scan queues exactly one follow-up scan shared by all requests (popup, tray menu, 30 min interval); supersedes ticket 21's "refresh during a scan is ignored" (DEC-12) | A dropped request can miss a config edit the running scan didn't see | Drop overlapping requests | accepted | 24 (#28) | 622bf17 |
 
 ## Details
 

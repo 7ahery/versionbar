@@ -15,7 +15,7 @@ use std::{
 };
 
 use serde_json::{Value, json};
-use tray_shell::scan::{ScanConfig, Scanner, ShellState, find_uv};
+use tray_shell::scan::{ScanConfig, Scanner, ShellState, find_uv, refresh_every};
 
 /// Real `versionbar list --json` output from a Windows machine (profile path redacted).
 fn real_scan() -> String {
@@ -64,6 +64,7 @@ impl Rig {
             find_uv: Box::new(move || Some(uv.clone())),
             project: self.dir.join("core"),
             environment: self.dir.join("core-env"),
+            state_file: self.dir.join("scan-state.json"),
             timeout,
             first_run_timeout: timeout,
         }
@@ -269,6 +270,7 @@ fn after_success_then(name: &str, fake: Fake, timeout: Duration) -> (Value, Dura
         }),
         project: bad.dir.join("core"),
         environment: bad.dir.join("core-env"),
+        state_file: bad.dir.join("scan-state.json"),
         timeout,
         first_run_timeout: timeout,
     };
@@ -420,17 +422,9 @@ fn a_uv_that_cannot_be_started_is_a_launch_failure() {
     assert_eq!(state["outcome"]["reason"], json!("launch"));
 }
 
-#[test]
-fn every_change_is_announced_and_a_refresh_during_a_scan_is_skipped() {
-    let rig = Rig::new("overlap", Fake::Hang);
-    let announced: Arc<Mutex<Vec<Value>>> = Arc::default();
-    let sink = announced.clone();
-    let scanner = Arc::new(Scanner::new(
-        rig.config(Duration::from_secs(2)),
-        Box::new(move |state: &ShellState| sink.lock().unwrap().push(wire(state))),
-    ));
-
-    let first = {
+/// Starts a refresh on another thread and waits until its scan is running.
+fn refresh_in_background(scanner: &Arc<Scanner>) -> thread::JoinHandle<bool> {
+    let handle = {
         let scanner = scanner.clone();
         thread::spawn(move || scanner.refresh())
     };
@@ -439,11 +433,20 @@ fn every_change_is_announced_and_a_refresh_during_a_scan_is_skipped() {
         assert!(Instant::now() < deadline, "scan never started");
         thread::sleep(Duration::from_millis(10));
     }
-    assert!(
-        !scanner.refresh(),
-        "a second scan must not start while one runs"
+    handle
+}
+
+#[test]
+fn every_change_is_announced_and_a_single_refresh_runs_one_scan() {
+    let rig = Rig::new("announce", Fake::Hang);
+    let announced: Arc<Mutex<Vec<Value>>> = Arc::default();
+    let sink = announced.clone();
+    let scanner = Scanner::new(
+        rig.config(Duration::from_millis(300)),
+        Box::new(move |state: &ShellState| sink.lock().unwrap().push(wire(state))),
     );
-    assert!(first.join().unwrap());
+
+    assert!(scanner.refresh());
 
     assert_eq!(rig.calls(), 1);
     let announced = announced.lock().unwrap();
@@ -451,6 +454,85 @@ fn every_change_is_announced_and_a_refresh_during_a_scan_is_skipped() {
     assert_eq!(announced[0]["scanning"], json!(true));
     assert_eq!(announced[1]["scanning"], json!(false));
     assert_eq!(announced[1]["outcome"]["reason"], json!("timeout"));
+}
+
+#[test]
+fn refreshes_during_a_scan_never_overlap_and_are_answered_by_one_more_scan() {
+    // A request made while a scan runs may follow a config edit the running scan missed
+    // (spec story 58), so it gets a scan of its own; any number of them share that one.
+    let rig = Rig::new("overlap", Fake::Hang);
+    let announced: Arc<Mutex<Vec<Value>>> = Arc::default();
+    let sink = announced.clone();
+    let scanner = Arc::new(Scanner::new(
+        rig.config(Duration::from_millis(500)),
+        Box::new(move |state: &ShellState| sink.lock().unwrap().push(wire(state))),
+    ));
+
+    let first = refresh_in_background(&scanner);
+    for _ in 0..3 {
+        assert!(
+            !scanner.refresh(),
+            "the running scan's caller does the extra scan, not this one"
+        );
+    }
+    assert!(first.join().unwrap());
+
+    assert_eq!(rig.calls(), 2);
+    let announced = announced.lock().unwrap();
+    let scanning: Vec<_> = announced
+        .iter()
+        .map(|state| state["scanning"].clone())
+        .collect();
+    // The first result is announced with the extra scan already under way, so the popup never
+    // sees an idle moment between the two.
+    assert_eq!(
+        scanning,
+        [json!(true), json!(true), json!(false)],
+        "{announced:?}"
+    );
+    assert_eq!(announced[1]["outcome"]["reason"], json!("timeout"));
+}
+
+#[test]
+fn the_background_schedule_scans_at_once_then_on_every_interval_until_the_scanner_goes() {
+    let rig = printing("interval", &real_scan());
+    let scanner = Arc::new(scanner(rig.config(TIMEOUT)));
+    let finished = Arc::new(AtomicUsize::new(0));
+    let count = finished.clone();
+
+    let schedule = refresh_every(&scanner, Duration::from_millis(400), move |scanner| {
+        assert!(!scanner.state().scanning());
+        count.fetch_add(1, Ordering::SeqCst);
+    });
+
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while finished.load(Ordering::SeqCst) < 3 {
+        assert!(Instant::now() < deadline, "only {} scans", rig.calls());
+        thread::sleep(Duration::from_millis(20));
+    }
+    assert!(rig.calls() >= 3);
+    assert_eq!(wire(&scanner.state())["outcome"], json!({"kind": "ok"}));
+
+    drop(scanner);
+    schedule.join().unwrap();
+    let after_stop = rig.calls();
+    thread::sleep(Duration::from_millis(900));
+    assert_eq!(rig.calls(), after_stop);
+}
+
+#[test]
+fn the_first_scheduled_scan_does_not_wait_for_the_interval() {
+    let rig = printing("startup", &real_scan());
+    let scanner = Arc::new(scanner(rig.config(TIMEOUT)));
+
+    let _schedule = refresh_every(&scanner, Duration::from_secs(3600), |_| {});
+
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while wire(&scanner.state())["outcome"].is_null() {
+        assert!(Instant::now() < deadline, "no startup scan");
+        thread::sleep(Duration::from_millis(20));
+    }
+    assert_eq!(rig.calls(), 1);
 }
 
 // First run versus later runs: the environment folder decides how long uv may take, because
@@ -609,6 +691,196 @@ fn uv_missing_is_reported_until_uv_appears() {
     *present.lock().unwrap() = true;
     scanner.refresh();
     assert!(!scanner.state().uv_missing());
+}
+
+// Saved state: the last two successful results survive a restart (spec stories 37 and 53).
+
+/// The scan fixture with a different `scanned_at`, so two results can be told apart.
+fn scan_at(scanned_at: &str) -> Value {
+    let mut scan = parsed(&real_scan());
+    scan["scanned_at"] = json!(scanned_at);
+    scan
+}
+
+#[test]
+fn a_restarted_shell_starts_from_the_saved_results_without_scanning() {
+    let rig = printing("restore", &real_scan());
+    let first = scanner(rig.config(TIMEOUT));
+    first.refresh();
+    let newer = scan_at("2026-10-24T10:00:00Z");
+    fs::write(rig.dir.join("out.json"), newer.to_string()).unwrap();
+    first.refresh();
+    drop(first);
+
+    let restarted = scanner(rig.config(TIMEOUT));
+
+    // Nothing has run in this session yet, so there is no outcome to report.
+    assert_eq!(
+        wire(&restarted.state()),
+        json!({
+            "scanning": false,
+            "setting_up": false,
+            "current": newer,
+            "previous": parsed(&real_scan()),
+            "outcome": null,
+        })
+    );
+    assert_eq!(rig.calls(), 2);
+}
+
+/// What a fresh scanner over `rig` starts with, after `saved` was left in its state file.
+fn restored_from(rig: &Rig, saved: &str) -> Value {
+    fs::write(rig.dir.join("scan-state.json"), saved).unwrap();
+    wire(&scanner(rig.config(TIMEOUT)).state())
+}
+
+/// A state file as this build writes it, holding `current` and `previous`.
+fn saved_pair(current: &Value, previous: &Value) -> String {
+    json!({"format": 1, "current": current, "previous": previous}).to_string()
+}
+
+#[test]
+fn a_damaged_or_foreign_state_file_is_ignored_and_the_shell_starts_empty() {
+    let rig = printing("discard", &real_scan());
+    let good = parsed(&real_scan());
+    let mut future = good.clone();
+    future["schema_version"] = json!(2);
+    let cases = [
+        ("truncated mid-write", real_scan()[..200].to_owned()),
+        ("not JSON at all", "\u{0}\u{0}\u{0}".to_owned()),
+        ("an empty file", String::new()),
+        ("a bare scan, not this file's layout", real_scan()),
+        (
+            "an unknown layout version",
+            json!({"format": 2, "current": good, "previous": null}).to_string(),
+        ),
+        (
+            "a current scan from a newer core",
+            saved_pair(&future, &Value::Null),
+        ),
+        (
+            "a previous scan from a newer core",
+            saved_pair(&good, &future),
+        ),
+        (
+            "a current that is not an object",
+            saved_pair(&json!([1]), &Value::Null),
+        ),
+    ];
+    for (case, saved) in cases {
+        let state = restored_from(&rig, &saved);
+        assert_eq!(state["current"], Value::Null, "{case}");
+        assert_eq!(state["previous"], Value::Null, "{case}");
+        assert_eq!(state["outcome"], Value::Null, "{case}");
+    }
+}
+
+#[test]
+fn after_a_damaged_state_file_the_next_scan_saves_a_good_one() {
+    let rig = printing("discard-then-save", &real_scan());
+    fs::write(rig.dir.join("scan-state.json"), "{\"format\": 1, \"curr").unwrap();
+    scanner(rig.config(TIMEOUT)).refresh();
+
+    let restarted = wire(&scanner(rig.config(TIMEOUT)).state());
+
+    assert_eq!(restarted["current"], parsed(&real_scan()));
+    assert_eq!(restarted["previous"], Value::Null);
+}
+
+#[test]
+fn a_leftover_temporary_file_from_an_interrupted_save_changes_nothing() {
+    let rig = printing("interrupted", &real_scan());
+    scanner(rig.config(TIMEOUT)).refresh();
+    // A save writes here first and then renames it into place; a crash in between leaves it.
+    fs::write(rig.dir.join("scan-state.json.tmp"), &real_scan()[..100]).unwrap();
+
+    let restarted = scanner(rig.config(TIMEOUT));
+    assert_eq!(wire(&restarted.state())["current"], parsed(&real_scan()));
+
+    let newer = scan_at("2026-10-24T10:00:00Z");
+    fs::write(rig.dir.join("out.json"), newer.to_string()).unwrap();
+    restarted.refresh();
+    let again = wire(&scanner(rig.config(TIMEOUT)).state());
+    assert_eq!(again["current"], newer);
+    assert_eq!(again["previous"], parsed(&real_scan()));
+}
+
+#[test]
+fn a_failed_scan_leaves_the_saved_pair_alone() {
+    let rig = printing("failed-keeps-saved", &real_scan());
+    let first = scanner(rig.config(TIMEOUT));
+    first.refresh();
+    fs::write(rig.dir.join("out.json"), "not a scan").unwrap();
+    first.refresh();
+    assert_eq!(
+        wire(&first.state())["outcome"]["reason"],
+        json!("malformed")
+    );
+
+    let restarted = wire(&scanner(rig.config(TIMEOUT)).state());
+
+    assert_eq!(restarted["current"], parsed(&real_scan()));
+}
+
+#[test]
+fn results_that_cannot_be_saved_are_still_shown() {
+    let rig = printing("unwritable", &real_scan());
+    let mut config = rig.config(TIMEOUT);
+    // A file where the state file's folder should be: nothing can be written below it.
+    fs::write(rig.dir.join("blocked"), "").unwrap();
+    config.state_file = rig.dir.join("blocked").join("scan-state.json");
+    let scanner = scanner(config);
+
+    scanner.refresh();
+
+    let state = wire(&scanner.state());
+    assert_eq!(state["outcome"], json!({"kind": "ok"}));
+    assert_eq!(state["current"], parsed(&real_scan()));
+}
+
+#[test]
+fn the_state_file_is_created_with_its_folder() {
+    let rig = printing("new-folder", &real_scan());
+    let mut config = rig.config(TIMEOUT);
+    config.state_file = rig.dir.join("app-data").join("scan-state.json");
+    scanner(config).refresh();
+
+    let mut config = rig.config(TIMEOUT);
+    config.state_file = rig.dir.join("app-data").join("scan-state.json");
+    assert_eq!(
+        wire(&scanner(config).state())["current"],
+        parsed(&real_scan())
+    );
+}
+
+#[test]
+fn restored_results_do_not_shorten_a_first_run() {
+    // Saved results say nothing about the environment: with core-env gone, the scan is still
+    // a first run with the long timeout and the setup flag, alongside the restored data.
+    let rig = Rig::new("restored-first-run", Fake::Hang);
+    fs::write(
+        rig.dir.join("scan-state.json"),
+        saved_pair(&parsed(&real_scan()), &Value::Null),
+    )
+    .unwrap();
+    let mut config = rig.config(Duration::from_millis(300));
+    config.first_run_timeout = Duration::from_millis(1_500);
+    let announced: Arc<Mutex<Vec<Value>>> = Arc::default();
+    let sink = announced.clone();
+    let scanner = Scanner::new(
+        config,
+        Box::new(move |state: &ShellState| sink.lock().unwrap().push(wire(state))),
+    );
+
+    let started = Instant::now();
+    scanner.refresh();
+
+    assert!(started.elapsed() >= Duration::from_millis(1_500));
+    let announced = announced.lock().unwrap();
+    assert_eq!(announced[0]["setting_up"], json!(true));
+    assert_eq!(announced[0]["current"], parsed(&real_scan()));
+    assert_eq!(announced[1]["outcome"]["reason"], json!("timeout"));
+    assert_eq!(announced[1]["current"], parsed(&real_scan()));
 }
 
 // uv lookup: PATH, then UV_INSTALL_DIR, then the default user-local bin (~/.local/bin).
