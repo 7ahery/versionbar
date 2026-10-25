@@ -19,9 +19,10 @@ use tauri::{
 use tauri_plugin_positioner::{Position, WindowExt};
 
 pub mod badge;
+mod saved;
 pub mod scan;
 
-use scan::{FIRST_RUN_TIMEOUT, SCAN_TIMEOUT, ScanConfig, Scanner, ShellState};
+use scan::{FIRST_RUN_TIMEOUT, REFRESH_INTERVAL, SCAN_TIMEOUT, ScanConfig, Scanner, ShellState};
 
 /// Sent to the popup with the full `ShellState` whenever it changes.
 const SCAN_UPDATED: &str = "scan-updated";
@@ -33,9 +34,13 @@ const BUNDLED_CORE: &str = "core";
 /// The core's Python environment, inside the per-machine app data folder.
 const CORE_ENVIRONMENT: &str = "core-env";
 
+/// The saved current and previous scan results, next to the environment.
+const SAVED_STATE: &str = "scan-state.json";
+
 /// Window label of the popup, as declared in tauri.conf.json and the capabilities file.
 const POPUP: &str = "popup";
 const TRAY_ID: &str = "main";
+const MENU_REFRESH: &str = "refresh";
 const MENU_SHOW: &str = "show-versions";
 const MENU_QUIT: &str = "quit";
 
@@ -85,8 +90,12 @@ pub fn run() {
                 announce(app.handle()),
             ));
             app.manage(scanner.clone());
-            // Scan at launch so the popup has data by the time it is first opened.
-            start_refresh(app.handle().clone(), scanner);
+            // Scans at launch, so the results restored from disk are soon replaced by live
+            // ones, then every 30 minutes. The tray is updated as in `start_refresh`.
+            let handle = app.handle().clone();
+            scan::refresh_every(&scanner, REFRESH_INTERVAL, move |scanner| {
+                show_tray_status(&handle, &scanner.state());
+            });
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -121,6 +130,8 @@ fn scan_config<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<ScanConfig> {
         environment: paths.app_local_data_dir()?.join(CORE_ENVIRONMENT),
         timeout: SCAN_TIMEOUT,
         first_run_timeout: FIRST_RUN_TIMEOUT,
+        // Local for the same reason: a scan describes this machine only.
+        state_file: paths.app_local_data_dir()?.join(SAVED_STATE),
     })
 }
 
@@ -218,6 +229,7 @@ fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let menu = Menu::with_items(
         app,
         &[
+            &MenuItem::with_id(app, MENU_REFRESH, "Refresh", true, None::<&str>)?,
             &MenuItem::with_id(app, MENU_SHOW, "Show versions", true, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, MENU_QUIT, "Quit", true, None::<&str>)?,
@@ -229,6 +241,15 @@ fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
+            // Talks to the scanner directly, never to the popup, so it works before the
+            // popup has ever loaded and while its page is broken (spec story 57). The
+            // scanner is registered right after the tray, so it is only missing in the
+            // moment before setup finishes.
+            MENU_REFRESH => {
+                if let Some(scanner) = app.try_state::<Arc<Scanner>>() {
+                    start_refresh(app.clone(), scanner.inner().clone());
+                }
+            }
             MENU_SHOW => show_popup(app),
             MENU_QUIT => app.exit(0),
             _ => {}

@@ -202,6 +202,41 @@ describe("popup", () => {
     expect(within(row("Git")).getByText("2.55.0.windows.2")).toBeDefined();
   });
 
+  it("opens on the saved results and their age while the launch scan runs", async () => {
+    // After a restart the shell has restored yesterday's results but nothing has finished
+    // yet; with core-env gone that first scan is even a one-time setup.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(SCANNED_AT + 26 * 60 * 60_000);
+    shell(state({ scanning: true, setting_up: true, outcome: null }));
+
+    render(<App />);
+
+    expect(await screen.findByText("Scanned 1 d ago")).toBeDefined();
+    expect(screen.getByText("Scanning…")).toBeDefined();
+    expect(within(row("Git")).getByText("2.55.0.windows.2")).toBeDefined();
+    expect(screen.queryByText(/One-time setup/)).toBeNull();
+  });
+
+  it("keeps the age of the shown results next to a failure", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(SCANNED_AT + 45 * 60_000);
+    shell(
+      state({
+        outcome: {
+          kind: "failed",
+          reason: "exit",
+          message: "The scan failed (code 3).",
+          stderr: "",
+        },
+      }),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByText("The scan failed (code 3).")).toBeDefined();
+    expect(screen.getByText("Scanned 45 min ago")).toBeDefined();
+  });
+
   it("reports a failed scan without dropping the last results", async () => {
     shell(
       state({

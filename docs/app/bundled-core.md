@@ -133,7 +133,7 @@ matches what the core does for the tools it runs (`_DRAIN_SECONDS` in
 | Name | Kind | Payload |
 |---|---|---|
 | `get_state` | command | returns the state below |
-| `refresh` | command | no arguments, returns nothing; starts a scan unless one is running |
+| `refresh` | command | no arguments, returns nothing; starts a scan, or, while one is running, one more scan after it ([state.md](state.md#when-it-refreshes)) |
 | `open_uv_docs` | command | no arguments, returns nothing; opens the official uv installation guide in the default browser (the address is fixed in Rust) |
 | `scan-updated` | event, Rust to webview | the state below, sent when a scan starts and when it ends |
 
@@ -143,7 +143,8 @@ matches what the core does for the tools it runs (`_DRAIN_SECONDS` in
   setting_up: boolean;          // true only while a first run (no core-env yet) is scanning
   current: ScanResult | null;   // latest successful scan, as printed by the core
   previous: ScanResult | null;  // the successful scan before it
-  outcome: null                 // nothing has finished yet
+  outcome: null                 // nothing has finished in this session yet (current and
+                                // previous may still hold results restored from disk)
     | { kind: "ok" }
     | { kind: "uv_missing" }
     | { kind: "failed"; reason: string; message: string; stderr: string };
@@ -156,4 +157,5 @@ nobody, so an earlier `get_state` answer could stay stale. After an event has ar
 `get_state` answer is ignored, since it may have been read before that event.
 
 The TS mirror is `app/src/shell.ts`. Consumers must handle unknown `kind` and `reason` values
-and treat `setting_up` as optional. State is held in memory only; ticket 24 saves it to disk.
+and treat `setting_up` as optional. How the state is saved to disk and when it refreshes is in
+[state.md](state.md).
