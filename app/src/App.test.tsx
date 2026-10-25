@@ -149,7 +149,9 @@ describe("popup", () => {
       if (cmd === "plugin:app|version") return "0.1.0";
       if (cmd === "get_state") return current;
       if (cmd === "plugin:event|listen") {
-        const { handler } = args as { handler: number };
+        const { handler, event } = args as { handler: number; event: string };
+        // Only the scan subscription is under test; the preferences one can finish at once.
+        if (event !== "scan-updated") return handler;
         return new Promise((resolve) => {
           finishSubscribing = () => {
             handlers.push(handler);

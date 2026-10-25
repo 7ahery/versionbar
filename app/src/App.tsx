@@ -5,13 +5,22 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { PRODUCT_NAME } from "@/product";
 import { FailedScreen, MissingUvScreen, SettingUpScreen } from "@/Recovery";
-import { type Outcome, type ShellState, useShellState } from "@/shell";
+import {
+  type Outcome,
+  type ShellState,
+  usePreferences,
+  useShellState,
+} from "@/shell";
 import { ToolList } from "@/ToolList";
+
+// Without usable preferences (not answered yet, or an invalid config) nothing is pinned.
+const NO_ARRANGEMENT = { pinned: [], order: [] };
 
 export default function App() {
   const version = useShellVersion();
   const { state, refresh } = useShellState();
   const scanning = state?.scanning ?? false;
+  const arrangement = usePreferences()?.config?.preferences ?? NO_ARRANGEMENT;
 
   return (
     <main className="flex h-screen flex-col bg-background text-foreground select-none">
@@ -37,7 +46,11 @@ export default function App() {
       {state?.current ? (
         <>
           <StatusLine state={state} />
-          <ToolList tools={state.current.tools} />
+          <ToolList
+            tools={state.current.tools}
+            previous={state.previous?.tools ?? null}
+            arrangement={arrangement}
+          />
         </>
       ) : (
         <NoResults state={state} onRetry={refresh} />
