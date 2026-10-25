@@ -1,0 +1,8 @@
+#:schema ../../../../schema/definition.schema.json
+id = "gh"
+name = "GitHub CLI"
+os = ["windows", "linux"]
+binaries = ["gh"]
+version_args = ["--version"]
+# The second line is a release URL containing the version again; the anchor keeps the first.
+version_regex = '^gh version (?P<version>\d+\.\d+\.\d+\S*)'
