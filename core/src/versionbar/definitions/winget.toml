@@ -1,0 +1,8 @@
+#:schema ../../../../schema/definition.schema.json
+id = "winget"
+name = "winget"
+os = ["windows"]
+binaries = ["winget"]
+version_args = ["--version"]
+# winget prints a leading `v` (`v1.29.380`); the reported version drops it.
+version_regex = '^v(?P<version>\d+\.\d+\.\d+\S*)'
