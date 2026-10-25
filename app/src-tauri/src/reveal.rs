@@ -21,7 +21,7 @@ pub enum RevealError {
 impl fmt::Display for RevealError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            RevealError::NotALocalPath => "This is not a path on a local drive.",
+            RevealError::NotALocalPath => "This is not a drive-letter path.",
             RevealError::Gone => "This install no longer exists.",
             RevealError::NoExplorer => "Explorer could not be found.",
         })
