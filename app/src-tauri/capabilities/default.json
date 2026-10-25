@@ -8,6 +8,7 @@
     "allow-get-state",
     "allow-refresh",
     "allow-open-uv-docs",
+    "allow-open-containing-folder",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

@@ -19,6 +19,7 @@ use tauri::{
 use tauri_plugin_positioner::{Position, WindowExt};
 
 pub mod badge;
+pub mod reveal;
 mod saved;
 pub mod scan;
 
@@ -82,7 +83,12 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_positioner::init())
         .manage(LastBlurHide::default())
-        .invoke_handler(tauri::generate_handler![get_state, refresh, open_uv_docs])
+        .invoke_handler(tauri::generate_handler![
+            get_state,
+            refresh,
+            open_uv_docs,
+            open_containing_folder
+        ])
         .setup(|app| {
             create_tray(app.handle())?;
             let scanner = Arc::new(Scanner::new(
@@ -208,6 +214,20 @@ fn open_uv_docs() {
         let _ = std::process::Command::new("xdg-open")
             .arg(UV_INSTALL_DOCS)
             .spawn();
+    }
+}
+
+/// Opens the folder holding one install in Explorer, with the install selected. The error is
+/// a sentence for the popup to show.
+#[tauri::command]
+fn open_containing_folder(path: String) -> Result<(), String> {
+    let mut explorer = reveal::explorer_command(&path, std::env::var_os("SystemRoot").as_deref())
+        .map_err(|error| error.to_string())?;
+    // Not waited for: Explorer hands the request to the running shell and exits on its own,
+    // with an exit code that means nothing.
+    match explorer.spawn() {
+        Ok(_) => Ok(()),
+        Err(_) => Err("Explorer could not be started.".to_owned()),
     }
 }
 
