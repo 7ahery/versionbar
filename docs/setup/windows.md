@@ -105,7 +105,7 @@ cannot fail `clippy -D warnings` without a code change.
 
 ## Check the toolchain
 
-From a checkout (after `npm install`), `npm run doctor` runs VersionBar's own `check` against node, npm, uv, rustc and cargo with constraints read from the pins above, and prints the fix for anything missing or too old. It ignores your VersionBar config file. It does not replace step 6: it reads versions, so it cannot prove the MSVC linker works.
+From a checkout (after `npm install`), `npm run doctor` runs VersionBar's own `check` against node, npm, uv, rustc and cargo with constraints read from the pins above, and prints the fix for anything missing or too old. It uses your normal VersionBar config, and says so if that file is invalid. The uv floor (`>=0.8`) is the lower bound of the build backend range in `core/pyproject.toml`, because the repo has no uv CLI pin. It does not replace step 6: it reads versions, so it cannot prove the MSVC linker works.
 
 ## After cloning
 

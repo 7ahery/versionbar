@@ -98,3 +98,17 @@ def test_a_missing_uv_points_at_the_uv_install() -> None:
 
     assert report.returncode == 1
     assert "winget install --id astral-sh.uv" in report.stdout
+
+
+def test_an_invalid_config_is_reported_as_such_not_as_a_missing_result() -> None:
+    system = machine()
+    system.add_file(system.config_path, b"colour = true\n")
+    checked = run_cli(system, "check", *requirements(), "--json")
+    assert checked.exit_code == 3
+
+    report = doctor_script("--report", "--exit-code", "3", stdin=checked.stderr)
+
+    assert report.returncode == 1
+    assert "config file cannot be used" in report.stdout
+    assert "colour" in report.stdout
+    assert "npm run cli -- config" in report.stdout

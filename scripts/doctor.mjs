@@ -1,17 +1,18 @@
 // `npm run doctor`: check the toolchain needed to contribute, using VersionBar's own
-// `check` command (live, against this machine).
+// `check` command (live, against this machine, with your normal VersionBar config).
 //
 // The constraints are read from the repo's pins so they cannot drift from them:
 // node from `engines.node`, npm's major from `packageManager`, the Rust pin from
-// rust-toolchain.toml, uv's floor from the core's build-backend requirement.
+// rust-toolchain.toml. The repo has no uv CLI pin, so uv's floor is the lower bound of
+// the build backend's `uv_build>=` range in core/pyproject.toml, the nearest thing to one.
 //
 // `--requirements` prints the requirement list as JSON and `--report` renders a
-// `check --json` result read from stdin; the test suite uses both to exercise the
-// aggregate check over a fake machine.
+// `check --json` result read from stdin (or, with `--exit-code N`, the stderr of a
+// `check` that failed); the test suite uses both to exercise the aggregate check over a
+// fake machine.
 
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -27,9 +28,10 @@ function pin(text, pattern, what) {
   return match[1];
 }
 
-export function requirements() {
-  const pkg = JSON.parse(read("package.json"));
-  const npmMajor = pin(pkg.packageManager, /^npm@(\d+)\./, "npm (packageManager)");
+const pkg = JSON.parse(read("package.json"));
+const npmMajor = pin(pkg.packageManager, /^npm@(\d+)\./, "npm (packageManager)");
+
+function requirements() {
   const rust = pin(read("rust-toolchain.toml"), /^channel\s*=\s*"([^"]+)"/m, "Rust (channel)");
   const uvFloor = pin(read("core/pyproject.toml"), /"uv_build(>=[\d.]+)/, "uv (build-system)");
   return [
@@ -42,16 +44,18 @@ export function requirements() {
 }
 
 const SETUP = "See docs/setup/windows.md for the full setup.";
+const RUST_FIX =
+  "Install Rust: winget install --id Rustlang.Rustup --exact, then open a new terminal; inside the repo rustup installs the pinned toolchain from rust-toolchain.toml on the first cargo command";
 const REMEDIATION = {
   node: "Install or upgrade Node.js: winget install --id OpenJS.NodeJS.LTS --exact",
-  npm: "Install or upgrade npm: npm install -g npm@11 (or reinstall Node.js LTS)",
+  npm: `Install or upgrade npm: npm install -g npm@${npmMajor} (or reinstall Node.js LTS)`,
   uv: "Install or upgrade uv: winget install --id astral-sh.uv --exact",
-  rustc: "Install Rust: winget install --id Rustlang.Rustup --exact, then open a new terminal; inside the repo rustup installs the pinned toolchain from rust-toolchain.toml on the first cargo command",
-  cargo: "Install Rust: winget install --id Rustlang.Rustup --exact, then open a new terminal; inside the repo rustup installs the pinned toolchain from rust-toolchain.toml on the first cargo command",
+  rustc: RUST_FIX,
+  cargo: RUST_FIX,
 };
 
 // Returns the text to print and the exit code.
-export function report(result) {
+function report(result) {
   const lines = [];
   for (const r of result.requirements) {
     const detail = r.version ? `${r.tool} ${r.version}` : r.message;
@@ -75,45 +79,48 @@ export function report(result) {
   return { text: lines.join("\n"), code: 1 };
 }
 
-function live() {
-  // An empty config folder keeps the user's own VersionBar config (custom tools,
-  // hidden tools, timeouts) from changing what the doctor reports.
-  const emptyConfig = mkdtempSync(join(tmpdir(), "versionbar-doctor-"));
-  try {
-    const run = spawnSync(
-      "uv",
-      ["run", "--project", "core", "versionbar", "check", ...requirements(), "--json"],
-      {
-        cwd: root,
-        encoding: "utf8",
-        env: { ...process.env, APPDATA: emptyConfig, XDG_CONFIG_HOME: emptyConfig },
-      },
-    );
-    if (run.error) {
-      console.log(`FAIL  uv  not found\n\nHow to fix:\n  uv: ${REMEDIATION.uv}\n  ${SETUP}`);
-      return 1;
-    }
-    let result;
-    try {
-      result = JSON.parse(run.stdout);
-    } catch {
-      console.error(`doctor: the check did not produce a result (exit ${run.status}).`);
-      console.error(run.stderr);
-      return 2;
-    }
-    const out = report(result);
-    console.log(out.text);
-    return out.code;
-  } finally {
-    rmSync(emptyConfig, { recursive: true, force: true });
+// Anything other than a check result: invalid config (exit 3) or an unexpected failure.
+function explainFailure(status, stderr) {
+  if (status === 3) {
+    const text = [
+      "The VersionBar config file cannot be used, so the check did not run:",
+      "",
+      stderr.trim(),
+      "",
+      "Fix the file, or run `npm run cli -- config` to see where it is.",
+    ].join("\n");
+    return { text, code: 1 };
   }
+  return { text: `doctor: the check did not produce a result (exit ${status}).\n${stderr}`, code: 2 };
+}
+
+function live() {
+  const run = spawnSync(
+    "uv",
+    ["run", "--project", "core", "versionbar", "check", ...requirements(), "--json"],
+    { cwd: root, encoding: "utf8" },
+  );
+  if (run.error) {
+    console.log(`FAIL  uv  not found\n\nHow to fix:\n  uv: ${REMEDIATION.uv}\n  ${SETUP}`);
+    return 1;
+  }
+  let out;
+  try {
+    out = report(JSON.parse(run.stdout));
+  } catch {
+    out = explainFailure(run.status, run.stderr);
+  }
+  console.log(out.text);
+  return out.code;
 }
 
 const arg = process.argv[2];
 if (arg === "--requirements") {
   console.log(JSON.stringify(requirements()));
 } else if (arg === "--report") {
-  const out = report(JSON.parse(readFileSync(0, "utf8")));
+  const input = readFileSync(0, "utf8");
+  const failedWith = process.argv[3] === "--exit-code" ? Number(process.argv[4]) : null;
+  const out = failedWith === null ? report(JSON.parse(input)) : explainFailure(failedWith, input);
   console.log(out.text);
   process.exitCode = out.code;
 } else {
