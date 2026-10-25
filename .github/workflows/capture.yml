@@ -1,0 +1,104 @@
+name: Capture tool output
+
+# The one place real command evidence is collected on a clean Windows
+# machine. Detector work reuses this workflow instead of copying it; see
+# docs/capture.md for how to dispatch it and fetch the artifact.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tools:
+        description: "Tool ids to capture, separated by spaces or commas (for example: git node)"
+        required: true
+        type: string
+      ref:
+        description: "Reviewed branch carrying draft tool definitions (default: the dispatched branch)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    name: capture (windows-latest)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.2
+
+      # Nothing is installed here: a tool the runner image lacks is a result
+      # (a `not-found` outcome), not something to fix by installing it.
+      - name: Capture
+        shell: pwsh
+        env:
+          # Inputs reach the script through the environment, never interpolated into it.
+          TOOLS: ${{ inputs.tools }}
+          REF: ${{ inputs.ref }}
+        run: |
+          # The CLI prints UTF-8 whatever the console code page; read it as such
+          # so non-ASCII paths in outcomes survive.
+          [Console]::OutputEncoding = [Text.UTF8Encoding]::new()
+
+          # Directories and provenance come first so the artifact upload has
+          # something to keep even when the inputs below are rejected.
+          New-Item -ItemType Directory -Force captures, outcomes | Out-Null
+          $ids = @($env:TOOLS -split '[,\s]+' | Where-Object { $_ })
+          $commit = $null
+          try { $commit = (& git rev-parse HEAD 2>$null) } catch { }
+          [ordered]@{
+            workflow_run   = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+            commit         = $commit
+            requested_ref  = $env:REF
+            image_os       = $env:ImageOS
+            image_version  = $env:ImageVersion
+            runner_os      = $env:RUNNER_OS
+            invocation     = 'uv run --project core versionbar debug capture <tool> --json --out captures'
+            tools          = $ids
+          } | ConvertTo-Json | Set-Content -Path outcomes/provenance.json -Encoding utf8NoBOM
+
+          if ($ids.Count -eq 0) { throw 'no tool ids given' }
+          foreach ($id in $ids) {
+            if ($id -notmatch '^[a-z0-9][a-z0-9-]*$') { throw "invalid tool id: $id" }
+          }
+
+          foreach ($id in $ids) {
+            $stdout = (& uv run --project core versionbar debug capture $id --json --out captures | Out-String)
+            $code = $LASTEXITCODE
+            # Every tool gets a valid JSON outcome file, even if the CLI died or
+            # printed something that is not JSON.
+            # ConvertFrom-Json accepts an empty string without error, so silence is checked separately.
+            $valid = $true
+            if ([string]::IsNullOrWhiteSpace($stdout)) {
+              $valid = $false
+            } else {
+              try { $null = $stdout | ConvertFrom-Json -ErrorAction Stop } catch { $valid = $false }
+            }
+            if (-not $valid) {
+              $stdout = [ordered]@{
+                outcome   = 'invalid-output'
+                tool      = $id
+                exit_code = $code
+                output    = $stdout
+              } | ConvertTo-Json
+            }
+            Set-Content -Path "outcomes/$id.json" -Value $stdout -Encoding utf8NoBOM
+            Write-Host "$id -> exit $code"
+            "- ``$id``: exit $code" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          }
+
+          # Outcomes such as not-found are the product of this workflow, not a
+          # failure of it, so the job stays green and the artifact carries the story.
+          exit 0
+
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: captures-${{ github.run_id }}
+          path: |
+            captures/
+            outcomes/
+          if-no-files-found: error
