@@ -11,6 +11,8 @@ import { copyText, useFeedback } from "@/feedback";
 import { cn } from "@/lib/utils";
 import { openContainingFolder } from "@/shell";
 import {
+  type Arrangement,
+  type Change,
   type Install,
   isActive,
   otherInstalls,
@@ -19,10 +21,24 @@ import {
 } from "@/tools";
 
 /** Search, the tool rows, and the missing tools in their own section at the bottom. */
-export function ToolList({ tools }: { tools: Tool[] }) {
+export function ToolList({
+  tools,
+  previous,
+  arrangement,
+}: {
+  tools: Tool[];
+  /** The previous successful scan's tools, or null when there is none to compare with. */
+  previous: Tool[] | null;
+  arrangement: Arrangement;
+}) {
   const [query, setQuery] = useState("");
   const [showMissing, setShowMissing] = useState(false);
-  const { listed, missing } = useToolRows(tools, query);
+  const { listed, missing, changes } = useToolRows(
+    tools,
+    previous,
+    arrangement,
+    query,
+  );
   const searching = query.trim() !== "";
   // A search looks through missing tools too: hiding them must not make a search come up
   // empty for a tool that is listed, just not installed.
@@ -66,7 +82,12 @@ export function ToolList({ tools }: { tools: Tool[] }) {
         {listed.length > 0 && (
           <ul aria-label="Tools" className="divide-y divide-border">
             {listed.map((tool) => (
-              <ToolRow key={tool.id} tool={tool} report={report} />
+              <ToolRow
+                key={tool.id}
+                tool={tool}
+                change={changes.get(tool.id)}
+                report={report}
+              />
             ))}
           </ul>
         )}
@@ -78,6 +99,7 @@ export function ToolList({ tools }: { tools: Tool[] }) {
         {missing.length > 0 && (
           <MissingSection
             tools={missing}
+            changes={changes}
             searching={searching}
             shown={missingShown}
             onToggle={() => {
@@ -106,12 +128,14 @@ type Report = ReturnType<typeof useFeedback>["report"];
 /** Greyed out at the bottom; behind a toggle unless a search is looking for them. */
 function MissingSection({
   tools,
+  changes,
   searching,
   shown,
   onToggle,
   report,
 }: {
   tools: Tool[];
+  changes: ReadonlyMap<string, Change>;
   searching: boolean;
   shown: boolean;
   onToggle: () => void;
@@ -137,7 +161,12 @@ function MissingSection({
           className="divide-y divide-border opacity-60"
         >
           {tools.map((tool) => (
-            <ToolRow key={tool.id} tool={tool} report={report} />
+            <ToolRow
+              key={tool.id}
+              tool={tool}
+              change={changes.get(tool.id)}
+              report={report}
+            />
           ))}
         </ul>
       )}
@@ -145,7 +174,15 @@ function MissingSection({
   );
 }
 
-function ToolRow({ tool, report }: { tool: Tool; report: Report }) {
+function ToolRow({
+  tool,
+  change,
+  report,
+}: {
+  tool: Tool;
+  change: Change | undefined;
+  report: Report;
+}) {
   const [open, setOpen] = useState(false);
   const detailsId = useId();
   const others = otherInstalls(tool).length;
@@ -176,13 +213,23 @@ function ToolRow({ tool, report }: { tool: Tool; report: Report }) {
             +{others} install{others === 1 ? "" : "s"}
           </span>
         )}
+        {change && change.kind !== "changed" && (
+          <span className="shrink-0 rounded-full bg-accent px-1.5 text-xs text-accent-foreground">
+            {changeLabel(change)}
+          </span>
+        )}
         <span
           className={cn(
             "ml-auto truncate tabular-nums",
             tool.active ? "text-muted-foreground" : status.colour,
+            change?.kind === "changed" && "font-medium text-foreground",
           )}
         >
-          {tool.active ? tool.active.version : status.label}
+          {change?.kind === "changed"
+            ? `${change.from} → ${change.to}`
+            : tool.active
+              ? tool.active.version
+              : status.label}
         </span>
       </button>
       {open && <ToolDetails id={detailsId} tool={tool} report={report} />}
@@ -307,6 +354,27 @@ function IconButton({
       {children}
     </button>
   );
+}
+
+/**
+ * The badge for a change that has no version pair to show. "Was" is the previous scan's
+ * version, the only history there is; recovery is never worded as an upgrade.
+ */
+function changeLabel(change: Exclude<Change, { kind: "changed" }>): string {
+  switch (change.kind) {
+    case "found":
+      return "Newly found";
+    case "recovered":
+      return "Recovered";
+    case "missing":
+      return change.from
+        ? `Newly missing (was ${change.from})`
+        : "Newly missing";
+    case "failing":
+      return change.from
+        ? `Newly failing (was ${change.from})`
+        : "Newly failing";
+  }
 }
 
 /** `path`, or a provider id shown as-is, so providers added later need no UI change. */

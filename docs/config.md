@@ -63,7 +63,7 @@ The tray app gives each whole scan a fixed 30 seconds, whatever the file says. A
 2. Ordered tools, in `order` order.
 3. Every other tool in default order: the built-ins by file name (`git`, `node`, `python`, `uv`, …), then custom tools in file order.
 
-Hidden tools are left out. `show` and `check` are unaffected: they report the tools asked for, in request order, hidden ones included. A requirement on a hidden tool is checked like any other, never dropped. The order applies to the human table and to the `tools` array of `list --json` alike. The tray app does its own sorting from the same `pinned` and `order` lists (ticket 26).
+Hidden tools are left out. `show` and `check` are unaffected: they report the tools asked for, in request order, hidden ones included. A requirement on a hidden tool is checked like any other, never dropped. The order applies to the human table and to the `tools` array of `list --json` alike. The tray app does its own sorting from the same `pinned` and `order` lists ([app/ordering.md](app/ordering.md)).
 
 ## Invalid config
 
