@@ -25,7 +25,7 @@ const REVIEWED: &[&str] = &[
     // no arguments, so the webview cannot make the shell open anything else.
     "allow-open-uv-docs",
     // Shows one install in Explorer with the file selected. Takes a path, accepted only as an
-    // existing file on a local drive in plain form (src/reveal.rs); Explorer selects it and
+    // existing file at a drive-letter path in plain form (src/reveal.rs); Explorer selects it and
     // never runs it.
     "allow-open-containing-folder",
     // Subscribe to and drop the `scan-updated` and `preferences-updated` events. Listening

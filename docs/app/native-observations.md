@@ -202,6 +202,8 @@ include them):
   rewritten about every 30 minutes.
 - Replace `scan-state.json` with garbage and relaunch: the app starts without results (the
   normal first-scan path) and does not crash; the next scan writes a good file.
+- Ticket 12b-2: check that WebView2 delivers a DOM `focus` event on the shell's `set_focus`,
+  so the search box refocuses each time the popup is reopened.
 
 ## Rust: what and why (ticket 24)
 
@@ -266,7 +268,7 @@ synthetic mouse clicks and screenshotted.
   the popup and opens Explorer on the folder holding it, with the file selected. It is a
   command because the popup cannot start programs on its own (no shell plugin, on purpose).
 - **Checking the path.** The shell never reads the scan, so it cannot tell whether the path
-  came from one. Instead it accepts only a plain path on a local drive (`C:\...`, backslashes,
+  came from one. Instead it accepts only a plain drive-letter path (`C:\...`, backslashes,
   no quotes, wildcards, control characters or extra colons) to a file that exists now.
   Network paths (`\\server\...`) and device paths (`\\?\...`) are refused before anything
   touches the disk, because Explorer would contact another machine or device for them. The

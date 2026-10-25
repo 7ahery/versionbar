@@ -267,6 +267,19 @@ describe("search", () => {
     });
   }
 
+  it("refocuses the search box each time the popup window regains focus", async () => {
+    shell(installs);
+    render(<App />);
+    await screen.findByText("Git");
+    const box = screen.getByRole("searchbox", { name: "Search tools" });
+    box.blur();
+    expect(document.activeElement).not.toBe(box);
+
+    fireEvent.focus(window);
+
+    expect(document.activeElement).toBe(box);
+  });
+
   it("keeps only the tools whose name matches, ignoring case", async () => {
     shell(installs);
     render(<App />);

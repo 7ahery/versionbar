@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
-import type { ScanResult } from "schema";
+import type { ConfigResult, ScanResult } from "schema";
 
 /**
  * The scan state the Rust shell holds, as `get_state` returns it and `scan-updated` carries
@@ -34,40 +34,52 @@ export interface Outcome {
 
 export const SCAN_UPDATED = "scan-updated";
 
+export const PREFERENCES_UPDATED = "preferences-updated";
+
 /**
- * Follows the shell's scan state: asks for it once on mount, then takes every
- * `scan-updated` event. `refresh` asks the shell to scan; progress arrives as events.
+ * What `get_preferences` returns and `preferences-updated` carries (docs/app/preferences.md).
+ * `config` is the core's answer as printed, including one for an invalid config
+ * (`preferences` null, `problems` says why); null until a query has answered. `outcome` is
+ * how the latest query went, in the scan's shape.
  */
-export function useShellState(): {
-  state: ShellState | null;
-  refresh: () => void;
-} {
-  const [state, setState] = useState<ShellState | null>(null);
+export interface PreferencesState {
+  config: ConfigResult | null;
+  outcome: Outcome | null;
+}
+
+/**
+ * Follows one piece of shell state: takes every `event`, and asks `command` for the current
+ * value once the subscription is in place.
+ */
+// T names the payload both `listen` and `invoke` hand back; each caller states it once.
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
+function useShellValue<T>(event: string, command: string): T | null {
+  const [value, setValue] = useState<T | null>(null);
 
   useEffect(() => {
     let active = true;
-    // Once an event has arrived, the get_state answer adds nothing: any change after the
+    // Once an event has arrived, the command's answer adds nothing: any change after the
     // event was sent comes as another event. An answer that lands after the event may also
     // have been read before it, so it must not overwrite it.
     let heardEvent = false;
     let unlisten: (() => void) | null = null;
     const follow = async () => {
       try {
-        const stop = await listen<ShellState>(SCAN_UPDATED, (event) => {
+        const stop = await listen<T>(event, (heard) => {
           heardEvent = true;
-          if (active) setState(event.payload);
+          if (active) setValue(heard.payload);
         });
         if (active) unlisten = stop;
         else stopQuietly(stop);
       } catch {
-        // No event bridge (shell gone): get_state below is all we can do.
+        // No event bridge (shell gone): the command below is all we can do.
       }
       // Only asked once the shell is sending us events: an event sent while the listener
       // was still being set up reaches nobody, and an earlier answer would then be the
       // last word and could stay stale (say, "scanning") for good.
       try {
-        const initial = await invoke<ShellState>("get_state");
-        if (active && !heardEvent) setState(initial);
+        const initial = await invoke<T>(command);
+        if (active && !heardEvent) setValue(initial);
       } catch {
         // Without the shell there is nothing to show yet; events may still arrive.
       }
@@ -77,7 +89,28 @@ export function useShellState(): {
       active = false;
       if (unlisten) stopQuietly(unlisten);
     };
-  }, []);
+  }, [event, command]);
+
+  return value;
+}
+
+/** Follows the preferences the shell read from the core; null until the shell first answers. */
+export function usePreferences(): PreferencesState | null {
+  return useShellValue<PreferencesState>(
+    PREFERENCES_UPDATED,
+    "get_preferences",
+  );
+}
+
+/**
+ * Follows the shell's scan state: asks for it once on mount, then takes every
+ * `scan-updated` event. `refresh` asks the shell to scan; progress arrives as events.
+ */
+export function useShellState(): {
+  state: ShellState | null;
+  refresh: () => void;
+} {
+  const state = useShellValue<ShellState>(SCAN_UPDATED, "get_state");
 
   const refresh = useCallback(() => {
     // Failures surface through the state the shell announces, not through this call.

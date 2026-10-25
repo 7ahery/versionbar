@@ -48,6 +48,6 @@ end the quoted path. The form is checked before the disk is touched. An accepted
 passed as `%SystemRoot%\explorer.exe /select,"<path>"`: Explorer opens the folder and selects
 the file. Nothing at the path is run, and the webview cannot pass any other argument.
 
-Refusals the user can see: "This is not a path on a local drive.", "This install no longer
+Refusals the user can see: "This is not a drive-letter path.", "This install no longer
 exists.", "Explorer could not be found." (`SystemRoot` unset) and "Explorer could not be
 started."
