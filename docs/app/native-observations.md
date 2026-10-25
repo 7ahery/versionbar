@@ -188,3 +188,44 @@ The popup can now tell the user what to do when there is nothing to show.
   starts nothing else.
 - **Copying.** Uses the browser clipboard API from the popup, so no clipboard plugin was
   added. If the webview refuses, the popup says so and the text stays on screen to select.
+
+## Ticket 24 (2026-10-25)
+
+Not run in the live tray. Still to check by hand (ticket 31's manual QA checklist should
+include them):
+
+- Right after launch, before ever opening the popup, choose Refresh in the tray menu: a scan
+  runs (the saved file's `scanned_at` changes) and the popup, opened afterwards, shows it.
+- Quit and relaunch: the popup opens on the saved results with their age ("Scanned 5 min
+  ago") and "Scanning…" until the launch scan finishes.
+- Leave the app running for over 30 minutes without touching it: `scan-state.json` is
+  rewritten about every 30 minutes.
+- Replace `scan-state.json` with garbage and relaunch: the app starts without results (the
+  normal first-scan path) and does not crash; the next scan writes a good file.
+
+## Rust: what and why (ticket 24)
+
+The shell now keeps its results across restarts and refreshes on its own. Details are in
+`docs/app/state.md`.
+
+- **Saving.** After every successful scan the shell writes the newest and the previous result
+  to `scan-state.json` in the app data folder. It writes a temporary file first and then
+  swaps it in, so a crash mid-write never leaves half a file. Failed scans do not touch the
+  file. If the disk cannot be written the fresh results still show; only the saving is
+  skipped.
+- **Loading.** At launch it reads that file back, before the first scan. Like a live scan it
+  checks only that each result is a JSON object with `schema_version` 1 and reads nothing
+  else. A damaged file, a file from a different layout or a result from a newer version is
+  ignored as a whole: the app starts empty, exactly as before this ticket, and the next scan
+  overwrites the file. The popup therefore has data immediately after login.
+- **Refreshing on its own.** A background timer scans at launch and then every 30 minutes.
+  The timer runs in Rust, so it works whether or not the popup is open.
+- **Refresh in the tray menu.** A new "Refresh" menu item (first in the menu) asks the
+  scanner directly, not the popup, so it works before the popup has ever been opened and if
+  its page is broken.
+- **Requests that overlap.** Still never two scans at once. What changed: a refresh asked for
+  while a scan runs used to be dropped; now the running scan is followed by exactly one more
+  scan. Why: the user may just have edited the config, and the running scan started before
+  that edit. Several requests during one scan still lead to only one extra scan.
+- **No new permissions.** The popup can call the same three commands as before; the menu
+  item and the timer are inside Rust. `tests/capabilities.rs` is unchanged.

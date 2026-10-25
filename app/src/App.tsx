@@ -90,7 +90,11 @@ function StatusLine({ state }: { state: ShellState | null }) {
 
   return (
     <div className="space-y-1 border-b border-border px-4 py-2 text-xs text-muted-foreground">
-      <p aria-live="polite">{state?.scanning ? "Scanning…" : age}</p>
+      {/* The age stays while scanning: results restored at launch may be days old. */}
+      <p className="flex gap-2">
+        {age && <span>{age}</span>}
+        <span aria-live="polite">{state?.scanning ? "Scanning…" : null}</span>
+      </p>
       {problem && <p className="text-destructive">{problem}</p>}
     </div>
   );
