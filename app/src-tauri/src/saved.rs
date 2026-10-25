@@ -61,7 +61,7 @@ pub(crate) fn load(file: &Path) -> Option<Pair> {
 }
 
 fn supported(scan: &RawValue) -> bool {
-    crate::scan::check_envelope(scan).is_ok()
+    crate::scan::check_envelope(scan, crate::scan::Query::Scan).is_ok()
 }
 
 /// Replaces the saved pair. The new content goes to a temporary file next to the real one,

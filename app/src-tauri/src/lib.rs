@@ -1,5 +1,5 @@
 //! The tray app's Rust shell: app lifecycle (tray, popup window, single instance) plus the
-//! scoped scan and state commands.
+//! scoped scan, state and preferences commands.
 //!
 //! Everything about tools and versions lives in the core and the React UI (ADR-0006/0007).
 //! The tray is built here at launch and never depends on the webview (ADR-0009).
@@ -19,14 +19,19 @@ use tauri::{
 use tauri_plugin_positioner::{Position, WindowExt};
 
 pub mod badge;
+pub mod preferences;
 pub mod reveal;
 mod saved;
 pub mod scan;
 
+use preferences::{Preferences, PreferencesState};
 use scan::{FIRST_RUN_TIMEOUT, REFRESH_INTERVAL, SCAN_TIMEOUT, ScanConfig, Scanner, ShellState};
 
 /// Sent to the popup with the full `ShellState` whenever it changes.
 const SCAN_UPDATED: &str = "scan-updated";
+
+/// Sent to the popup with the full `PreferencesState` after every preferences query.
+const PREFERENCES_UPDATED: &str = "preferences-updated";
 
 /// Where the installer puts the core project, inside the app's resource folder. Must match
 /// `bundle.resources` in tauri.conf.json.
@@ -85,16 +90,21 @@ pub fn run() {
         .manage(LastBlurHide::default())
         .invoke_handler(tauri::generate_handler![
             get_state,
+            get_preferences,
             refresh,
             open_uv_docs,
             open_containing_folder
         ])
         .setup(|app| {
             create_tray(app.handle())?;
-            let scanner = Arc::new(Scanner::new(
-                scan_config(app.handle())?,
-                announce(app.handle()),
-            ));
+            let preferences = Arc::new(Preferences::new(announce_preferences(app.handle())));
+            app.manage(preferences.clone());
+            // Every scan job queries the preferences first, so each refresh (popup, tray menu,
+            // schedule) rereads them, and the launch job learns the update setting early.
+            let scanner = Arc::new(
+                Scanner::new(scan_config(app.handle())?, announce(app.handle()))
+                    .with_preferences(preferences),
+            );
             app.manage(scanner.clone());
             // Scans at launch, so the results restored from disk are soon replaced by live
             // ones, then every 30 minutes. The tray is updated as in `start_refresh`.
@@ -146,6 +156,14 @@ fn announce<R: Runtime>(app: &AppHandle<R>) -> scan::Notify {
     Box::new(move |state: &ShellState| {
         // No popup listening yet is normal; it asks with `get_state` when it loads.
         let _ = app.emit(SCAN_UPDATED, state);
+    })
+}
+
+fn announce_preferences<R: Runtime>(app: &AppHandle<R>) -> preferences::Notify {
+    let app = app.clone();
+    Box::new(move |state: &PreferencesState| {
+        // As with scans: a popup that is not listening asks with `get_preferences`.
+        let _ = app.emit(PREFERENCES_UPDATED, state);
     })
 }
 
@@ -237,7 +255,15 @@ fn get_state(scanner: tauri::State<'_, Arc<Scanner>>) -> ShellState {
     scanner.state()
 }
 
-/// Starts a scan and returns at once; the result arrives as a `scan-updated` event. While a
+/// The popup's view of the preferences: the core's latest `config --json` answer and how the
+/// latest query went. Read only; they are reread by `refresh`.
+#[tauri::command]
+fn get_preferences(preferences: tauri::State<'_, Arc<Preferences>>) -> PreferencesState {
+    preferences.state()
+}
+
+/// Starts a scan, preceded by a preferences query, and returns at once; the results arrive as
+/// `preferences-updated` and `scan-updated` events. While a
 /// scan is already running it queues one more scan after it, shared with any other requests
 /// made during that scan.
 #[tauri::command]

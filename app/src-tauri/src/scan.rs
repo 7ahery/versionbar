@@ -1,9 +1,10 @@
 //! Running the bundled core and holding its results (spec "Scan command", "State ownership").
 //!
-//! The shell runs exactly one fixed invocation here, `versionbar list --json` through uv, and
-//! keeps what it prints as opaque JSON: it checks that the output is a JSON object with a
-//! supported `schema_version` and reads nothing else (ADR-0006). Meaning, sorting and diffing
-//! belong to the React UI (ADR-0007).
+//! The shell runs the bundled core with one of exactly two fixed argument sets (`Query`): the
+//! scan, `versionbar list --json`, and the preferences query, `versionbar config --json`
+//! (ADR-0011, read in `preferences.rs`). It keeps what the scan prints as opaque JSON: it
+//! checks that the output is a JSON object with a supported `schema_version` and reads nothing
+//! else (ADR-0006). Meaning, sorting and diffing belong to the React UI (ADR-0007).
 
 use std::{
     ffi::OsString,
@@ -21,7 +22,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 
-use crate::saved;
+use crate::{preferences::Preferences, saved};
 
 /// The only scan-result format this build understands. Equal to `SCHEMA_VERSION` in the core
 /// (`tests/schema_version.rs` checks it against the generated schema). Any other value is a
@@ -181,6 +182,9 @@ pub struct Scanner {
     unsettled: AtomicBool,
     /// A refresh was asked for while a scan ran. Only changed under the state lock.
     queued: AtomicBool,
+    /// Reread before every scan, so every refresh (popup, tray menu, schedule) also picks up
+    /// config changes, and never runs a second uv process alongside the scan.
+    preferences: Option<Arc<Preferences>>,
 }
 
 /// What one scan was started with, fixed before it is announced.
@@ -204,7 +208,15 @@ impl Scanner {
             notify,
             unsettled: AtomicBool::new(false),
             queued: AtomicBool::new(false),
+            preferences: None,
         }
+    }
+
+    /// Makes every scan job query the preferences first. Before the scan, so the very first
+    /// job at launch learns the update setting without waiting for a full scan.
+    pub fn with_preferences(mut self, preferences: Arc<Preferences>) -> Self {
+        self.preferences = Some(preferences);
+        self
     }
 
     pub fn state(&self) -> ShellState {
@@ -234,6 +246,11 @@ impl Scanner {
         };
 
         loop {
+            if let Some(preferences) = &self.preferences {
+                // Same uv, timeout and environment as the scan: on a first run this query
+                // may be the one that builds the environment.
+                preferences.query(job.uv.as_deref(), &self.config, self.timeout(job.first_run));
+            }
             let result = self.scan(job.uv, job.first_run);
             if let Ok(scan) = &result {
                 // Saved before the new results are announced, while this scan still holds
@@ -307,24 +324,19 @@ impl Scanner {
         changed
     }
 
-    fn scan(&self, uv: Option<PathBuf>, first_run: bool) -> Result<Box<RawValue>, Outcome> {
-        let uv = uv.ok_or(Outcome::UvMissing)?;
-        let timeout = if first_run {
+    fn timeout(&self, first_run: bool) -> Duration {
+        if first_run {
             self.config.first_run_timeout
         } else {
             self.config.timeout
-        };
-        let output = run_core(&uv, &self.config, timeout)?;
+        }
+    }
+
+    fn scan(&self, uv: Option<PathBuf>, first_run: bool) -> Result<Box<RawValue>, Outcome> {
+        let uv = uv.ok_or(Outcome::UvMissing)?;
+        let output = run_core(&uv, &self.config, self.timeout(first_run), Query::Scan)?;
         if !output.status.success() {
-            let code = output
-                .status
-                .code()
-                .map_or_else(|| "no exit code".to_owned(), |code| format!("code {code}"));
-            return Err(failed(
-                FailureReason::Exit,
-                format!("The scan failed ({code})."),
-                &output.stderr,
-            ));
+            return Err(output.exit_failure(Query::Scan));
         }
         check_scan(output.stdout)
             .map_err(|(reason, message)| failed(reason, message, &output.stderr))
@@ -359,7 +371,7 @@ pub fn refresh_every(
     })
 }
 
-fn failed(reason: FailureReason, message: String, stderr: &[u8]) -> Outcome {
+pub(crate) fn failed(reason: FailureReason, message: String, stderr: &[u8]) -> Outcome {
     Outcome::Failed {
         reason,
         message,
@@ -367,67 +379,134 @@ fn failed(reason: FailureReason, message: String, stderr: &[u8]) -> Outcome {
     }
 }
 
-/// The only fields the shell ever reads from a scan result. Everything else is skipped
-/// unread, which is what keeps the shell opaque.
+/// The only field the shell reads from a scan result. Everything else is skipped unread,
+/// which is what keeps the shell opaque. The preferences answer shares the same
+/// `schema_version` counter.
 #[derive(Deserialize)]
 struct Envelope {
     schema_version: Option<serde_json::Value>,
 }
 
-fn malformed() -> (FailureReason, String) {
+pub(crate) fn malformed(query: Query) -> (FailureReason, String) {
     (
         FailureReason::Malformed,
-        "The scan printed something that is not a scan result.".to_owned(),
+        format!(
+            "The {} printed something that is not a {}.",
+            query.name(),
+            query.result_name()
+        ),
     )
 }
 
 fn check_scan(stdout: Vec<u8>) -> Result<Box<RawValue>, (FailureReason, String)> {
-    let text = String::from_utf8(stdout).map_err(|_| malformed())?;
-    // Parsed once; the text is kept exactly as printed, minus surrounding whitespace.
-    let scan = RawValue::from_string(text).map_err(|_| malformed())?;
-    check_envelope(&scan)?;
-    Ok(scan)
+    check_output(stdout, Query::Scan)
+}
+
+/// The output kept exactly as printed, minus surrounding whitespace, once it passes
+/// `check_envelope`.
+pub(crate) fn check_output(
+    stdout: Vec<u8>,
+    query: Query,
+) -> Result<Box<RawValue>, (FailureReason, String)> {
+    let text = String::from_utf8(stdout).map_err(|_| malformed(query))?;
+    let output = RawValue::from_string(text).map_err(|_| malformed(query))?;
+    check_envelope(&output, query)?;
+    Ok(output)
 }
 
 /// Accepts a JSON object with the supported `schema_version`, reading nothing else. Also
 /// applied to saved results, which may come from another build.
-pub(crate) fn check_envelope(scan: &RawValue) -> Result<(), (FailureReason, String)> {
+pub(crate) fn check_envelope(
+    output: &RawValue,
+    query: Query,
+) -> Result<(), (FailureReason, String)> {
     // serde would also accept a JSON array as `Envelope` (fields by position), so insist on
     // an object before looking inside.
-    if !scan.get().starts_with('{') {
-        return Err(malformed());
+    if !output.get().starts_with('{') {
+        return Err(malformed(query));
     }
     // Can still fail on valid JSON, for instance a repeated `schema_version` key.
-    let envelope: Envelope = serde_json::from_str(scan.get()).map_err(|_| malformed())?;
+    let envelope: Envelope = serde_json::from_str(output.get()).map_err(|_| malformed(query))?;
+    let result = query.result_name();
     match envelope.schema_version {
         Some(version) if version.as_u64() == Some(SUPPORTED_SCHEMA_VERSION) => {}
         Some(version) => {
             return Err((
                 FailureReason::Incompatible,
                 format!(
-                    "The scan result has schema_version {version}; this app supports {SUPPORTED_SCHEMA_VERSION}."
+                    "The {result} has schema_version {version}; this app supports {SUPPORTED_SCHEMA_VERSION}."
                 ),
             ));
         }
         None => {
             return Err((
                 FailureReason::Incompatible,
-                "The scan result has no schema_version.".to_owned(),
+                format!("The {result} has no schema_version."),
             ));
         }
     }
     Ok(())
 }
 
-struct Output {
-    status: ExitStatus,
-    stdout: Vec<u8>,
-    stderr: Vec<u8>,
+/// The only two things the shell ever asks the core (ADR-0011). Each is a fixed argument
+/// set; nothing from the webview or anywhere else is ever added to it.
+#[derive(Clone, Copy)]
+pub(crate) enum Query {
+    /// `versionbar list --json`
+    Scan,
+    /// `versionbar config --json`
+    Preferences,
+}
+
+impl Query {
+    fn arguments(self) -> [&'static str; 2] {
+        match self {
+            Query::Scan => ["list", "--json"],
+            Query::Preferences => ["config", "--json"],
+        }
+    }
+
+    /// How the user-facing messages name it.
+    fn name(self) -> &'static str {
+        match self {
+            Query::Scan => "scan",
+            Query::Preferences => "preferences query",
+        }
+    }
+
+    /// How the user-facing messages name what it prints.
+    fn result_name(self) -> &'static str {
+        match self {
+            Query::Scan => "scan result",
+            Query::Preferences => "config result",
+        }
+    }
+}
+
+pub(crate) struct Output {
+    pub(crate) status: ExitStatus,
+    pub(crate) stdout: Vec<u8>,
+    pub(crate) stderr: Vec<u8>,
+}
+
+impl Output {
+    /// The failure for a nonzero exit, carrying stderr.
+    pub(crate) fn exit_failure(&self, query: Query) -> Outcome {
+        let code = self
+            .status
+            .code()
+            .map_or_else(|| "no exit code".to_owned(), |code| format!("code {code}"));
+        failed(
+            FailureReason::Exit,
+            format!("The {} failed ({code}).", query.name()),
+            &self.stderr,
+        )
+    }
 }
 
 /// `uv run` with fixed arguments: the lock file as shipped (`--frozen`), no dev tools, and a
 /// uv-managed Python only, never the system Python the core reports on (AGENTS.md rule 7).
-fn core_command(uv: &Path, config: &ScanConfig) -> Command {
+fn core_command(uv: &Path, config: &ScanConfig, query: Query) -> Command {
     let mut command = Command::new(uv);
     command
         .arg("run")
@@ -436,7 +515,8 @@ fn core_command(uv: &Path, config: &ScanConfig) -> Command {
         .arg("--managed-python")
         .arg("--project")
         .arg(&config.project)
-        .args(["--", "versionbar", "list", "--json"])
+        .args(["--", "versionbar"])
+        .args(query.arguments())
         .env("UV_PROJECT_ENVIRONMENT", &config.environment)
         // Python would otherwise write __pycache__ folders next to the bundled sources, in
         // the install folder.
@@ -460,8 +540,15 @@ fn core_command(uv: &Path, config: &ScanConfig) -> Command {
     command
 }
 
-fn run_core(uv: &Path, config: &ScanConfig, timeout: Duration) -> Result<Output, Outcome> {
-    let mut child = core_command(uv, config).spawn().map_err(|error| {
+/// Runs one fixed query and collects its output. Launch failures and timeouts are outcomes
+/// here; how an exit code and stdout are judged is up to the caller.
+pub(crate) fn run_core(
+    uv: &Path,
+    config: &ScanConfig,
+    timeout: Duration,
+    query: Query,
+) -> Result<Output, Outcome> {
+    let mut child = core_command(uv, config, query).spawn().map_err(|error| {
         failed(
             FailureReason::Launch,
             format!("Could not start uv at {}: {error}", uv.display()),
@@ -481,7 +568,8 @@ fn run_core(uv: &Path, config: &ScanConfig, timeout: Duration) -> Result<Output,
                     stderr,
                     FailureReason::Timeout,
                     format!(
-                        "The scan did not finish within {} seconds.",
+                        "The {} did not finish within {} seconds.",
+                        query.name(),
                         timeout.as_secs_f64()
                     ),
                 ));
@@ -494,7 +582,10 @@ fn run_core(uv: &Path, config: &ScanConfig, timeout: Duration) -> Result<Output,
                     child,
                     stderr,
                     FailureReason::Exit,
-                    format!("Could not tell whether the scan finished: {error}"),
+                    format!(
+                        "Could not tell whether the {} finished: {error}",
+                        query.name()
+                    ),
                 ));
             }
         }
