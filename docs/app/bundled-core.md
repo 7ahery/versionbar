@@ -32,14 +32,19 @@ Nothing is written to the install folder.
 The environment survives app updates. After an update uv re-syncs it against the new
 `uv.lock` on the next scan.
 
-## The one invocation
+## The two invocations
 
 ```
 uv run --frozen --no-dev --managed-python --project <resources>\core -- versionbar list --json
+uv run --frozen --no-dev --managed-python --project <resources>\core -- versionbar config --json
 ```
 
-with `UV_PROJECT_ENVIRONMENT=<core-env>` and `PYTHONPYCACHEPREFIX=<core-env>\pycache` set and
-`VIRTUAL_ENV` removed. The arguments are fixed; the webview cannot change them.
+The first is the scan; the second is the preferences query (ADR 0011), described in
+[preferences.md](preferences.md). Both run with `UV_PROJECT_ENVIRONMENT=<core-env>` and
+`PYTHONPYCACHEPREFIX=<core-env>\pycache` set and `VIRTUAL_ENV` removed, and share everything
+on this page: the uv lookup, the removed variables, the timeout and how a run is stopped. Each
+scan job runs the query first and the scan straight after, never both at once. The arguments
+are fixed (`Query` in `scan.rs`); the webview cannot change them.
 
 ### Inherited uv and Python settings
 
@@ -87,12 +92,24 @@ and dependencies into the folders above. That run is the "first run": the shell 
 whether the environment folder (`core-env`) exists before it starts uv, and gives it a 180-second
 timeout instead of 30 seconds. While it runs, the state says `setting_up: true`. The first-run
 rules (180 seconds, `setting_up`) last until one scan succeeds, so a first run that timed out
-after creating the folder is retried with the same allowance. What users can do about each
-failure is in [../troubleshooting.md](../troubleshooting.md).
+after creating the folder is retried with the same allowance. The preferences query runs first
+in each job and gets the same timeout, so on a first run it is usually the one that builds the
+environment. What users can do about each failure is in
+[../troubleshooting.md](../troubleshooting.md).
+
+The 30-second limit is fixed and does not follow the config file: per-tool `timeout` or
+`timeouts.<id>` values near or above about 30 seconds can make the whole scan time out (see
+[preferences.md](preferences.md#timeouts-in-the-config-file) and
+[../config.md](../config.md#keys)).
+
+The timeout applies to each invocation separately, not to the job. On a first run the
+preferences query and the scan each get 180 seconds, so if the query hangs until it is
+stopped and the scan then runs as long as it may, `setting_up` can last about 6 minutes.
 
 ## Finding uv
 
-Looked up again for every scan, in this order, taking the first `uv.exe` that is a file:
+Looked up again for every scan job (one lookup serves its preferences query and scan), in this
+order, taking the first `uv.exe` that is a file:
 
 1. Each entry of `PATH`.
 2. `UV_INSTALL_DIR` (uv's installer puts the binary directly in that folder).
@@ -106,7 +123,9 @@ If none exists the outcome is `uv_missing` and nothing runs. VersionBar never in
 
 ## What the shell checks
 
-The scan fails (`kind: "failed"`) with one of these reasons, and keeps the last good results:
+The scan fails (`kind: "failed"`) with one of these reasons, and keeps the last good results.
+The preferences query uses the same reasons, except that exit code 3 with a valid answer is
+not a failure ([preferences.md](preferences.md#how-each-ending-is-handled)).
 
 | Reason | When |
 |---|---|
@@ -133,10 +152,12 @@ matches what the core does for the tools it runs (`_DRAIN_SECONDS` in
 | Name | Kind | Payload |
 |---|---|---|
 | `get_state` | command | returns the state below |
+| `get_preferences` | command | no arguments; returns the preferences state ([preferences.md](preferences.md#ipc-contract-with-the-popup)) |
 | `refresh` | command | no arguments, returns nothing; starts a scan, or, while one is running, one more scan after it ([state.md](state.md#when-it-refreshes)) |
 | `open_uv_docs` | command | no arguments, returns nothing; opens the official uv installation guide in the default browser (the address is fixed in Rust) |
 | `open_containing_folder` | command | `{ path: string }`; opens Explorer on the folder holding that file, with it selected. Rejects with a sentence for the user when the path is refused or Explorer cannot start ([actions.md](actions.md)) |
 | `scan-updated` | event, Rust to webview | the state below, sent when a scan starts and when it ends |
+| `preferences-updated` | event, Rust to webview | the preferences state, sent after every preferences query ([preferences.md](preferences.md)) |
 
 ```ts
 {

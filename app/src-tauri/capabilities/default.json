@@ -6,6 +6,7 @@
   "permissions": [
     "core:app:allow-version",
     "allow-get-state",
+    "allow-get-preferences",
     "allow-refresh",
     "allow-open-uv-docs",
     "allow-open-containing-folder",
