@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "tool": "uv",
+  "args": [
+    "python",
+    "list",
+    "--no-config",
+    "--only-installed",
+    "--output-format",
+    "json"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "W3sia2V5IjoiY3B5dGhvbi0zLjE0Ljgtd2luZG93cy14ODZfNjQtbm9uZSIsInZlcnNpb24iOiIzLjE0LjgiLCJ2ZXJzaW9uX3BhcnRzIjp7Im1ham9yIjozLCJtaW5vciI6MTQsInBhdGNoIjo4fSwicGF0aCI6IkM6XFxVc2Vyc1xcZGV2XFxBcHBEYXRhXFxSb2FtaW5nXFx1dlxccHl0aG9uXFxjcHl0aG9uLTMuMTQuOC13aW5kb3dzLXg4Nl82NC1ub25lXFxweXRob24uZXhlIiwic3ltbGluayI6bnVsbCwidXJsIjpudWxsLCJvcyI6IndpbmRvd3MiLCJ2YXJpYW50IjoiZGVmYXVsdCIsImltcGxlbWVudGF0aW9uIjoiY3B5dGhvbiIsImFyY2giOiJ4ODZfNjQiLCJsaWJjIjoibm9uZSJ9LHsia2V5IjoiY3B5dGhvbi0zLjE0Ljgtd2luZG93cy14ODZfNjQtbm9uZSIsInZlcnNpb24iOiIzLjE0LjgiLCJ2ZXJzaW9uX3BhcnRzIjp7Im1ham9yIjozLCJtaW5vciI6MTQsInBhdGNoIjo4fSwicGF0aCI6IkM6XFxVc2Vyc1xcZGV2XFwubG9jYWxcXGJpblxccHl0aG9uMy4xNC5leGUiLCJzeW1saW5rIjpudWxsLCJ1cmwiOm51bGwsIm9zIjoid2luZG93cyIsInZhcmlhbnQiOiJkZWZhdWx0IiwiaW1wbGVtZW50YXRpb24iOiJjcHl0aG9uIiwiYXJjaCI6Ing4Nl82NCIsImxpYmMiOiJub25lIn0seyJrZXkiOiJjcHl0aG9uLTMuMTQuOC13aW5kb3dzLXg4Nl82NC1ub25lIiwidmVyc2lvbiI6IjMuMTQuOCIsInZlcnNpb25fcGFydHMiOnsibWFqb3IiOjMsIm1pbm9yIjoxNCwicGF0Y2giOjh9LCJwYXRoIjoiQzpcXFVzZXJzXFxkZXZcXEFwcERhdGFcXFJvYW1pbmdcXHV2XFxweXRob25cXGNweXRob24tMy4xNC13aW5kb3dzLXg4Nl82NC1ub25lXFxweXRob24uZXhlIiwic3ltbGluayI6bnVsbCwidXJsIjpudWxsLCJvcyI6IndpbmRvd3MiLCJ2YXJpYW50IjoiZGVmYXVsdCIsImltcGxlbWVudGF0aW9uIjoiY3B5dGhvbiIsImFyY2giOiJ4ODZfNjQiLCJsaWJjIjoibm9uZSJ9LHsia2V5IjoiY3B5dGhvbi0zLjEzLjE2LXdpbmRvd3MteDg2XzY0LW5vbmUiLCJ2ZXJzaW9uIjoiMy4xMy4xNiIsInZlcnNpb25fcGFydHMiOnsibWFqb3IiOjMsIm1pbm9yIjoxMywicGF0Y2giOjE2fSwicGF0aCI6IkM6XFxVc2Vyc1xcZGV2XFxBcHBEYXRhXFxSb2FtaW5nXFx1dlxccHl0aG9uXFxjcHl0aG9uLTMuMTMuMTYtd2luZG93cy14ODZfNjQtbm9uZVxccHl0aG9uLmV4ZSIsInN5bWxpbmsiOm51bGwsInVybCI6bnVsbCwib3MiOiJ3aW5kb3dzIiwidmFyaWFudCI6ImRlZmF1bHQiLCJpbXBsZW1lbnRhdGlvbiI6ImNweXRob24iLCJhcmNoIjoieDg2XzY0IiwibGliYyI6Im5vbmUifV0K",
+  "stderr_b64": "d2FybmluZzogRmFpbGVkIHRvIGluc3BlY3QgUHl0aG9uIGludGVycHJldGVyIGZyb20gbWFuYWdlZCBpbnN0YWxsYXRpb25zIGF0IGBDOlxVc2Vyc1xkZXZcQXBwRGF0YVxSb2FtaW5nXHV2XHB5dGhvblxjcHl0aG9uLTMuMTMtd2luZG93cy14ODZfNjQtbm9uZVxweXRob24uZXhlYAogIGNhdXNlOiBQeXRob24gaW50ZXJwcmV0ZXIgbm90IGZvdW5kIGF0IGBDOlxVc2Vyc1xkZXZcQXBwRGF0YVxSb2FtaW5nXHV2XHB5dGhvblxjcHl0aG9uLTMuMTMtd2luZG93cy14ODZfNjQtbm9uZVxweXRob24uZXhlYAp3YXJuaW5nOiBGYWlsZWQgdG8gaW5zcGVjdCBQeXRob24gaW50ZXJwcmV0ZXIgZnJvbSBmaXJzdCBleGVjdXRhYmxlIGluIHRoZSBzZWFyY2ggcGF0aCBhdCBgQzpcVXNlcnNcZGV2XC5sb2NhbFxiaW5ccHl0aG9uMy4xMy5leGVgCiAgY2F1c2U6IFB5dGhvbiBpbnRlcnByZXRlciBub3QgZm91bmQgYXQgYEM6XFVzZXJzXGRldlwubG9jYWxcYmluXHB5dGhvbjMuMTMuZXhlYAo=",
+  "encoding": "utf-8",
+  "stdout_text": "[{\"key\":\"cpython-3.14.8-windows-x86_64-none\",\"version\":\"3.14.8\",\"version_parts\":{\"major\":3,\"minor\":14,\"patch\":8},\"path\":\"C:\\\\Users\\\\dev\\\\AppData\\\\Roaming\\\\uv\\\\python\\\\cpython-3.14.8-windows-x86_64-none\\\\python.exe\",\"symlink\":null,\"url\":null,\"os\":\"windows\",\"variant\":\"default\",\"implementation\":\"cpython\",\"arch\":\"x86_64\",\"libc\":\"none\"},{\"key\":\"cpython-3.14.8-windows-x86_64-none\",\"version\":\"3.14.8\",\"version_parts\":{\"major\":3,\"minor\":14,\"patch\":8},\"path\":\"C:\\\\Users\\\\dev\\\\.local\\\\bin\\\\python3.14.exe\",\"symlink\":null,\"url\":null,\"os\":\"windows\",\"variant\":\"default\",\"implementation\":\"cpython\",\"arch\":\"x86_64\",\"libc\":\"none\"},{\"key\":\"cpython-3.14.8-windows-x86_64-none\",\"version\":\"3.14.8\",\"version_parts\":{\"major\":3,\"minor\":14,\"patch\":8},\"path\":\"C:\\\\Users\\\\dev\\\\AppData\\\\Roaming\\\\uv\\\\python\\\\cpython-3.14-windows-x86_64-none\\\\python.exe\",\"symlink\":null,\"url\":null,\"os\":\"windows\",\"variant\":\"default\",\"implementation\":\"cpython\",\"arch\":\"x86_64\",\"libc\":\"none\"},{\"key\":\"cpython-3.13.16-windows-x86_64-none\",\"version\":\"3.13.16\",\"version_parts\":{\"major\":3,\"minor\":13,\"patch\":16},\"path\":\"C:\\\\Users\\\\dev\\\\AppData\\\\Roaming\\\\uv\\\\python\\\\cpython-3.13.16-windows-x86_64-none\\\\python.exe\",\"symlink\":null,\"url\":null,\"os\":\"windows\",\"variant\":\"default\",\"implementation\":\"cpython\",\"arch\":\"x86_64\",\"libc\":\"none\"}]\n",
+  "stderr_text": "warning: Failed to inspect Python interpreter from managed installations at `C:\\Users\\dev\\AppData\\Roaming\\uv\\python\\cpython-3.13-windows-x86_64-none\\python.exe`\n  cause: Python interpreter not found at `C:\\Users\\dev\\AppData\\Roaming\\uv\\python\\cpython-3.13-windows-x86_64-none\\python.exe`\nwarning: Failed to inspect Python interpreter from first executable in the search path at `C:\\Users\\dev\\.local\\bin\\python3.13.exe`\n  cause: Python interpreter not found at `C:\\Users\\dev\\.local\\bin\\python3.13.exe`\n",
+  "provenance": {
+    "method": "hand-made seed (debug capture records version commands only)",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-11-10.0.26200-SP0",
+    "resolved_path": "%USERPROFILE%\\.local\\bin\\uv.exe",
+    "command": [
+      "%USERPROFILE%\\.local\\bin\\uv.exe",
+      "python",
+      "list",
+      "--no-config",
+      "--only-installed",
+      "--output-format",
+      "json"
+    ],
+    "captured_at": "2026-10-25T21:20:09.958484Z",
+    "runner": null,
+    "notes": "Produced by running `uv python list --no-config --only-installed --output-format json` unmodified (uv 0.12.23) on the maintainer's Windows 11 machine, which holds uv-managed 3.14.8 and 3.13.16. Only edit: the user name replaced by `dev` in paths. The stderr warnings about a dangling 3.13 minor-version link are kept as printed."
+  }
+}

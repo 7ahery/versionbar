@@ -1,0 +1,9 @@
+#:schema ../../../../schema/definition.schema.json
+id = "pip"
+name = "pip"
+os = ["windows", "linux"]
+binaries = ["pip"]
+version_args = ["--version"]
+# pip prints `pip 26.2.2 from <path> (python 3.12)`: the word `pip` anchors the
+# match so the interpreter version after it is never taken.
+version_regex = 'pip (?P<version>\d+\.\d+(?:\.\d+)?\S*)'

@@ -60,3 +60,14 @@ The `Capture tool output` workflow cannot use `--source`: runner images have no 
 - nvm-windows 2 (observed: 2.0.1, installed under `%LOCALAPPDATA%\Author Software\nvm`) keeps each version in `%NVM_HOME%\installs\v<version>\node.exe` and puts `%NVM_HOME%\.nodejs` (a junction to its shim folder) on PATH; `NVM_SYMLINK` is unset. The shim's `node.exe` answers with the selected version.
 - nvm-windows 1 keeps versions in its root, `%NVM_HOME%\v<version>\` by default, and points `NVM_SYMLINK` (a link on PATH) at the selected one. Both layouts are read. A version-1 root moved away from `NVM_HOME` with `root:` in `settings.txt` is not read.
 - Only folders named `v<major>.<minor>.<patch>` are versions; anything else (`.cache`, `installs`, `nvm.exe`) is ignored.
+
+## uv (Python)
+
+- Runs `uv python list --no-config --only-installed --output-format json` (`--no-config` so a `uv.toml` or `pyproject.toml` in the working directory cannot hide installs) with the `uv` that typing `uv` runs (PATH), else `%UV_INSTALL_DIR%\uv.exe`. `--only-installed` means the catalog of downloadable Pythons is never read, and nothing is downloaded. uv not found: nothing is added and nothing is said.
+- uv lists one managed Python several times (the install, its launcher in the user's bin folder such as `~\.local\bin\python3.14.exe`, and a minor-version link folder). Only the entry in the folder named after its `key` (`<uv python dir>\<key>\python.exe`) is the install, so each Python is reported once, with its exact version from running it. Entries uv found elsewhere (PATH, the registry) are not uv's and are left to PATH and the py launcher. uv's own folder rules (`UV_PYTHON_INSTALL_DIR` and the rest) apply because uv answers, not VersionBar.
+- Windows only for now: the only real capture of the listing is from Windows (`core/tests/fixtures/uv/windows-uv-python-list-0.12.23.json`). The listing is not a version command, so `debug capture` cannot record it; that file is a seed made from the real command's output (user name replaced by `dev`), as its `provenance` says. Re-seed it the same way when uv's output format changes.
+- A failing listing (cannot start, non-zero exit, timeout, not JSON) is the note `uv: could not list installs: <why>` on Python; PATH installs are untouched.
+
+### Active versus held Pythons
+
+`active` is only what typing `python` runs. A Python that uv (or the py launcher) holds is listed in `installs` with its own `source`, and never becomes active, even when it is the only Python on the machine. So a machine whose `python` is only a Microsoft Store placeholder stays `missing` with `active: null`, the placeholder notes, and the managed Pythons listed. `check` says `python is not active: not found on PATH ... (2 installs found off PATH)` there, instead of "not installed".
