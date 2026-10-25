@@ -22,7 +22,7 @@ class NvmWindows(Provider):
 
 `locate` is called once per scan for each tool in `tools` that the scan includes, on the scan's thread pool.
 
-- **Find the manager through its environment variables**, never fixed paths (`NVM_HOME`, not `%LOCALAPPDATA%\nvm`). Strip surrounding quotes and spaces, and ignore a value that is not absolute.
+- **Find the manager through its environment variables**, never fixed paths (`NVM_HOME`, not `%LOCALAPPDATA%\nvm`). One exception: a manager's documented home-relative default derived from an environment variable (rustup: `%USERPROFILE%\.rustup`, because rustup never sets `RUSTUP_HOME` itself). Strip surrounding quotes and spaces, and ignore a value that is not absolute.
 - **Use only `system`** (hard rule 9): `getenv`, `list_dir`, `is_executable`, `read_file_head`, `read_file`, `run`. Any command you run gets `timeout`.
 - **Return executables**: absolute paths of the installs' programs, in the order to report them (nvm: newest version first, compared numerically). The engine runs each one; the version reported is what it prints.
 - **A manager that is not there contributes nothing**: variable unset, or its folder missing (`list_dir` raises `FileNotFoundError` or `NotADirectoryError`). Return an empty `Located()` and no note.
@@ -60,6 +60,14 @@ The `Capture tool output` workflow cannot use `--source`: runner images have no 
 - nvm-windows 2 (observed: 2.0.1, installed under `%LOCALAPPDATA%\Author Software\nvm`) keeps each version in `%NVM_HOME%\installs\v<version>\node.exe` and puts `%NVM_HOME%\.nodejs` (a junction to its shim folder) on PATH; `NVM_SYMLINK` is unset. The shim's `node.exe` answers with the selected version.
 - nvm-windows 1 keeps versions in its root, `%NVM_HOME%\v<version>\` by default, and points `NVM_SYMLINK` (a link on PATH) at the selected one. Both layouts are read. A version-1 root moved away from `NVM_HOME` with `root:` in `settings.txt` is not read.
 - Only folders named `v<major>.<minor>.<patch>` are versions; anything else (`.cache`, `installs`, `nvm.exe`) is ignored.
+
+## rustup (Rust)
+
+- Reports the tools `rustc` and `cargo`. rustup is never run: even `rustup toolchain list` installs the toolchain pinned by a `rust-toolchain.toml` in the working directory, which VersionBar must never do. The provider lists `<RUSTUP_HOME>\toolchains` instead. `RUSTUP_HOME` is used when set (absolute); otherwise rustup's documented default `%USERPROFILE%\.rustup`. A relative `RUSTUP_HOME` is ignored, and the default is not used in its place.
+- That default is a deliberate exception to "find the manager through its environment variables": rustup never sets `RUSTUP_HOME` itself, so nearly every machine relies on the default. A manager's documented home-relative default derived from an environment variable (`USERPROFILE`) is allowed; a literal path is not.
+- Each folder in `toolchains` is one install: `<folder>\bin\rustc.exe` and `<folder>\bin\cargo.exe`, run with the tool's own version command and reported in folder-name order. The proxies in `~\.cargo\bin` are PATH hits and stay `active`; they are not duplicated. A folder without the tool's executable adds the note `rustup: <folder> has no bin\<tool>.exe, so it is not an install`.
+- A missing home or `toolchains` folder, or an empty one, adds nothing and says nothing. An unreadable `toolchains` folder is the note `rustup: could not list installs: <why>`; PATH installs are untouched.
+- Windows only for now: the toolchain layout is only confirmed there. The provider reads no output of its own, so the fixtures are the toolchain installs' real version captures, recorded with `versionbar debug capture rustc --source rustup` (and `cargo`) from a neutral folder (`core/tests/fixtures/rustup/windows-rustc-1.99.1.json`, `windows-cargo-1.99.1.json`).
 
 ## uv (Python)
 
