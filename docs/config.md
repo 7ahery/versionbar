@@ -103,6 +103,22 @@ Exit codes: 0 success, 1 `check` requirement failed (or `debug capture` failed),
 
 Ticket 27's Open config file, when `config_path` does not exist, copies this file byte for byte to `config_path` with a create-only write (fail if it exists, never overwrite), creating the folder, and then opens it. Rust keeps no second template and never parses or edits TOML.
 
-## For ticket 16 (`tools` catalog)
+## `versionbar tools`: the catalog
 
-`load_settings(system, builtins)` in `core/src/versionbar/config.py` returns `Settings`; `Settings.registry` is the validated `Registry`: `definitions` (every tool on every OS, built-ins first, custom tools merged by the replacement rule above), `custom_ids` (ids defined by the config), and `custom()` (those definitions, in registry order). The catalog lists from it rather than from the built-ins alone.
+`versionbar tools` lists every tool and provider VersionBar knows, on every OS, and runs nothing. It reads the config like `list` (an invalid file exits 3), because custom tools belong in the catalog: the built-ins by file name, then custom tools in file order, a custom tool with a built-in's id in that built-in's place, marked `custom`. Hidden tools are included; hiding only affects `list`. `--json` prints a `ToolsResult`:
+
+```json
+{
+  "schema_version": 1,
+  "platform": "windows",
+  "tools": [
+    { "id": "git", "name": "Git", "os": ["windows", "linux"], "custom": false },
+    { "id": "ssh", "name": "OpenSSH", "os": ["windows"], "custom": true }
+  ],
+  "providers": [
+    { "id": "nvm", "name": "nvm-windows", "os": ["windows"], "tools": ["node"] }
+  ]
+}
+```
+
+It is built from `Settings.registry` (`load_settings` in `core/src/versionbar/config.py`), the same validated registry `list`, `show` and `check` use.

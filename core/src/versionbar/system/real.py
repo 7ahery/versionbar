@@ -51,6 +51,9 @@ class _LocalSystem:
             return os.path.isfile(path)
         return os.path.isfile(path) and os.access(path, os.X_OK)
 
+    def list_dir(self, path: str) -> list[str]:
+        return os.listdir(path)
+
     def read_file_head(self, path: str, limit: int) -> bytes | None:
         try:
             with open(path, "rb") as file:

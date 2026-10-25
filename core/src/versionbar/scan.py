@@ -1,15 +1,17 @@
 """The generic detection engine. It knows nothing about individual tools: all
 tool-specific knowledge comes from definitions."""
 
+import ntpath
 import re
 from collections.abc import Callable, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from versionbar.attribution import via_for
 from versionbar.decoding import decode_output
 from versionbar.definition import ToolDefinition
 from versionbar.models import Install, ScanResult, Tool, ToolStatus
+from versionbar.provider import Located, Provider
 from versionbar.system import ProcessResult, System
 from versionbar.system.resolve import ToolHits
 
@@ -20,56 +22,133 @@ MAX_PARALLEL_COMMANDS = 16
 
 
 def scan(
-    system: System, definitions: list[ToolDefinition], timeout_for: Callable[[str], float]
+    system: System,
+    definitions: list[ToolDefinition],
+    timeout_for: Callable[[str], float],
+    providers: Sequence[Provider],
 ) -> ScanResult:
     """Detect every definition that applies to this OS, in the given order.
 
     `timeout_for` gives each tool's per-command timeout in seconds, by tool id.
+    `providers` add their installs of the tools they declare, after PATH's.
     """
     applicable = [
         definition.for_os(system.os) for definition in definitions if system.os in definition.os
     ]
+    usable = [provider for provider in providers if system.os in provider.os]
     # Every version command of every tool shares one pool, so a slow tool
     # delays nothing else; results are collected in definition order.
     with ThreadPoolExecutor(max_workers=MAX_PARALLEL_COMMANDS) as pool:
         jobs = [
-            _submit(pool, system, definition, timeout_for(definition.id))
+            _submit(pool, system, definition, timeout_for(definition.id), usable)
             for definition in applicable
         ]
-        tools = [
-            _detect(definition, paths, [future.result() for future in futures])
-            for definition, paths, futures in jobs
-        ]
+        # Locating is quick (folders, or one manager command), so every
+        # provider's installs start probing once all locations are known.
+        for job in jobs:
+            job.probe_provided(pool, system)
+        tools = [job.detect() for job in jobs]
     return ScanResult(scanned_at=system.now(), platform=system.os, tools=tools)
 
 
+type _Probe = Future[Install | _Failed]
+
+
+@dataclass
+class _Job:
+    """One tool's detection: its PATH probes, then what each provider adds."""
+
+    definition: ToolDefinition
+    hits: ToolHits
+    timeout: float
+    path_probes: list[_Probe]
+    located: list[tuple[Provider, Future[Located]]]
+    provided: list[tuple[Provider, _Probe]] = field(default_factory=list)
+    provider_notes: list[str] = field(default_factory=list)
+
+    def probe_provided(self, pool: ThreadPoolExecutor, system: System) -> None:
+        fold = ntpath.normcase if system.os == "windows" else str
+        # A PATH hit is already probed as a PATH install, and two providers
+        # naming one file report one install: the first finder keeps it.
+        seen = {fold(path) for path in self.hits.ordered}
+        for provider, future in self.located:
+            try:
+                located = future.result()
+            except Exception as error:
+                # A provider is code reading data it does not control; its
+                # failure is that provider's only, never the scan's.
+                self.provider_notes.append(f"{provider.name}: could not list installs: {error}")
+                continue
+            self.provider_notes.extend(located.notes)
+            for path in located.executables:
+                if fold(path) in seen:
+                    continue
+                seen.add(fold(path))
+                probe = pool.submit(
+                    _probe, system, self.definition, path, self.timeout, provider.id
+                )
+                self.provided.append((provider, probe))
+
+    def detect(self) -> Tool:
+        status, active, installs, notes = _from_path(
+            self.definition, self.hits, [future.result() for future in self.path_probes]
+        )
+        on_path = list(installs)
+        notes += self.provider_notes
+        for provider, future in self.provided:
+            result = future.result()
+            if isinstance(result, _Failed):
+                notes.append(f"{provider.name}: {result.note}")
+            elif not _served_by_shim(result, provider, on_path):
+                installs.append(result)
+        return _tool(self.definition, status, active=active, installs=installs, notes=notes)
+
+
+def _served_by_shim(install: Install, provider: Provider, on_path: list[Install]) -> bool:
+    # A manager's shim on PATH answers with the version it currently serves,
+    # which is one of that manager's own installs: one install, not two. The
+    # PATH entry is kept, since it is what typing the command runs.
+    return any(i.via == provider.id and i.version == install.version for i in on_path)
+
+
 def _submit(
-    pool: ThreadPoolExecutor, system: System, definition: ToolDefinition, timeout: float
-) -> tuple[ToolDefinition, ToolHits, list[Future[Install | _Failed]]]:
+    pool: ThreadPoolExecutor,
+    system: System,
+    definition: ToolDefinition,
+    timeout: float,
+    providers: list[Provider],
+) -> _Job:
     # Resolution only checks files, so it stays on this thread; a tool's
     # commands start as soon as its paths are known.
     hits = ToolHits.of(system, definition.binaries)
-    return (
+    return _Job(
         definition,
         hits,
-        [pool.submit(_probe, system, definition, path, timeout) for path in hits.paths],
+        timeout,
+        [pool.submit(_probe, system, definition, path, timeout, "path") for path in hits.paths],
+        [
+            (provider, pool.submit(provider.locate, system, definition.id, timeout))
+            for provider in providers
+            if definition.id in provider.tools
+        ],
     )
 
 
-def _detect(definition: ToolDefinition, hits: ToolHits, probes: list[Install | _Failed]) -> Tool:
+def _from_path(
+    definition: ToolDefinition, hits: ToolHits, probes: list[Install | _Failed]
+) -> tuple[ToolStatus, Install | None, list[Install], list[str]]:
+    """Status, active install, installs and notes from PATH alone."""
     if not hits.paths:
-        notes = hits.missing_notes(definition.binaries, definition.name)
-        return _tool(definition, "missing", notes=notes)
+        return "missing", None, [], hits.missing_notes(definition.binaries, definition.name)
 
     # The first hit is what runs when the command is typed. If it cannot
-    # report a version the tool is in error; the other installs are dropped
-    # because there is no active install to put them beside. (They were probed
-    # anyway: waiting for the active result first would double the scan time.)
+    # report a version the tool is in error; the other PATH installs are
+    # dropped because there is no active install to put them beside. (They
+    # were probed anyway: waiting for the active result first would double
+    # the scan time.)
     active = probes[0]
     if isinstance(active, _Failed):
-        return _tool(
-            definition, active.status, notes=[active.note, *hits.placeholder_notes(definition.name)]
-        )
+        return active.status, None, [], [active.note, *hits.placeholder_notes(definition.name)]
 
     installs = [active]
     notes: list[str] = []
@@ -81,7 +160,7 @@ def _detect(definition: ToolDefinition, hits: ToolHits, probes: list[Install | _
         else:
             installs.append(other)
     notes += hits.placeholder_notes(definition.name, active=active.path)
-    return _tool(definition, "found", active=active, installs=installs, notes=notes)
+    return "found", active, installs, notes
 
 
 def _tool(
@@ -109,7 +188,7 @@ class _Failed:
 
 
 def _probe(
-    system: System, definition: ToolDefinition, path: str, timeout: float
+    system: System, definition: ToolDefinition, path: str, timeout: float, source: str
 ) -> Install | _Failed:
     process = system.run([path, *definition.version_args], timeout)
     if process.launch_error is not None:
@@ -130,7 +209,7 @@ def _probe(
         return _failed("error", f"{path} {problem}", output)
 
     via = via_for(system, definition.via, path)
-    return Install(version=match["version"], path=path, source="path", via=via, raw=output)
+    return Install(version=match["version"], path=path, source=source, via=via, raw=output)
 
 
 def _failed(status: ToolStatus, message: str, output: str) -> _Failed:

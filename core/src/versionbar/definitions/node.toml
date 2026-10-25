@@ -6,3 +6,11 @@ binaries = ["node"]
 version_args = ["--version"]
 # Node prints `v24.21.0`; the `v` is a prefix, not part of the version.
 version_regex = 'v(?P<version>\d+\.\d+\.\d+\S*)'
+
+# nvm-windows serves the selected version through a folder on PATH: its shim
+# folder `.nodejs` in version 2, the `NVM_SYMLINK` link in version 1. The
+# manager name is the nvm provider's id, so the engine counts the served
+# version once. Elsewhere the variables are unset and the rule never matches.
+[[via]]
+manager = "nvm"
+dirs = ["{NVM_HOME}/.nodejs", "{NVM_SYMLINK}"]

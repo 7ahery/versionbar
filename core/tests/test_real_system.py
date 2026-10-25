@@ -163,3 +163,16 @@ def test_reading_a_file_tells_absent_from_present(tmp_path: Path) -> None:
     assert local_system().read_file(str(present)) == b"timeout = 3\n"
     with pytest.raises(FileNotFoundError):
         local_system().read_file(str(tmp_path / "absent.toml"))
+
+
+def test_listing_a_folder_tells_absent_and_file_apart(tmp_path: Path) -> None:
+    # Providers rely on these exceptions to tell a manager that is not there
+    # (nothing to say) from one they cannot read (a note).
+    (tmp_path / "v24.21.0").mkdir()
+    (tmp_path / "nvm.exe").write_bytes(b"")
+
+    assert sorted(local_system().list_dir(str(tmp_path))) == ["nvm.exe", "v24.21.0"]
+    with pytest.raises(FileNotFoundError):
+        local_system().list_dir(str(tmp_path / "absent"))
+    with pytest.raises(NotADirectoryError):
+        local_system().list_dir(str(tmp_path / "nvm.exe"))

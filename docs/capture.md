@@ -7,15 +7,16 @@ The command is hidden from `--help` on purpose: it is contributor tooling, not p
 ## Capture on your own machine
 
 ```sh
-uv run --project core versionbar debug capture <tool> [--out <folder>] [--json]
+uv run --project core versionbar debug capture <tool> [--source <provider>] [--out <folder>] [--json]
 ```
 
 - `<tool>` is a tool id from a built-in definition (for example `git`). It runs exactly the definition's version command for the current OS, on the first match found on `PATH` that a scan would run: Microsoft Store placeholders and the scripts folder of the environment running VersionBar are skipped, as in a scan. Nothing is installed or modified. To capture an install that is not first on your PATH (for example a uv-managed Python on a machine whose bare `python` is a Store placeholder), run the command with `PATH` narrowed to its folder and say so in `provenance.notes`.
+- `--source <provider>` (for example `--source nvm`) captures the first install that provider reports for the tool instead, wherever it is, and sets `provenance.notes` to say so. See [docs/providers.md](providers.md).
 - The file is written to `--out` (default `versionbar-captures/`) as `<os>-<tool>-<version>.json`, for example `windows-git-2.55.0.windows.2.json`. The command prints the destination; with `--json` it prints `{"outcome": "captured", "tool", "destination", "exit_code"}`.
 - A command that runs but fails (non-zero exit) is still captured, with its true exit status. That is evidence too.
 - Failures write no file, so a failed capture never looks like a fixture. With `--json` the error is `{"outcome", "tool", "message"}`.
-  - Exit status 2 (usage error, like `show`): `unknown-tool`, and `unsupported-os` for a known tool with no definition for this OS (message: `<id> is not available on <os>`).
-  - Exit status 1: `not-found` (not on `PATH`), `timeout`, `launch-error` (including no exit status), `write-failed`.
+  - Exit status 2 (usage error, like `show`): `unknown-tool`; `unknown-source` for a `--source` that is no provider, or a provider that reports no installs of that tool; and `unsupported-os` for a known tool with no definition for this OS (message: `<id> is not available on <os>`) or a provider that does not run on it.
+  - Exit status 1: `not-found` (not on `PATH`, or the provider reports no install), `timeout`, `launch-error` (including no exit status), `write-failed`.
 
 ## File format (version 1)
 
@@ -35,7 +36,7 @@ The model is `CaptureFile` in `core/src/versionbar/capture.py`; the fake in `cor
 
 ## Storage
 
-Fixtures live under `core/tests/fixtures/<tool>/` (providers get their own folder when they arrive). Name them `<os>-<tool>-<version>.json`, which is what the command already produces. Every tool and provider needs a real capture; never write output by hand. A hand-made seed is only acceptable when `provenance.notes` says which machine and command produced it.
+Fixtures live under `core/tests/fixtures/<tool>/`; captures of installs a provider found (`--source`) under `core/tests/fixtures/<provider>/`. Name them `<os>-<tool>-<version>.json`, which is what the command already produces. Every tool and provider needs a real capture; never write output by hand. A hand-made seed is only acceptable when `provenance.notes` says which machine and command produced it.
 
 ## Capture on a clean Windows runner
 
@@ -59,7 +60,7 @@ Tool ids must match `[a-z0-9][a-z0-9-]*`; anything else is rejected before any c
 - `outcomes/<tool>.json`: the command's result for every requested tool, including `not-found`, `unknown-tool` and `timeout` failures.
 - `outcomes/provenance.json`: workflow run URL, checked-out commit, requested ref, runner image name and version, and the fixed invocation used.
 
-Copy the files you want into `core/tests/fixtures/<tool>/` and review them like any other change. Provider detection (ticket 16) reuses the same command and workflow; it adds tool or provider definitions that `debug capture` can resolve, not another public command.
+Copy the files you want into `core/tests/fixtures/<tool>/` and review them like any other change. Providers reuse the same command through `--source` on your own machine; the workflow does not take it, since runner images hold no version-manager installs and the workflow installs nothing.
 
 ## Attaching a capture to a bug report
 

@@ -60,7 +60,9 @@ class Tool(StrictModel):
     active: Install | None
     """The install that runs when you type the command, or null when there is none."""
     installs: list[Install]
-    """Every install found, the active one first."""
+    """Every install found: the active one first, then the other PATH installs, then those
+    providers report (which are never active, so a tool with no active install may still have
+    some)."""
     notes: list[str] = []
     """Human-readable explanations for the status (why missing, what failed); not for parsing."""
 
@@ -130,6 +132,49 @@ class CheckResult(StrictModel):
     """True when every requirement passed."""
     requirements: list[RequirementResult]
     """One entry per requirement, in the order given."""
+
+
+class CatalogTool(StrictModel):
+    """A tool VersionBar knows how to detect."""
+
+    id: str
+    """Stable tool id, as used on the command line and in scan results."""
+    name: str
+    """Display name."""
+    os: list[OsName]
+    """The operating systems it is detected on; elsewhere scans leave it out."""
+    custom: bool
+    """True when its definition comes from the user config file (a custom tool, possibly
+    replacing a built-in of the same id)."""
+
+
+class CatalogProvider(StrictModel):
+    """A provider: code that reports a version manager's installs, including ones not on
+    PATH."""
+
+    id: str
+    """Provider id, which is also the `source` of the installs it reports (e.g. `nvm`)."""
+    name: str
+    """Display name."""
+    os: list[OsName]
+    """The operating systems it runs on."""
+    tools: list[str]
+    """Ids of the tools it reports installs for."""
+
+
+class ToolsResult(StrictModel):
+    """The result of `tools --json`: every tool and provider this VersionBar knows, on every
+    operating system. Read live from the built-ins and the user config file; nothing is run."""
+
+    schema_version: int = SCHEMA_VERSION
+    """Changes only on breaking changes to this format; the same counter as ScanResult's."""
+    platform: OsName
+    """The operating system this ran on."""
+    tools: list[CatalogTool]
+    """Built-in tools by file name, then custom tools in config file order; a custom tool
+    with a built-in's id takes that built-in's place. Hidden tools are included."""
+    providers: list[CatalogProvider]
+    """Every provider, in the order its installs are reported."""
 
 
 class ConfigProblem(StrictModel):

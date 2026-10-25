@@ -60,6 +60,15 @@ class System(Protocol):
 
     def is_executable(self, path: str) -> bool: ...
 
+    def list_dir(self, path: str) -> list[str]:
+        """The names of the entries in the folder at `path`, in no particular order.
+
+        Raises FileNotFoundError when there is no such folder, NotADirectoryError
+        when `path` is a file, and OSError when it cannot be read, so callers
+        can tell an absent manager from a broken one.
+        """
+        ...
+
     def run(self, argv: Sequence[str], timeout: float) -> ProcessResult: ...
 
     def read_file_head(self, path: str, limit: int) -> bytes | None:

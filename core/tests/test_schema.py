@@ -87,6 +87,20 @@ def test_config_output_validates_against_the_schema(config: str | None, exit_cod
     assert errors(output_validator(), json.loads(result.stdout)) == []
 
 
+def test_tools_output_validates_against_the_schema() -> None:
+    system = windows_with_git()
+    system.add_config(
+        "[[tools]]\n"
+        'id = "mine"\nname = "Mine"\nos = ["linux"]\nbinaries = ["mine"]\n'
+        'version_args = []\nversion_regex = "(?P<version>.+)"\n'
+    )
+
+    result = run_cli(system, "tools", "--json")
+
+    assert result.exit_code == 0, result.output
+    assert errors(output_validator(), json.loads(result.stdout)) == []
+
+
 def scan_output() -> dict:
     return json.loads(run_cli(windows_with_git(), "list", "--json").stdout)
 

@@ -2,7 +2,7 @@
 
 Inventories the dev tools installed on a machine. The `versionbar` CLI (Python core) is the product; a Windows tray app is one consumer of it.
 
-**Status: M1.** The CLI detects the core four live: git, node, python and uv. More tools and `tools` arrive in later slices. The tray app launches and opens its popup, which does not show scan results yet.
+**Status: M1.** The CLI detects the core four live: git, node, python and uv. It also lists the Node.js versions nvm-windows holds off PATH, and `versionbar tools` lists every tool and provider it knows. More tools and providers arrive in later slices. The tray app launches and opens its popup, which does not show scan results yet.
 
 ## Usage
 
@@ -13,6 +13,7 @@ versionbar show python node  # every install of the given tools, the active one 
 versionbar list --json   # machine-readable ScanResult (also: `versionbar --json`)
 versionbar check git 'node@>=20' 'python@>=3.12,<4'  # exit 0 only if every requirement holds
 versionbar config        # where the config file is and what it sets (also: `--json`)
+versionbar tools         # every tool and provider VersionBar can detect, on every OS (also: `--json`)
 versionbar schema        # JSON Schema of every --json output
 versionbar --help        # every command has --help
 ```
@@ -40,12 +41,12 @@ Every run scans the machine live; nothing is cached. Human output uses colour on
 ```
 
 - `schema_version` is an integer bumped only on breaking changes. `scanned_at` is an RFC 3339 UTC timestamp. `platform` is the OS id (`windows`, `linux`).
-- `status` is one of `found`, `missing`, `error`, `timeout`. A missing tool is still listed, with `active: null` and no installs.
+- `status` is one of `found`, `missing`, `error`, `timeout`. A missing tool is still listed, with `active: null`; its `installs` are empty unless a provider found some off PATH (see below).
 - `active` is the install that runs when you type the command: the first PATH hit, following PATHEXT on Windows (PATH order first, then PATHEXT order; extensionless files are never run). `installs` lists every install found, the active one included.
-- Active versus other installs: the active install is the first hit, and it is also `installs[0]`. Every other entry in `installs` is an *other install*: a different file on PATH that the active one shadows. `list` shows how many (`len(installs) - 1`). A binary reached through several PATH entries (different case on Windows, trailing separators, `.`/`..`, quotes) counts once; genuinely different files, such as `git.exe` and `git.cmd` in one folder or two folders, stay separate. Symlinks are not resolved.
+- Active versus other installs: the active install is the first hit, and it is also `installs[0]`. Every other entry in `installs` is an *other install*: a different file on PATH that the active one shadows, or an install a version manager holds (see Providers below). `list` shows how many (`len(installs) - 1`, or all of them when nothing is active). A binary reached through several PATH entries (different case on Windows, trailing separators, `.`/`..`, quotes) counts once; genuinely different files, such as `git.exe` and `git.cmd` in one folder or two folders, stay separate. Symlinks are not resolved.
 - An other install whose version command fails is left out of `installs` and explained in `notes`; if the active install fails, the tool's `status` is `error` or `timeout`.
 - `versionbar show <tool>...` prints the same `ScanResult`, limited to the requested tools (in the order given, repeats dropped). An unknown id exits with code 2 and lists the known ids on stderr; nothing is written to stdout.
-- `source` is `path` for installs found on PATH. `via` and `raw` are optional (`null` when absent); `raw` is the version output the version was read from.
+- `source` is `path` for installs found on PATH, or the id of the provider that found it (`nvm`). `via` and `raw` are optional (`null` when absent); `raw` is the version output the version was read from.
 - `notes` are human-readable diagnostics explaining a status (for example why a tool is missing, or the captured message of a failed version command). They are for people and logs, not for parsing. They are the only diagnostic field; see below for what each status puts there.
 
 `versionbar schema` prints the JSON Schema (draft 2020-12) of every `--json` output, generated from the core's Pydantic models. The same schema and the UI's TS types are committed under [`schema/`](schema/README.md), which also describes the compatibility rules.
@@ -78,19 +79,28 @@ Every run scans the machine live; nothing is cached. Human output uses colour on
 
 `outcome` is `passed`, `unmet`, `not-comparable`, `missing`, `error` or `timeout`; `version` and `path` are `null` when the tool has no active install; `message` is for people. The same requirement may appear several times (each is reported, the tool is scanned once). `schema_version` is the same counter as in a scan result; new fields or outcomes are non-breaking under the [compatibility rules](schema/README.md).
 
+### Providers: installs a version manager holds
+
+Providers find the installs a version manager keeps, including ones not on PATH, and add them to `installs` after the PATH ones with the provider's id as `source`. They never change which install is active: that is always the first PATH hit, whatever the manager has selected. `check` therefore never counts them. v1 has one provider:
+
+- `nvm` (nvm-windows, Windows): every Node.js version in `%NVM_HOME%\installs\` (nvm-windows 2) or `%NVM_HOME%\` (nvm-windows 1), newest first. `NVM_SYMLINK` is not needed. Without `NVM_HOME`, or if that folder is gone, it adds nothing.
+
+One install is reported once. A file a provider names that is also a PATH hit stays the PATH install (`source: path`). nvm's shim folder (`%NVM_HOME%\.nodejs`) or `NVM_SYMLINK` on PATH serves one of nvm's versions: that PATH install gets `via: nvm`, and nvm's copy of the same version is not listed again. Each held install is run with its tool's own version command, so the version reported is what it prints, not its folder name. A provider that cannot read its manager's folders, a version folder without its executable, and a held install that fails, hangs or prints no version each add a note (prefixed with the provider's name) and lose nothing else. `versionbar tools` lists every provider with the tools and OSes it covers; [docs/providers.md](docs/providers.md) explains how to write one.
+
 ### Failures and partial results
 
 A scan always completes and always lists every tool (except those the config hides); one broken or slow tool never stops the others from being reported. The exit code of `list` and `show` does not depend on tool statuses. An invalid config file stops every scanning command with exit code 3 before anything runs (see [docs/config.md](docs/config.md)).
 
 | What happened | `status` | `active`, `installs` | `notes` |
 | --- | --- | --- | --- |
-| No binary on PATH | `missing` | `null`, `[]` | `not found on PATH (looked for: …)` |
+| No binary on PATH | `missing` | `null`, `[]` (or the installs providers found) | `not found on PATH (looked for: …)` |
 | Active install did not answer within 5 s (or the configured timeout) | `timeout` | `null`, `[]` | `<path> did not answer within <n> s`, plus `: <its output>` if it printed anything before it was killed |
 | Active install could not be started | `error` | `null`, `[]` | `could not run <path>: <OS error>` |
 | Active install exited non-zero | `error` | `null`, `[]` | `<path> exited with code <n>: <its output>` |
 | Active install printed no recognisable version | `error` | `null`, `[]` | `<path> printed no version: <its output>` |
 | An other install failed in any of these ways | `found` | that install left out | one note per failed install, same wording |
 | Only Microsoft Store placeholders on PATH | `missing` | `null`, `[]` | `only Microsoft Store placeholders found on PATH (looked for: …)`, then one note per placeholder |
+| A provider failed, or one of its installs did | unchanged | that install left out | `<provider name>: …`, after the PATH notes; installs from PATH and other providers stay |
 
 ### Microsoft Store placeholders and VersionBar's own Python
 
@@ -116,7 +126,7 @@ An optional TOML file (`%APPDATA%\versionbar\config.toml` on Windows, `~/.config
 
 Built-in tools are TOML files in `core/src/versionbar/definitions/` (keys: `id`, `name`, `os`, `binaries`, `version_args`, `version_regex` with a named `version` group, optional `[[via]]` shim rules, and optional per-OS `overrides.<os>` replacing `binaries`, `version_args`, `version_regex` or `via`). The engine has no per-tool code. See [docs/definitions.md](docs/definitions.md) for every key, Windows wrappers and shim attribution.
 
-Tests run the CLI over a fake system (`core/tests/fakes.py`) whose command output comes only from real captures in `core/tests/fixtures/<tool>/`. Each capture records its provenance (OS, resolved path, exact command, date) beside the output; see `docs/capture.md` to record one.
+Tests run the CLI over a fake system (`core/tests/fakes.py`) whose command output comes only from real captures in `core/tests/fixtures/<tool>/` (and `fixtures/<provider>/` for installs a provider found). Each capture records its provenance (OS, resolved path, exact command, date) beside the output; see `docs/capture.md` to record one.
 
 ## Setup
 
