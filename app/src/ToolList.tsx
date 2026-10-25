@@ -5,7 +5,7 @@ import {
   FolderOpen,
   Search,
 } from "lucide-react";
-import { type ReactNode, useId, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
 import { copyText, useFeedback } from "@/feedback";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,16 @@ export function ToolList({ tools }: { tools: Tool[] }) {
   // empty for a tool that is listed, just not installed.
   const missingShown = searching || showMissing;
   const { feedback, report } = useFeedback();
+  const searchRef = useRef<HTMLInputElement>(null);
+  // The popup window is hidden, not closed, so the component stays mounted and `autoFocus`
+  // only fires once. Each reopen focuses the window, which is when typing should start.
+  useEffect(() => {
+    const focusSearch = () => searchRef.current?.focus();
+    window.addEventListener("focus", focusSearch);
+    return () => {
+      window.removeEventListener("focus", focusSearch);
+    };
+  }, []);
   return (
     <>
       <div className="relative border-b border-border px-3 py-2">
@@ -40,6 +50,7 @@ export function ToolList({ tools }: { tools: Tool[] }) {
           aria-label="Search tools"
           placeholder="Search tools"
           value={query}
+          ref={searchRef}
           // The popup opens to find a tool, so typing should start at once.
           autoFocus
           onChange={(event) => {
@@ -138,6 +149,7 @@ function ToolRow({ tool, report }: { tool: Tool; report: Report }) {
   const [open, setOpen] = useState(false);
   const detailsId = useId();
   const others = otherInstalls(tool).length;
+  const status = statusDisplay(tool);
   return (
     <li>
       <button
@@ -167,10 +179,10 @@ function ToolRow({ tool, report }: { tool: Tool; report: Report }) {
         <span
           className={cn(
             "ml-auto truncate tabular-nums",
-            tool.active ? "text-muted-foreground" : statusColour(tool),
+            tool.active ? "text-muted-foreground" : status.colour,
           )}
         >
-          {activeLabel(tool)}
+          {tool.active ? tool.active.version : status.label}
         </span>
       </button>
       {open && <ToolDetails id={detailsId} tool={tool} report={report} />}
@@ -297,33 +309,25 @@ function IconButton({
   );
 }
 
-/** Failures stand out from a tool that is simply not installed. */
-function statusColour(tool: Tool): string {
-  switch (tool.status as string) {
-    case "error":
-    case "timeout":
-      return "text-destructive";
-    default:
-      return "text-muted-foreground";
-  }
-}
-
 /** `path`, or a provider id shown as-is, so providers added later need no UI change. */
 function sourceLabel(source: string): string {
   return source === "path" ? "On PATH" : `From ${source}`;
 }
 
-function activeLabel(tool: Tool): string {
-  if (tool.active) return tool.active.version;
-  // The status is shown as-is for values added after this build (schema/README.md).
+/**
+ * What to show for a tool with no active install. Failures stand out from a tool that is
+ * simply not installed. The status is shown as-is for values added after this build
+ * (schema/README.md).
+ */
+function statusDisplay(tool: Tool): { label: string; colour: string } {
   switch (tool.status as string) {
     case "missing":
-      return "Not found";
+      return { label: "Not found", colour: "text-muted-foreground" };
     case "error":
-      return "Error";
+      return { label: "Error", colour: "text-destructive" };
     case "timeout":
-      return "Timed out";
+      return { label: "Timed out", colour: "text-destructive" };
     default:
-      return tool.status;
+      return { label: tool.status, colour: "text-muted-foreground" };
   }
 }
