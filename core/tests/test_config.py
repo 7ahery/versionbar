@@ -93,9 +93,18 @@ def test_list_order_without_config_is_built_ins_by_id_then_custom_tools_in_file_
     second = SSH_TOOL.replace('id = "ssh"', 'id = "openssh"')
 
     assert [tool["id"] for tool in tools(machine(SSH_TOOL + second), "list")] == [
+        "cargo",
+        "composer",
+        "dotnet",
         "git",
+        "go",
+        "java",
         "node",
+        "php",
         "python",
+        "ruby",
+        "rustc",
+        "rustup",
         "uv",
         "ssh",
         "openssh",
@@ -109,8 +118,17 @@ def test_pinned_tools_come_first_then_ordered_ones_then_the_rest_in_default_orde
         "uv",
         "ssh",
         "python",
+        "cargo",
+        "composer",
+        "dotnet",
         "git",
+        "go",
+        "java",
         "node",
+        "php",
+        "ruby",
+        "rustc",
+        "rustup",
     ]
 
 
@@ -269,7 +287,8 @@ def test_preferences_may_name_a_tool_of_another_os() -> None:
     listed = [tool["id"] for tool in tools(machine(config), "list")]
 
     assert "lssh" not in listed
-    assert listed[0] == "git"
+    assert "ssh" not in listed
+    assert listed[0] == "cargo"
 
 
 def test_a_custom_tool_with_a_built_in_id_replaces_the_built_in_in_its_place() -> None:
@@ -284,6 +303,9 @@ version_regex = 'git version (?P<version>\\d+\\.\\d+)'
 """
     listed = tools(machine(custom_git), "list")
 
-    assert [tool["id"] for tool in listed].count("git") == 1
-    assert listed[0]["id"] == "git"
-    assert (listed[0]["name"], listed[0]["active"]["version"]) == ("Git (mine)", "2.55")
+    ids = [tool["id"] for tool in listed]
+    assert ids.count("git") == 1
+    # Replaced in the built-in's own place, not appended.
+    assert ids[:5] == ["cargo", "composer", "dotnet", "git", "go"]
+    mine = listed[ids.index("git")]
+    assert (mine["name"], mine["active"]["version"]) == ("Git (mine)", "2.55")

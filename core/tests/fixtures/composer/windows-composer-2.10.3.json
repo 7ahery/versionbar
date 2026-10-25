@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "tool": "composer",
+  "args": [
+    "--version"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "Q29tcG9zZXIgdmVyc2lvbiAyLjEwLjMgMjAyNi0wOC0yNyAxMzozNDoyMw0K",
+  "stderr_b64": "UEhQIHZlcnNpb24gOC41LjExIChjOlx0b29sc1xwaHBccGhwLmV4ZSkNClJ1biB0aGUgImRpYWdub3NlIiBjb21tYW5kIHRvIGdldCBtb3JlIGRldGFpbGVkIGRpYWdub3N0aWNzIG91dHB1dC4NCg==",
+  "encoding": "utf-8",
+  "stdout_text": "Composer version 2.10.3 2026-08-27 13:34:23\r\n",
+  "stderr_text": "PHP version 8.5.11 (c:\\tools\\php\\php.exe)\r\nRun the \"diagnose\" command to get more detailed diagnostics output.\r\n",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-2025Server-10.0.26100-SP0",
+    "resolved_path": "c:\\tools\\php\\composer.bat",
+    "command": [
+      "c:\\tools\\php\\composer.bat",
+      "--version"
+    ],
+    "captured_at": "2026-10-25T18:02:21.976274Z",
+    "runner": {
+      "image_os": "win25-vs2026",
+      "image_version": "20261021.278.1",
+      "run_url": "https://github.com/7ahery/versionbar/actions/runs/40219287296"
+    },
+    "notes": null
+  }
+}

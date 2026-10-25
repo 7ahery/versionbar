@@ -50,7 +50,7 @@ gh run watch <run-id>
 gh run download <run-id> -n captures-<run-id>
 ```
 
-GitHub only lets you dispatch a workflow that exists on the default branch, or on the branch you pass with `gh workflow run --ref <branch>` (which then uses that branch's copy of the workflow). Separately, the `ref` input chooses which code is checked out and run, so it is how a branch of draft definitions gets captured.
+GitHub returns 404 when you dispatch a workflow that is not on the default branch, even with `--ref`, so the workflow must be on `main` (it is). The `ref` input then chooses which code is checked out and run, so it is how a branch of draft definitions gets captured.
 
 The job stays green whatever the capture outcomes are; read `outcomes/` rather than the job status. Only rejected inputs (no ids, or a malformed id) fail the job.
 

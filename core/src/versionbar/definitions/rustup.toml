@@ -1,0 +1,9 @@
+#:schema ../../../../schema/definition.schema.json
+id = "rustup"
+name = "rustup"
+os = ["windows", "linux"]
+binaries = ["rustup"]
+version_args = ["--version"]
+# rustup may add `info:` lines on stderr; the banner line carries the version. Installed
+# toolchains are a later provider's job, not this definition's.
+version_regex = '^rustup (?P<version>\d+\.\d+\.\d+\S*)'

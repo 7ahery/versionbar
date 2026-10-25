@@ -1,0 +1,8 @@
+#:schema ../../../../schema/definition.schema.json
+id = "go"
+name = "Go"
+os = ["windows", "linux"]
+binaries = ["go"]
+version_args = ["version"]
+# Go prints `go version go1.23.4 windows/amd64`; the second `go` is a prefix, not part of the version.
+version_regex = 'go version go(?P<version>\d+\.\d+\S*)'

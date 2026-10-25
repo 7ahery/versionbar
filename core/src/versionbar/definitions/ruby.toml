@@ -1,0 +1,8 @@
+#:schema ../../../../schema/definition.schema.json
+id = "ruby"
+name = "Ruby"
+os = ["windows", "linux"]
+binaries = ["ruby"]
+version_args = ["--version"]
+# The build date and platform after the version stay in `raw`.
+version_regex = '^ruby (?P<version>\d+\.\d+\.\d+\S*)'

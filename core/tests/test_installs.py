@@ -18,6 +18,10 @@ WIN_GIT = r"C:\Program Files\Git\cmd\git.exe"
 SCOOP_GIT = r"C:\Users\dev\scoop\shims\git.exe"
 
 
+def builtin_git():
+    return next(d for d in definition.builtin_definitions() if d.id == "git")
+
+
 def windows_with_two_gits(path: str | None = None) -> FakeSystem:
     """Two distinct git installs on PATH.
 
@@ -132,7 +136,8 @@ def test_list_counts_the_other_installs(monkeypatch) -> None:
 
     result = run_cli(windows_with_two_gits(), "list")
 
-    header, row = [line for line in result.stdout.splitlines() if line.strip()][:2]
+    lines = [line for line in result.stdout.splitlines() if line.strip()]
+    header, row = lines[0], next(line for line in lines if line.startswith("git"))
     assert "Others" in header
     # One other install besides the active one.
     assert row.split()[-1] == "1"
@@ -147,14 +152,12 @@ def test_unknown_tool_ids_fail_with_the_known_ids_listed() -> None:
     assert result.exit_code == 2
     assert result.stdout == ""
     assert "gti" in result.stderr
-    assert "known tools: git" in result.stderr
+    assert "git" in result.stderr.split("known tools:")[1]
     assert system.runs == []
 
 
 def test_tool_known_only_for_another_os_is_not_called_unknown(monkeypatch) -> None:
-    linux_only = definition.builtin_definitions()[0].model_copy(
-        update={"id": "linuxonly", "os": ["linux"]}
-    )
+    linux_only = builtin_git().model_copy(update={"id": "linuxonly", "os": ["linux"]})
     # The core four all run on both OSes; remove once a built-in is OS-specific
     # (WSL, ticket 15, #17).
     monkeypatch.setattr(
@@ -191,7 +194,7 @@ def test_relative_posix_path_entries_are_skipped() -> None:
 
 
 def test_a_binary_matched_by_two_declared_names_is_one_install(monkeypatch) -> None:
-    both = definition.builtin_definitions()[0].model_copy(update={"binaries": ["git", "git.exe"]})
+    both = builtin_git().model_copy(update={"binaries": ["git", "git.exe"]})
     # No built-in declares two names for one file, so one is made up here.
     monkeypatch.setattr(cli, "builtin_definitions", lambda: [both])
 

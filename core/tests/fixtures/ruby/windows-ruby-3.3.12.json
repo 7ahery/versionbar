@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "tool": "ruby",
+  "args": [
+    "--version"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "cnVieSAzLjMuMTIgKDIwMjYtMDctMTYgcmV2aXNpb24gMDU4MTA4OWRmOSkgW3g2NC1taW5ndy11Y3J0XQ0K",
+  "stderr_b64": "",
+  "encoding": "utf-8",
+  "stdout_text": "ruby 3.3.12 (2026-07-16 revision 0581089df9) [x64-mingw-ucrt]\r\n",
+  "stderr_text": "",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-2025Server-10.0.26100-SP0",
+    "resolved_path": "C:\\hostedtoolcache\\windows\\Ruby\\3.3.12\\x64\\bin\\ruby.exe",
+    "command": [
+      "C:\\hostedtoolcache\\windows\\Ruby\\3.3.12\\x64\\bin\\ruby.exe",
+      "--version"
+    ],
+    "captured_at": "2026-10-25T18:02:19.108200Z",
+    "runner": {
+      "image_os": "win25-vs2026",
+      "image_version": "20261021.278.1",
+      "run_url": "https://github.com/7ahery/versionbar/actions/runs/40219287296"
+    },
+    "notes": null
+  }
+}

@@ -1,0 +1,8 @@
+#:schema ../../../../schema/definition.schema.json
+id = "php"
+name = "PHP"
+os = ["windows", "linux"]
+binaries = ["php"]
+version_args = ["--version"]
+# Build details and the Zend line stay in `raw`.
+version_regex = '^PHP (?P<version>\d+\.\d+\.\d+\S*)'
