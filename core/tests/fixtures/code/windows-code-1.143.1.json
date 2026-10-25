@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "tool": "code",
+  "args": [
+    "--version"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "MS4xNDMuMQplNjQ2ODY4MjI3YzNlM2E5ZTNmMjQyNzdjOGM3MjIwYmU0MmMwYmU3Cng2NAo=",
+  "stderr_b64": "",
+  "encoding": "utf-8",
+  "stdout_text": "1.143.1\ne646868227c3e3a9e3f24277c8c7220be42c0be7\nx64\n",
+  "stderr_text": "",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-11-10.0.26200-SP0",
+    "resolved_path": "%USERPROFILE%\\AppData\\Local\\Programs\\Microsoft VS Code\\bin\\code.cmd",
+    "command": [
+      "%USERPROFILE%\\AppData\\Local\\Programs\\Microsoft VS Code\\bin\\code.cmd",
+      "--version"
+    ],
+    "captured_at": "2026-10-25T21:11:48.511154Z",
+    "runner": null,
+    "notes": null
+  }
+}

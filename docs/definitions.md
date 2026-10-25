@@ -55,9 +55,9 @@ Attribution never changes which install is active or what is run: `via` only exp
 | 09 (#12) pyenv | pyenv-win shims (`python.bat`) | `[[overrides.windows.via]] manager = "pyenv"`, `dirs = ["{PYENV}/shims", "{PYENV_ROOT}/shims", "{PYENV_HOME}/shims"]` |
 | 09 | pyenv on Linux | `[[via]] manager = "pyenv"`, `dirs = ["{PYENV_ROOT}/shims", "{HOME}/.pyenv/shims"]` |
 | 09 | pip, pipx, poetry | Plain definitions; the same pyenv rule where pyenv shims them. |
-| 13 (#15) volta | `node`, `npm`, `pnpm`, `yarn` served by Volta | `[[via]] manager = "volta"`, `dirs = ["{VOLTA_HOME}/bin"]` (plus a Windows fallback such as `{LOCALAPPDATA}/Volta/bin` if captures show `VOLTA_HOME` can be unset) |
-| 13 | corepack's `pnpm`/`yarn` | `[[via]] manager = "corepack"` with a `content_regex` matching the corepack path the shim launches (`corepack[\\/]dist[\\/]` on Windows `.cmd` shims; on Linux verify with a real capture what the shim file is and what the content read sees). Take the exact marker from a real shim. |
-| 13 | `npm.cmd`, `pnpm.cmd`, `yarn.cmd` | Nothing: wrappers resolve and run as above. |
+| 13 (#15) volta | `node`, `npm` served by Volta (pnpm and yarn are dropped from v1, DEV-6) | `[[via]] manager = "volta"`, `dirs = ["{VOLTA_HOME}/bin"]` (plus a Windows fallback such as `{LOCALAPPDATA}/Volta/bin` if captures show `VOLTA_HOME` can be unset). Not added yet: needs a real volta capture. |
+| 13 | corepack's `pnpm`/`yarn` | Dropped from v1 (DEV-6): no corepack attribution and no probe-environment work. |
+| 13 | `npm.cmd` | Nothing: wrappers resolve and run as above. |
 | 13 | nvm, fnm, volta themselves | Plain definitions; their binaries are on PATH. nvm-held Node versions are the nvm provider's ([docs/providers.md](providers.md)); node's `[[via]]` rule for nvm is already built in, so add other rules to the same list. |
 | 14 (#16) | java, go, rustc, cargo, rustup, dotnet, ruby, php, composer | Plain definitions (`composer.bat` is a wrapper). A `via` rule only where a manager shims the tool, such as `{CARGO_HOME}/bin` for rustup's proxies if that attribution is wanted. |
 | 15 (#17) | `code` → `code.cmd` | Nothing: the extensionless `code` script is skipped and `code.cmd` runs as a wrapper. |
@@ -72,4 +72,36 @@ Fixtures are real Windows captures. `rustc`, `cargo` and `rustup` come from the 
 Not supported by definitions, by design:
 
 - Installs found only through an environment variable and not on PATH (`JAVA_HOME` without java on PATH, a manager binary off PATH). They are not what typing the command runs and need a `source` other than `path`, which is provider territory ([docs/providers.md](providers.md)).
-- Setting environment variables for the version command. Corepack shims may download a package manager or pin one into a `package.json` in the current folder when run; if ticket 13 finds that `--version` does either on real machines, the generic fix is a definition key for the probe's environment (for example `COREPACK_ENABLE_NETWORK=0`), which needs a change to the System seam's `run`.
+- Setting environment variables for the version command. That was only needed for corepack shims, and pnpm, yarn and so corepack are dropped from v1 (DEV-6), so no probe-environment key exists. Revisit if they return.
+
+### Hosting, shell and platform tools (ticket 15): coverage and provenance
+
+Built-in definitions shipped: `gh`, `pwsh`, `code` (Windows and Linux) and `wsl`, `winget` (Windows only). Fixtures are real Windows captures from the maintainer's machine (`wsl` included: its UTF-16 output is decoded from the raw bytes, with no `encoding` key in the definition). `code` resolved to `code.cmd`, so it runs as a wrapper through the shared cmd.exe path. `docker` (Windows and Linux) is also shipped; its capture comes from the `windows-latest` runner via the capture workflow. `kubectl` and `choco` wait for a recapture with a longer timeout (#39), and `scoop` is deferred to #45 (DEV-7).
+
+### Coverage checklist
+
+The v1 catalog is 32 tools: spec #1's 34 minus `pnpm` and `yarn` (DEV-6). Status is "shipped" when a definition and a real capture exist.
+
+| Group | Tool | Definition | Real capture |
+|---|---|---|---|
+| VCS / hosting | git | shipped | yes |
+| | gh | shipped (15) | yes |
+| Python | python, uv | shipped | yes |
+| | pip, pipx, poetry | ticket 09 | pending |
+| JS | node, npm | shipped (13) | yes |
+| | bun, deno | ticket 13 | pending |
+| PHP | php, composer | shipped (14) | yes |
+| Other languages | java, go, rustc, cargo, dotnet, ruby | shipped (14) | yes |
+| Containers | docker | shipped (15) | yes (`windows-latest` runner via the capture workflow) |
+| | kubectl | pending (15) | pending recapture with a longer timeout (#39) |
+| Managers | nvm | shipped (13) | yes |
+| | fnm, volta, pyenv | tickets 09 and 13 | pending |
+| | rustup | shipped (14) | yes |
+| | winget | shipped (15) | yes |
+| | choco | pending (15) | pending recapture with a longer timeout (#39) |
+| | scoop | deferred to #45 (DEV-7) | n/a |
+| Dev shell | pwsh, code, wsl | shipped (15) | yes |
+
+### JS tools and managers (ticket 13)
+
+Built-in so far: `npm` and `nvm`, with real Windows captures from the maintainer's machine (npm 11.19.0 under nvm's `.nodejs` folder, nvm-windows 2.0.1). `bun`, `deno`, `fnm` and `volta` (with volta attribution for node/npm) are pending real captures: none is installed on the capture machine and the capture workflow cannot take an unmerged definition without a pushed branch. A manager's own version detection is a tool, not a provider; only nvm has a provider ([docs/providers.md](providers.md)).

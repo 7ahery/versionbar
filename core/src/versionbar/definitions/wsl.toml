@@ -1,0 +1,8 @@
+#:schema ../../../../schema/definition.schema.json
+id = "wsl"
+name = "WSL"
+os = ["windows"]
+binaries = ["wsl"]
+version_args = ["--version"]
+# Anchored on the label: the output also lists kernel, WSLg and Windows versions.
+version_regex = '^WSL version: (?P<version>\d+\.\d+\.\d+\S*)'
