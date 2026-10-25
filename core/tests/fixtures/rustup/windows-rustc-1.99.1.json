@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "tool": "rustc",
+  "args": [
+    "--version"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "cnVzdGMgMS45OS4xICg1OGNmOGY5YzMgMjAyNi0xMC0xMykK",
+  "stderr_b64": "",
+  "encoding": "utf-8",
+  "stdout_text": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\n",
+  "stderr_text": "",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-11-10.0.26200-SP0",
+    "resolved_path": "%USERPROFILE%\\.rustup\\toolchains\\1.99.1-x86_64-pc-windows-msvc\\bin\\rustc.exe",
+    "command": [
+      "%USERPROFILE%\\.rustup\\toolchains\\1.99.1-x86_64-pc-windows-msvc\\bin\\rustc.exe",
+      "--version"
+    ],
+    "captured_at": "2026-10-25T21:33:55.302174Z",
+    "runner": null,
+    "notes": "reported by the rustup provider (source rustup), not from PATH"
+  }
+}
