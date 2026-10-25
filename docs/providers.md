@@ -63,11 +63,11 @@ The `Capture tool output` workflow cannot use `--source`: runner images have no 
 
 ## rustup (Rust)
 
-- Reports the tools `rustc` and `cargo`. rustup is never run: even `rustup toolchain list` installs the toolchain pinned by a `rust-toolchain.toml` in the working directory, which VersionBar must never do. The provider lists `<RUSTUP_HOME>\toolchains` instead. `RUSTUP_HOME` is used when set (absolute); otherwise rustup's documented default `%USERPROFILE%\.rustup`.
+- Reports the tools `rustc` and `cargo`. rustup is never run: even `rustup toolchain list` installs the toolchain pinned by a `rust-toolchain.toml` in the working directory, which VersionBar must never do. The provider lists `<RUSTUP_HOME>\toolchains` instead. `RUSTUP_HOME` is used when set (absolute); otherwise rustup's documented default `%USERPROFILE%\.rustup`. A relative `RUSTUP_HOME` is ignored, and the default is not used in its place.
 - That default is a deliberate exception to "find the manager through its environment variables": rustup never sets `RUSTUP_HOME` itself, so nearly every machine relies on the default. A manager's documented home-relative default derived from an environment variable (`USERPROFILE`) is allowed; a literal path is not.
 - Each folder in `toolchains` is one install: `<folder>\bin\rustc.exe` and `<folder>\bin\cargo.exe`, run with the tool's own version command and reported in folder-name order. The proxies in `~\.cargo\bin` are PATH hits and stay `active`; they are not duplicated. A folder without the tool's executable adds the note `rustup: <folder> has no bin\<tool>.exe, so it is not an install`.
 - A missing home or `toolchains` folder, or an empty one, adds nothing and says nothing. An unreadable `toolchains` folder is the note `rustup: could not list installs: <why>`; PATH installs are untouched.
-- Windows only for now: the toolchain layout is only confirmed there. No listing fixture is needed because the provider reads no output of its own; the version output of each toolchain's tools is the real `rustc` and `cargo` captures.
+- Windows only for now: the toolchain layout is only confirmed there. The provider reads no output of its own, so the fixtures are the toolchain installs' real version captures, recorded with `versionbar debug capture rustc --source rustup` (and `cargo`) from a neutral folder (`core/tests/fixtures/rustup/windows-rustc-1.99.1.json`, `windows-cargo-1.99.1.json`).
 
 ## uv (Python)
 

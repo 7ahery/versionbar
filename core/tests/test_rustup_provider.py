@@ -8,8 +8,8 @@ rustc and cargo captures.
 import json
 
 from fakes import (
-    CARGO_WINDOWS,
-    RUSTC_WINDOWS,
+    CARGO_RUSTUP_WINDOWS,
+    RUSTC_RUSTUP_WINDOWS,
     WINDOWS_PATHEXT,
     FakeSystem,
     load_capture,
@@ -36,9 +36,9 @@ def machine(*, home: str = RUSTUP_HOME, pinned_cargo: bool = True) -> FakeSystem
     )
     for toolchain in ("stable-x86_64-pc-windows-msvc", "1.99.1-x86_64-pc-windows-msvc"):
         folder = rf"{home}\toolchains\{toolchain}"
-        system.add_executable(rf"{folder}\bin\rustc.exe", load_capture(RUSTC_WINDOWS))
+        system.add_executable(rf"{folder}\bin\rustc.exe", load_capture(RUSTC_RUSTUP_WINDOWS))
         if pinned_cargo or toolchain.startswith("stable"):
-            system.add_executable(rf"{folder}\bin\cargo.exe", load_capture(CARGO_WINDOWS))
+            system.add_executable(rf"{folder}\bin\cargo.exe", load_capture(CARGO_RUSTUP_WINDOWS))
     return system
 
 
@@ -103,7 +103,7 @@ def test_a_relative_rustup_home_is_ignored() -> None:
 
 def test_a_proxy_on_path_stays_active_and_toolchains_are_added_after_it() -> None:
     system = machine()
-    system.add_executable(rf"{CARGO_BIN}\rustc.exe", load_capture(RUSTC_WINDOWS))
+    system.add_executable(rf"{CARGO_BIN}\rustc.exe", load_capture(RUSTC_RUSTUP_WINDOWS))
     system.env["PATH"] += f";{CARGO_BIN}"
 
     rustc = tool_of(system, "rustc")
