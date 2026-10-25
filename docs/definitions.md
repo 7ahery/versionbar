@@ -88,7 +88,7 @@ The v1 catalog is 32 tools: spec #1's 34 minus `pnpm` and `yarn` (DEV-6). Status
 | | gh | shipped (15) | yes |
 | Python | python, uv | shipped | yes |
 | | pip, pipx | shipped (09) | yes |
-| | poetry | ticket 09 | blocked: not found on the runner |
+| | poetry | deferred to #45 (DEV-7) | n/a |
 | JS | node, npm | shipped (13) | yes |
 | | bun, deno | ticket 13 | pending |
 | PHP | php, composer | shipped (14) | yes |
@@ -97,7 +97,7 @@ The v1 catalog is 32 tools: spec #1's 34 minus `pnpm` and `yarn` (DEV-6). Status
 | | kubectl | pending (15) | pending recapture with a longer timeout (#39) |
 | Managers | nvm | shipped (13) | yes |
 | | fnm, volta | ticket 13 | pending |
-| | pyenv | ticket 09 (python attribution shipped) | blocked: not found on the runner |
+| | pyenv | deferred to #45 (DEV-7); python attribution shipped (09) | n/a |
 | | rustup | shipped (14) | yes |
 | | winget | shipped (15) | yes |
 | | choco | pending (15) | pending recapture with a longer timeout (#39) |
@@ -110,4 +110,4 @@ Built-in so far: `npm` and `nvm`, with real Windows captures from the maintainer
 
 ### Python ecosystem (ticket 09): coverage and provenance
 
-Built-in definitions: `python` (with pyenv attribution, see the `via` rules in its file), `pip` and `pipx`, Windows and Linux. The `pip` and `pipx` fixtures are real captures from the `windows-latest` runner (`Scripts` folder of the hosted Python 3.12.10). `pip --version` prints `pip 26.2.2 from <path> (python 3.12)`, so its regex is anchored on `pip` to avoid the interpreter version. `poetry` and `pyenv` are not yet covered: neither was found on the runner and no maintainer capture exists. The pyenv tests replay a real python capture at synthetic shim paths. No Linux captures exist, so Linux behaviour is unverified.
+Built-in definitions: `python` (with pyenv attribution, see the `via` rules in its file), `pip` and `pipx`, Windows and Linux. The `pip` and `pipx` fixtures are real captures from the `windows-latest` runner (`Scripts` folder of the hosted Python 3.12.10). `pip --version` prints `pip 26.2.2 from <path> (python 3.12)`, so its regex is anchored on `pip` to avoid the interpreter version. `poetry` and `pyenv` are deferred to #45 (DEV-7): neither was found on the runner. The pyenv tests replay a real python capture at synthetic shim paths. No Linux captures exist, so Linux behaviour is unverified.
