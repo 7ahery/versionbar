@@ -68,6 +68,10 @@ class FakeSystem:
     # Where platformdirs would put VersionBar's config; set per OS when empty.
     config_dir: str = ""
     _read_errors: dict[str, str] = field(default_factory=dict)
+    # Every file and folder the machine has, by key, as originally spelled:
+    # folder listings are derived from it, so a test only declares files.
+    _entries: dict[str, str] = field(default_factory=dict)
+    _list_errors: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.config_dir:
@@ -80,6 +84,33 @@ class FakeSystem:
 
     def add_executable(self, path: str, *captures: Capture) -> None:
         self._executables[self._key(path)] = list(captures)
+        self._entries[self._key(path)] = path
+
+    def add_folder(self, path: str) -> None:
+        """A folder that exists even if no file in it was added."""
+        self._entries[self._key(path)] = path
+
+    def add_unlistable(self, path: str, error: str) -> None:
+        """A folder whose listing fails with `error`."""
+        self.add_folder(path)
+        self._list_errors[self._key(path)] = error
+
+    def list_dir(self, path: str) -> list[str]:
+        separator = "\\" if self.os == "windows" else "/"
+        key = self._key(path).rstrip(separator)
+        error = self._list_errors.get(key)
+        if error is not None:
+            raise PermissionError(error)
+        names: dict[str, None] = {}
+        for entry_key, original in self._entries.items():
+            if entry_key.startswith(key + separator):
+                names[original[len(key) + 1 :].split(separator)[0]] = None
+        if key in self._executables or key in self._contents:
+            raise NotADirectoryError(path)
+        if not names and key not in self._entries:
+            raise FileNotFoundError(path)
+        # Insertion order, not sorted: the real listing promises no order.
+        return list(names)
 
     def add_app_execution_alias(
         self, path: str, alias: AppExecutionAlias | UnreadableAlias, *captures: Capture
@@ -91,6 +122,7 @@ class FakeSystem:
     def add_content(self, path: str, data: bytes) -> None:
         """What reading the file at `path` returns; files without content are unreadable."""
         self._contents[self._key(path)] = data
+        self._entries[self._key(path)] = path
 
     def read_file_head(self, path: str, limit: int) -> bytes | None:
         data = self._contents.get(self._key(path))
@@ -158,6 +190,8 @@ class FakeSystem:
 GIT_WINDOWS = "git/windows-git-2.55.0.windows.2.json"
 GIT_LINUX = "git/linux-git-2.43.0.json"
 NODE_WINDOWS = "node/windows-node-24.21.0.json"
+NODE_24_22_WINDOWS = "node/windows-node-24.22.1.json"
+NVM_NODE_WINDOWS = "nvm/windows-node-24.21.0.json"
 UV_WINDOWS = "uv/windows-uv-0.12.23.json"
 PYTHON_314_WINDOWS = "python/windows-python-3.14.8.json"
 PYTHON_313_WINDOWS = "python/windows-python-3.13.16.json"

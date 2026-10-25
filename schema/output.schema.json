@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "CommandOutput",
-  "description": "Every document the CLI prints with --json. Scan results (list, show), check results and config results carry schema_version 1, which changes only on breaking changes.",
+  "description": "Every document the CLI prints with --json. Scan results (list, show), check results, config results and tools results carry schema_version 1, which changes only on breaking changes.",
   "anyOf": [
     {
       "$ref": "#/$defs/ScanResult"
@@ -11,6 +11,9 @@
     },
     {
       "$ref": "#/$defs/ConfigResult"
+    },
+    {
+      "$ref": "#/$defs/ToolsResult"
     },
     {
       "$ref": "#/$defs/CaptureOutcome"
@@ -73,6 +76,75 @@
         "exit_code"
       ],
       "title": "CaptureOutcome",
+      "type": "object"
+    },
+    "CatalogProvider": {
+      "additionalProperties": false,
+      "description": "A provider: code that reports a version manager's installs, including ones not on\nPATH.",
+      "properties": {
+        "id": {
+          "description": "Provider id, which is also the `source` of the installs it reports (e.g. `nvm`).",
+          "type": "string"
+        },
+        "name": {
+          "description": "Display name.",
+          "type": "string"
+        },
+        "os": {
+          "description": "The operating systems it runs on.",
+          "items": {
+            "$ref": "#/$defs/OsName"
+          },
+          "type": "array"
+        },
+        "tools": {
+          "description": "Ids of the tools it reports installs for.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "os",
+        "tools"
+      ],
+      "title": "CatalogProvider",
+      "type": "object"
+    },
+    "CatalogTool": {
+      "additionalProperties": false,
+      "description": "A tool VersionBar knows how to detect.",
+      "properties": {
+        "id": {
+          "description": "Stable tool id, as used on the command line and in scan results.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Display name.",
+          "type": "string"
+        },
+        "os": {
+          "description": "The operating systems it is detected on; elsewhere scans leave it out.",
+          "items": {
+            "$ref": "#/$defs/OsName"
+          },
+          "type": "array"
+        },
+        "custom": {
+          "description": "True when its definition comes from the user config file (a custom tool, possibly\nreplacing a built-in of the same id).",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "os",
+        "custom"
+      ],
+      "title": "CatalogTool",
       "type": "object"
     },
     "CheckResult": {
@@ -191,6 +263,7 @@
       "description": "Why nothing was captured. More values may be added without a breaking change; handle unknown ones.",
       "enum": [
         "unknown-tool",
+        "unknown-source",
         "unsupported-os",
         "not-found",
         "timeout",
@@ -431,7 +504,7 @@
           "description": "The install that runs when you type the command, or null when there is none."
         },
         "installs": {
-          "description": "Every install found, the active one first.",
+          "description": "Every install found: the active one first, then the other PATH installs, then those\nproviders report (which are never active, so a tool with no active install may still have\nsome).",
           "items": {
             "$ref": "#/$defs/Install"
           },
@@ -466,6 +539,43 @@
         "timeout"
       ],
       "type": "string"
+    },
+    "ToolsResult": {
+      "additionalProperties": false,
+      "description": "The result of `tools --json`: every tool and provider this VersionBar knows, on every\noperating system. Read live from the built-ins and the user config file; nothing is run.",
+      "properties": {
+        "schema_version": {
+          "default": 1,
+          "description": "Changes only on breaking changes to this format; the same counter as ScanResult's.",
+          "type": "integer"
+        },
+        "platform": {
+          "$ref": "#/$defs/OsName",
+          "description": "The operating system this ran on."
+        },
+        "tools": {
+          "description": "Built-in tools by file name, then custom tools in config file order; a custom tool\nwith a built-in's id takes that built-in's place. Hidden tools are included.",
+          "items": {
+            "$ref": "#/$defs/CatalogTool"
+          },
+          "type": "array"
+        },
+        "providers": {
+          "description": "Every provider, in the order its installs are reported.",
+          "items": {
+            "$ref": "#/$defs/CatalogProvider"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "platform",
+        "tools",
+        "providers"
+      ],
+      "title": "ToolsResult",
+      "type": "object"
     }
   }
 }

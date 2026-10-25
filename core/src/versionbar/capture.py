@@ -10,6 +10,7 @@ import base64
 import ntpath
 import posixpath
 import re
+from collections.abc import Sequence
 from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, Base64Bytes, Field
@@ -19,6 +20,7 @@ from versionbar.config import DEFAULT_TIMEOUT_SECONDS
 from versionbar.decoding import detect_encoding
 from versionbar.definition import ToolDefinition
 from versionbar.models import StrictModel
+from versionbar.provider import Provider
 from versionbar.system import OsName, System
 from versionbar.system.resolve import ToolHits
 
@@ -68,7 +70,13 @@ class CaptureFile(StrictModel):
 
 type FailureOutcome = Annotated[
     Literal[
-        "unknown-tool", "unsupported-os", "not-found", "timeout", "launch-error", "write-failed"
+        "unknown-tool",
+        "unknown-source",
+        "unsupported-os",
+        "not-found",
+        "timeout",
+        "launch-error",
+        "write-failed",
     ],
     Field(
         description="Why nothing was captured. More values may be added without a breaking"
@@ -109,8 +117,16 @@ class CaptureFailure(StrictModel):
 
 
 def capture_tool(
-    system: System, definitions: list[ToolDefinition], tool_id: str, out_dir: str
+    system: System,
+    definitions: list[ToolDefinition],
+    tool_id: str,
+    out_dir: str,
+    *,
+    providers: Sequence[Provider] = (),
+    source: str | None = None,
 ) -> CaptureOutcome:
+    """Capture the install a scan would make active, or with `source` the first
+    install that provider reports (its own order), wherever it is."""
     matching = [d for d in definitions if d.id == tool_id]
     if not matching:
         known = ", ".join(sorted(d.id for d in definitions))
@@ -120,12 +136,26 @@ def capture_tool(
         raise CaptureError("unsupported-os", f"{tool_id} is not available on {system.os}")
     definition = definition.for_os(system.os)
 
-    # The install a scan would report as active, by the scan's own rules (so
-    # a Store placeholder, which could open the Store, is never run).
-    path = next(iter(ToolHits.of(system, definition.binaries).paths), None)
-    if path is None:
-        names = ", ".join(definition.binaries)
-        raise CaptureError("not-found", f"{tool_id} not found on PATH (looked for: {names})")
+    notes = None
+    if source is None:
+        # The install a scan would report as active, by the scan's own rules
+        # (so a Store placeholder, which could open the Store, is never run).
+        path = next(iter(ToolHits.of(system, definition.binaries).paths), None)
+        if path is None:
+            names = ", ".join(definition.binaries)
+            raise CaptureError("not-found", f"{tool_id} not found on PATH (looked for: {names})")
+    else:
+        provider = _provider(system, providers, source, tool_id)
+        try:
+            located = provider.locate(system, tool_id, DEFAULT_TIMEOUT_SECONDS)
+        except Exception as error:
+            # As in a scan, a provider's failure is reported, not a crash.
+            message = f"{provider.name} could not list installs: {error}"
+            raise CaptureError("launch-error", message) from error
+        path = next(iter(located.executables), None)
+        if path is None:
+            raise CaptureError("not-found", f"{provider.name} reports no {tool_id} install")
+        notes = f"reported by the {provider.name} provider (source {provider.id}), not from PATH"
 
     argv = [path, *definition.version_args]
     process = system.run(argv, DEFAULT_TIMEOUT_SECONDS)
@@ -159,6 +189,7 @@ def capture_tool(
             command=[_redact_profile(system, argv[0]), *argv[1:]],
             captured_at=system.now(),
             runner=_runner(system),
+            notes=notes,
         ),
     )
 
@@ -170,6 +201,23 @@ def capture_tool(
     except OSError as error:
         raise CaptureError("write-failed", f"could not write {destination}: {error}") from error
     return CaptureOutcome(tool=tool_id, destination=destination, exit_code=process.exit_code)
+
+
+def _provider(system: System, providers: Sequence[Provider], source: str, tool_id: str) -> Provider:
+    matching = [provider for provider in providers if provider.id == source]
+    if not matching:
+        known = ", ".join(provider.id for provider in providers)
+        raise CaptureError(
+            "unknown-source", f"unknown source {source!r} (known providers: {known})"
+        )
+    provider = matching[0]
+    if tool_id not in provider.tools:
+        reports = ", ".join(provider.tools)
+        message = f"provider {source} reports no {tool_id} installs (it reports: {reports})"
+        raise CaptureError("unknown-source", message)
+    if system.os not in provider.os:
+        raise CaptureError("unsupported-os", f"provider {source} is not available on {system.os}")
+    return provider
 
 
 def _redact_profile(system: System, path: str) -> str:

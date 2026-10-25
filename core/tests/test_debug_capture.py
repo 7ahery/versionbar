@@ -11,6 +11,7 @@ from versionbar.system import ProcessResult
 
 from fakes import (
     GIT_LINUX,
+    NODE_WINDOWS,
     PYTHON_314_WINDOWS,
     STORE_PYTHON_PLACEHOLDER,
     WINDOWS_PATHEXT,
@@ -322,3 +323,75 @@ def test_debug_is_hidden_from_help_but_still_runs() -> None:
     assert "debug" not in root.stdout
     assert group.exit_code == 0
     assert "capture" in group.stdout
+
+
+NVM_HOME = r"C:\Users\dev\AppData\Local\Author Software\nvm"
+NVM_NODE = rf"{NVM_HOME}\installs\v24.21.0\node.exe"
+
+
+def nvm_machine() -> FakeSystem:
+    # node is not on PATH: only the provider can find this install.
+    system = FakeSystem(
+        os="windows",
+        env={"PATH": r"C:\WINDOWS", "PATHEXT": WINDOWS_PATHEXT, "NVM_HOME": NVM_HOME},
+    )
+    system.add_executable(NVM_NODE, load_capture(NODE_WINDOWS))
+    return system
+
+
+def test_source_captures_an_install_a_provider_reports() -> None:
+    system = nvm_machine()
+
+    result = capture(system, "node", "--source", "nvm", "--json")
+
+    assert result.exit_code == 0, result.output
+    destination = OUT + r"\windows-node-24.21.0.json"
+    assert json.loads(result.stdout)["destination"] == destination
+    provenance = written(system, destination)["provenance"]
+    assert provenance["command"] == [NVM_NODE, "--version"]
+    assert provenance["resolved_path"] == NVM_NODE
+    assert provenance["notes"] == "reported by the nvm-windows provider (source nvm), not from PATH"
+
+
+def test_source_must_be_a_provider_of_that_tool() -> None:
+    system = nvm_machine()
+
+    unknown = capture(system, "node", "--source", "nosuch", "--json")
+    wrong_tool = capture(system, "git", "--source", "nvm", "--json")
+
+    assert (unknown.exit_code, wrong_tool.exit_code) == (2, 2)
+    assert json.loads(unknown.stdout)["outcome"] == "unknown-source"
+    assert json.loads(wrong_tool.stdout) == {
+        "outcome": "unknown-source",
+        "tool": "git",
+        "message": "provider nvm reports no git installs (it reports: node)",
+    }
+    assert system.files == {}
+
+
+def test_a_provider_that_cannot_read_its_manager_fails_without_a_traceback() -> None:
+    system = nvm_machine()
+    system.add_unlistable(rf"{NVM_HOME}\installs", "[WinError 5] Access is denied")
+
+    result = capture(system, "node", "--source", "nvm", "--json")
+
+    assert result.exit_code == 1
+    assert json.loads(result.stdout) == {
+        "outcome": "launch-error",
+        "tool": "node",
+        "message": "nvm-windows could not list installs: [WinError 5] Access is denied",
+    }
+    assert system.files == {}
+
+
+def test_source_with_no_install_is_not_found() -> None:
+    system = FakeSystem(os="windows", env={"PATH": r"C:\WINDOWS", "PATHEXT": WINDOWS_PATHEXT})
+
+    result = capture(system, "node", "--source", "nvm", "--json")
+
+    assert result.exit_code == 1
+    assert json.loads(result.stdout) == {
+        "outcome": "not-found",
+        "tool": "node",
+        "message": "nvm-windows reports no node install",
+    }

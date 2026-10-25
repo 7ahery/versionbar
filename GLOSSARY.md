@@ -25,7 +25,7 @@ Where an Install was found: `path`, or a Provider id (`nvm`, `uv`, `py`, `rustup
 _Avoid_: Origin, location
 
 **Via**:
-The manager whose shim serves an Install (`corepack`, `volta`, `pyenv`).
+The manager whose shim serves an Install (`corepack`, `volta`, `pyenv`, `nvm`). For a manager that also has a Provider, it is the Provider's id.
 _Avoid_: Shim owner, wrapper
 
 **Wrapper**:

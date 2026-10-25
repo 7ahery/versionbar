@@ -17,7 +17,14 @@ from versionbar.check import (
 from versionbar.config import InvalidConfig, Registry, Settings, load_settings
 from versionbar.contract import output_schema
 from versionbar.definition import ToolDefinition, builtin_definitions
-from versionbar.models import ConfigResult, ScanResult
+from versionbar.models import (
+    CatalogProvider,
+    CatalogTool,
+    ConfigResult,
+    ScanResult,
+    ToolsResult,
+)
+from versionbar.providers import builtin_providers
 from versionbar.scan import scan
 from versionbar.system import System
 
@@ -80,10 +87,10 @@ def show_command(
     ],
     json_output: bool = typer.Option(False, "--json", help=_JSON_HELP),
 ) -> None:
-    """Show every install of the given tools found on PATH.
+    """Show every install of the given tools: on PATH, and held by version managers.
 
     The active install (the one that runs when you type the command) comes
-    first; the rest are other installs it shadows.
+    first; the rest are other installs it shadows, then those managers hold.
     """
     system = _system(ctx)
     settings = _settings(system)
@@ -93,6 +100,7 @@ def show_command(
             system,
             _requested_definitions(system, settings.registry, tools),
             settings.timeout_for,
+            builtin_providers(),
         ),
         json_output,
         show=True,
@@ -180,7 +188,7 @@ def check_command(
         raise _usage_error([*problems, hint, f"known tools: {', '.join(known)}"])
 
     wanted = [known[tool] for tool in dict.fromkeys(r.tool for r in parsed)]
-    result = evaluate(parsed, scan(system, wanted, settings.timeout_for))
+    result = evaluate(parsed, scan(system, wanted, settings.timeout_for, builtin_providers()))
     if json_output:
         typer.echo(result.model_dump_json(indent=2))
     else:
@@ -197,7 +205,7 @@ def _list(ctx: typer.Context, json_output: bool) -> None:
     settings = _settings(system)
     _emit(
         system,
-        scan(system, settings.listed(system.os), settings.timeout_for),
+        scan(system, settings.listed(system.os), settings.timeout_for, builtin_providers()),
         json_output,
         show=False,
     )
@@ -266,6 +274,44 @@ def config_command(
         raise typer.Exit(INVALID_CONFIG_EXIT_CODE)
 
 
+@app.command("tools")
+def tools_command(
+    ctx: typer.Context,
+    json_output: bool = typer.Option(False, "--json", help=_JSON_HELP),
+) -> None:
+    """List every tool and provider VersionBar can detect, on every OS. Runs no tool.
+
+    Custom tools from the config file are included; exits with code 3 when it cannot be used.
+    """
+    system = _system(ctx)
+    registry = _settings(system).registry
+    result = ToolsResult(
+        platform=system.os,
+        tools=[
+            CatalogTool(
+                id=definition.id,
+                name=definition.name,
+                os=list(definition.os),
+                custom=definition.id in registry.custom_ids,
+            )
+            for definition in registry.definitions
+        ],
+        providers=[
+            CatalogProvider(
+                id=provider.id, name=provider.name, os=list(provider.os), tools=list(provider.tools)
+            )
+            for provider in builtin_providers()
+        ],
+    )
+    if json_output:
+        typer.echo(result.model_dump_json(indent=2))
+    else:
+        from versionbar.human import print_tools
+
+        terminal, color = _output_style(system)
+        print_tools(result, terminal=terminal, color=color)
+
+
 @app.command("schema")
 def schema_command(
     json_output: bool = typer.Option(
@@ -287,11 +333,23 @@ def debug_capture(
     ctx: typer.Context,
     tool: str = typer.Argument(help="Tool id, e.g. git."),
     out: str = typer.Option(DEFAULT_OUT_DIR, "--out", help="Folder to write the capture file to."),
+    source: str | None = typer.Option(
+        None,
+        "--source",
+        help="Provider id, e.g. nvm: capture the first install it reports instead of PATH's.",
+    ),
     json_output: bool = typer.Option(False, "--json", help=_JSON_HELP),
 ) -> None:
     """Run a tool's version command and record its raw output as a replayable fixture."""
     try:
-        outcome = capture_tool(_system(ctx), builtin_definitions(), tool, out)
+        outcome = capture_tool(
+            _system(ctx),
+            builtin_definitions(),
+            tool,
+            out,
+            providers=builtin_providers(),
+            source=source,
+        )
     except CaptureError as error:
         if json_output:
             failure = CaptureFailure(outcome=error.outcome, tool=tool, message=error.message)
@@ -300,7 +358,7 @@ def debug_capture(
             typer.echo(f"capture failed ({error.outcome}): {error.message}", err=True)
         # Asking for a tool this build cannot capture is a usage error (2),
         # like `show`; a capture that was attempted and failed is exit 1.
-        usage_error = error.outcome in ("unknown-tool", "unsupported-os")
+        usage_error = error.outcome in ("unknown-tool", "unknown-source", "unsupported-os")
         raise typer.Exit(2 if usage_error else 1) from error
     if json_output:
         typer.echo(outcome.model_dump_json(indent=2))
