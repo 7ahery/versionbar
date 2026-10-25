@@ -63,6 +63,12 @@ Attribution never changes which install is active or what is run: `via` only exp
 | 15 (#17) | `code` → `code.cmd` | Nothing: the extensionless `code` script is skipped and `code.cmd` runs as a wrapper. |
 | 15 | scoop, choco, winget | Plain definitions; scoop's shims could use `dirs = ["{SCOOP}/shims"]` if attribution is wanted (needs a spec change: `via` values are `corepack`, `volta`, `pyenv`). |
 
+### Language toolchains (ticket 14): coverage and provenance
+
+Built-in definitions: `java`, `go`, `rustc`, `cargo`, `rustup`, `dotnet`, `ruby`, `php`, `composer`, all plain (no `via`), all Windows and Linux. They only see installs on PATH; rustup toolchains and extra .NET SDKs are for later providers.
+
+Fixtures are real Windows captures. `rustc`, `cargo` and `rustup` come from the maintainer's machine (`%USERPROFILE%\.cargo\bin`). `java` (Temurin 17), `go`, `dotnet`, `ruby`, `php` and `composer` come from the `windows-latest` runner via the capture workflow. Notable real output: `java -version` prints to stderr only, so the engine's per-stream search matters; `composer` is `composer.bat` and prints a PHP notice on stderr; `rustup` prints `info:` lines on stderr. No Linux captures exist yet, so Linux behaviour of these definitions is unverified.
+
 Not supported by definitions, by design:
 
 - Installs found only through an environment variable and not on PATH (`JAVA_HOME` without java on PATH, a manager binary off PATH). They are not what typing the command runs and need a `source` other than `path`, which is provider territory ([docs/providers.md](providers.md)).
