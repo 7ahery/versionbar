@@ -11,3 +11,13 @@ user profile folder replaced by `%USERPROFILE%`. Nothing else is edited.
 | `list-windows-provider-only.json` | `uv run --project core versionbar list --json` with every nvm folder removed from PATH but `NVM_HOME` kept, so Node.js is missing while the nvm provider still reports its version (ticket 25).                                             |
 
 Python is a Microsoft Store placeholder on this machine, so it is missing in all of them.
+
+## Preferences query
+
+Real `versionbar config --json` output from the same machine (ticket 41), redacted the same way. The two cases with a config file ran the real CLI with only the config folder redirected (platformdirs' `user_config_dir` patched to a scratch folder holding the file), which is why their `config_path` is not the usual `AppData\Roaming` one.
+
+| File                             | Config file                                                                                                                                   | Exit code |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `config-windows-defaults.json`   | None, so every default applies (`uv run --project core versionbar config --json`).                                                            | 0         |
+| `config-windows-update-off.json` | `pinned = ["node"]` and `[app] update_check = false`.                                                                                         | 0         |
+| `config-windows-invalid.json`    | `pinned = ["node", "nod"]` and `[app] update_check = 1`; only the type error is reported, since unknown ids are checked once types are valid. | 3         |

@@ -5,9 +5,7 @@
   "problems": [],
   "preferences": {
     "update_check": false,
-    "pinned": [
-      "node"
-    ],
+    "pinned": ["node"],
     "order": []
   }
 }

@@ -57,6 +57,9 @@ results.
   talks to the scanner directly, so it works before the popup has ever loaded and while its
   page is broken (spec story 57).
 
+Every one of these jobs first reruns the preferences query, so a config edit reaches the
+popup's ordering and the updater on the same refresh ([preferences.md](preferences.md#when-it-runs)).
+
 All of these go through the same rule: scans never overlap. A request made while a scan runs
 does not start a second core process. Instead the running scan is followed by exactly one more
 scan when it ends, because the request may come after a config edit that the running scan
