@@ -7,6 +7,7 @@ import re
 from collections.abc import Callable, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
+from types import ModuleType
 
 from versionbar.attribution import via_for
 from versionbar.decoding import decode_output
@@ -49,7 +50,7 @@ def scan(
         # commands already submitted keep running.
         for job in jobs:
             job.probe_provided(pool, system)
-        tools = [job.detect() for job in jobs]
+        tools = [job.detect(system) for job in jobs]
     return ScanResult(scanned_at=system.now(), platform=system.os, tools=tools)
 
 
@@ -65,45 +66,65 @@ class _Job:
     timeout: float
     path_probes: list[_Probe]
     located: list[tuple[Provider, Future[Located]]]
-    provided: list[tuple[Provider, _Probe]] = field(default_factory=list)
+    # A provider's installs in report order: probes of its executables, and
+    # the finished installs it reported itself.
+    provided: list[tuple[Provider, _Probe | Install]] = field(default_factory=list)
     provider_notes: list[str] = field(default_factory=list)
 
     def probe_provided(self, pool: ThreadPoolExecutor, system: System) -> None:
-        paths = ntpath if system.os == "windows" else posixpath
-
-        def fold(path: str) -> str:
-            # As PATH hits are compared: normalised, and caseless on Windows.
-            return paths.normcase(paths.normpath(path))
-
+        paths = _paths(system)
         # A PATH hit is already probed as a PATH install, and two providers
-        # naming one file report one install: the first finder keeps it.
-        seen = {fold(path) for path in self.hits.ordered}
+        # naming one path report one install: the first finder keeps it.
+        seen = {_fold(paths, path) for path in self.hits.ordered}
         for provider, future in self.located:
             try:
                 located = future.result()
+                # Read in full before anything is kept, so a provider that
+                # hands back malformed data loses only its own installs.
+                executables = [(path, _fold(paths, path)) for path in located.executables]
+                finished = [
+                    (
+                        Install(version=i.version, path=i.path, source=provider.id),
+                        _fold(paths, i.path),
+                    )
+                    for i in located.installs
+                ]
+                notes = [str(note) for note in located.notes]
             except Exception as error:
                 # A provider is code reading data it does not control; its
                 # failure is that provider's only, never the scan's.
                 self.provider_notes.append(f"{provider.name}: could not list installs: {error}")
                 continue
-            self.provider_notes.extend(located.notes)
-            for path in located.executables:
-                if fold(path) in seen:
+            self.provider_notes.extend(notes)
+            for path, key in executables:
+                if key in seen:
                     continue
-                seen.add(fold(path))
+                seen.add(key)
                 probe = pool.submit(
                     _probe, system, self.definition, path, self.timeout, provider.id
                 )
                 self.provided.append((provider, probe))
+            for install, key in finished:
+                if key in seen:
+                    continue
+                seen.add(key)
+                self.provided.append((provider, install))
 
-    def detect(self) -> Tool:
+    def detect(self, system: System) -> Tool:
         status, active, installs, notes = _from_path(
             self.definition, self.hits, [future.result() for future in self.path_probes]
         )
         on_path = list(installs)
         notes += self.provider_notes
-        for provider, future in self.provided:
-            result = future.result()
+        paths = _paths(system)
+        for provider, outcome in self.provided:
+            if isinstance(outcome, Install):
+                if not _served_by_shim(outcome, provider, on_path) and not _run_by_path_host(
+                    outcome, on_path, paths
+                ):
+                    installs.append(outcome)
+                continue
+            result = outcome.result()
             if isinstance(result, _Failed):
                 notes.append(f"{provider.name}: {result.note}")
             elif not _served_by_shim(result, provider, on_path):
@@ -111,11 +132,34 @@ class _Job:
         return _tool(self.definition, status, active=active, installs=installs, notes=notes)
 
 
+def _paths(system: System) -> ModuleType:
+    return ntpath if system.os == "windows" else posixpath
+
+
+def _fold(paths: ModuleType, path: str) -> str:
+    # As PATH hits are compared: normalised, and caseless on Windows.
+    return paths.normcase(paths.normpath(path))
+
+
 def _served_by_shim(install: Install, provider: Provider, on_path: list[Install]) -> bool:
     # A manager's shim on PATH answers with the version it currently serves,
     # which is one of that manager's own installs: one install, not two. The
     # PATH entry is kept, since it is what typing the command runs.
     return any(i.via == provider.id and i.version == install.version for i in on_path)
+
+
+def _run_by_path_host(install: Install, on_path: list[Install], paths: ModuleType) -> bool:
+    # A host on PATH that runs installs kept in its own folder (the .NET host
+    # and its SDKs) answers with the version it runs: the reported install of
+    # that version there is the same one, and the PATH entry is kept. Only
+    # finished installs are matched this way; a probed executable is its own
+    # program, told apart by its path alone.
+    folded = _fold(paths, install.path)
+    return any(
+        i.version == install.version
+        and folded.startswith(paths.join(_fold(paths, paths.dirname(i.path)), ""))
+        for i in on_path
+    )
 
 
 def _submit(
