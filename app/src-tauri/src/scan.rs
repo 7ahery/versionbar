@@ -338,7 +338,7 @@ impl Scanner {
         if !output.status.success() {
             return Err(output.exit_failure(Query::Scan));
         }
-        check_scan(output.stdout)
+        check_output(output.stdout, Query::Scan)
             .map_err(|(reason, message)| failed(reason, message, &output.stderr))
     }
 }
@@ -396,10 +396,6 @@ pub(crate) fn malformed(query: Query) -> (FailureReason, String) {
             query.result_name()
         ),
     )
-}
-
-fn check_scan(stdout: Vec<u8>) -> Result<Box<RawValue>, (FailureReason, String)> {
-    check_output(stdout, Query::Scan)
 }
 
 /// The output kept exactly as printed, minus surrounding whitespace, once it passes

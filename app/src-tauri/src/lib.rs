@@ -263,9 +263,8 @@ fn get_preferences(preferences: tauri::State<'_, Arc<Preferences>>) -> Preferenc
 }
 
 /// Starts a scan, preceded by a preferences query, and returns at once; the results arrive as
-/// `preferences-updated` and `scan-updated` events. While a
-/// scan is already running it queues one more scan after it, shared with any other requests
-/// made during that scan.
+/// `preferences-updated` and `scan-updated` events. While a scan is already running it queues
+/// one more scan after it, shared with any other requests made during that scan.
 #[tauri::command]
 fn refresh<R: Runtime>(app: AppHandle<R>, scanner: tauri::State<'_, Arc<Scanner>>) {
     start_refresh(app, scanner.inner().clone());
