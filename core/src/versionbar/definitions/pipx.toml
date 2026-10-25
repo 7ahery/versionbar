@@ -1,0 +1,8 @@
+#:schema ../../../../schema/definition.schema.json
+id = "pipx"
+name = "pipx"
+os = ["windows", "linux"]
+binaries = ["pipx"]
+version_args = ["--version"]
+# pipx prints the bare version on a line of its own.
+version_regex = '(?m)^(?P<version>\d+\.\d+\.\d+\S*)\s*$'
