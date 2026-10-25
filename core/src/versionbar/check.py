@@ -158,6 +158,15 @@ def _evaluate_one(requirement: Requirement, tool: Tool) -> RequirementResult:
     reason = tool.notes[0] if tool.notes else tool.status
     if tool.active is None:
         if tool.status == "missing":
+            if tool.installs:
+                # A version manager holds installs, but nothing runs when the
+                # command is typed; "not installed" would be wrong.
+                count = len(tool.installs)
+                noun = "install" if count == 1 else "installs"
+                return result(
+                    "missing",
+                    f"{tool.id} is not active: {reason} ({count} {noun} found off PATH)",
+                )
             return result("missing", f"{tool.id} is not installed: {reason}")
         outcome = "timeout" if tool.status == "timeout" else "error"
         return result(outcome, f"{tool.id} has no usable install: {reason}")
