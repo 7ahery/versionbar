@@ -67,3 +67,16 @@ class Provider(ABC):
         runs must use `timeout`. An exception becomes a note on the tool and
         loses nothing else.
         """
+
+    def listing(self, system: System, tool: str) -> Sequence[str] | None:
+        """The command whose output `locate` reads `tool`'s installs from, as
+        argv with the executable's absolute path first, or None.
+
+        Only `versionbar debug capture --source` calls it, so a provider that
+        parses a manager's listing can have that listing recorded as a real
+        fixture (hard rule 4). `locate` should run exactly this command. None
+        when the provider reads no listing (folders only) or the manager is not
+        on this machine; the capture then records the first install `locate`
+        reports instead.
+        """
+        return None

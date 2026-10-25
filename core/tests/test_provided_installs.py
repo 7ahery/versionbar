@@ -128,7 +128,7 @@ def test_one_path_is_one_install_whoever_names_it(monkeypatch) -> None:
 
 
 def test_malformed_provider_data_is_a_note_and_loses_nothing_else(monkeypatch) -> None:
-    with_kit(monkeypatch, ProvidedInstall("9.0.300", SDK_9), None)  # type: ignore[arg-type]
+    with_kit(monkeypatch, ProvidedInstall("9.0.300", SDK_9), None)  # ty: ignore[invalid-argument-type]
 
     dotnet = dotnet_of(machine(host_on_path=True))
 

@@ -2,15 +2,20 @@
 
 import base64
 import json
+from dataclasses import replace
 
+import pytest
 from typer.testing import CliRunner
 
+from versionbar import cli, providers
 from versionbar.cli import app
 from versionbar.definition import ToolDefinition
-from versionbar.system import ProcessResult
+from versionbar.provider import Located, Provider
+from versionbar.system import ProcessResult, System
 
 from fakes import (
     GIT_LINUX,
+    GIT_WINDOWS,
     NODE_WINDOWS,
     PYTHON_314_WINDOWS,
     STORE_PYTHON_PLACEHOLDER,
@@ -395,3 +400,134 @@ def test_source_with_no_install_is_not_found() -> None:
         "tool": "node",
         "message": "nvm-windows reports no node install",
     }
+
+
+def slow_git(seconds: float) -> FakeSystem:
+    system = windows_with_git()
+    system.add_executable(GIT_PATH, replace(load_capture(GIT_WINDOWS), seconds=seconds))
+    return system
+
+
+def test_timeout_gives_a_slow_command_longer_than_the_default() -> None:
+    default = capture(slow_git(8), "git", "--json")
+    longer = capture(slow_git(8), "git", "--timeout", "10", "--json")
+    shorter = capture(slow_git(2), "git", "--timeout", "1.5", "--json")
+
+    assert (default.exit_code, longer.exit_code, shorter.exit_code) == (1, 0, 1)
+    assert json.loads(default.stdout)["message"] == f"{GIT_PATH} did not answer within 5 s"
+    assert json.loads(longer.stdout)["destination"] == GIT_FILE
+    assert json.loads(shorter.stdout)["message"] == f"{GIT_PATH} did not answer within 1.5 s"
+
+
+def test_timeout_must_be_positive() -> None:
+    for value in ("0", "-1", "soon"):
+        result = capture(windows_with_git(), "git", "--timeout", value, "--json")
+
+        assert result.exit_code == 2, value
+        assert result.stdout == ""
+
+
+# A test-only provider that reads its installs from a listing command. The
+# command here replays a real capture (git's), which is all the recorder needs.
+KIT_HOME = r"C:\Users\dev\kit"
+KIT = rf"{KIT_HOME}\kit.exe"
+
+
+class ListingKit(Provider):
+    id = "kit"
+    name = "Git kit"
+    os = ("windows",)
+    tools = ("git",)
+    fails = False
+
+    def listing(self, system: System, tool: str) -> list[str] | None:
+        if self.fails:
+            raise RuntimeError("unexpected layout")
+        home = system.getenv("KIT_HOME")
+        return None if home is None else [rf"{home}\kit.exe", "--version"]
+
+    def locate(self, system: System, tool: str, timeout: float) -> Located:
+        # Also has an install to run, so the listing is shown to take precedence.
+        return Located([GIT_PATH])
+
+
+def kit_machine(monkeypatch: pytest.MonkeyPatch, *, seconds: float = 0, fails: bool = False):
+    kit = ListingKit()
+    kit.fails = fails
+    monkeypatch.setattr(cli, "builtin_providers", lambda: [*providers.builtin_providers(), kit])
+    system = FakeSystem(
+        os="windows",
+        env={
+            "PATH": r"C:\WINDOWS",
+            "PATHEXT": WINDOWS_PATHEXT,
+            "KIT_HOME": KIT_HOME,
+            "USERPROFILE": r"C:\Users\dev",
+        },
+    )
+    system.add_executable(KIT, replace(load_capture(GIT_WINDOWS), seconds=seconds))
+    system.add_executable(GIT_PATH, load_capture(GIT_WINDOWS))
+    return system
+
+
+def test_source_records_the_listing_command_a_provider_declares(monkeypatch) -> None:
+    system = kit_machine(monkeypatch)
+
+    result = capture(system, "git", "--source", "kit", "--json")
+
+    assert result.exit_code == 0, result.output
+    destination = OUT + r"\windows-git-kit-listing.json"
+    assert json.loads(result.stdout) == {
+        "outcome": "captured",
+        "tool": "git",
+        "destination": destination,
+        "exit_code": 0,
+    }
+    record = written(system, destination)
+    assert record["tool"] == "git"
+    assert record["args"] == ["--version"]
+    assert base64.b64decode(record["stdout_b64"]) == b"git version 2.55.0.windows.2\n"
+    provenance = record["provenance"]
+    assert provenance["command"] == [r"%USERPROFILE%\kit\kit.exe", "--version"]
+    assert provenance["notes"] == (
+        "listing command of the Git kit provider (source kit), whose output it reads git installs"
+        " from; not a version command"
+    )
+    assert system.runs == [(KIT, "--version")]
+
+
+def test_a_slow_listing_gets_the_timeout_asked_for(monkeypatch) -> None:
+    hanging = capture(kit_machine(monkeypatch, seconds=8), "git", "--source", "kit", "--json")
+    waited = capture(
+        kit_machine(monkeypatch, seconds=8), "git", "--source", "kit", "--timeout", "9", "--json"
+    )
+
+    assert (hanging.exit_code, waited.exit_code) == (1, 0)
+    assert json.loads(hanging.stdout) == {
+        "outcome": "timeout",
+        "tool": "git",
+        "message": f"{KIT} did not answer within 5 s",
+    }
+
+
+def test_without_a_listing_command_the_first_reported_install_is_captured(monkeypatch) -> None:
+    system = kit_machine(monkeypatch)
+    del system.env["KIT_HOME"]
+
+    result = capture(system, "git", "--source", "kit", "--json")
+
+    assert json.loads(result.stdout)["destination"] == GIT_FILE
+    assert system.runs == [(GIT_PATH, "--version")]
+
+
+def test_a_provider_failing_to_name_its_listing_records_nothing(monkeypatch) -> None:
+    failing = kit_machine(monkeypatch, fails=True)
+
+    result = capture(failing, "git", "--source", "kit", "--json")
+
+    assert result.exit_code == 1
+    assert json.loads(result.stdout) == {
+        "outcome": "launch-error",
+        "tool": "git",
+        "message": "Git kit could not name its listing command: unexpected layout",
+    }
+    assert (failing.files, failing.runs) == ({}, [])

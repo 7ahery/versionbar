@@ -14,7 +14,13 @@ from versionbar.check import (
     evaluate,
     parse_requirement,
 )
-from versionbar.config import InvalidConfig, Registry, Settings, load_settings
+from versionbar.config import (
+    DEFAULT_TIMEOUT_SECONDS,
+    InvalidConfig,
+    Registry,
+    Settings,
+    load_settings,
+)
 from versionbar.contract import output_schema
 from versionbar.definition import ToolDefinition, builtin_definitions
 from versionbar.models import (
@@ -336,11 +342,19 @@ def debug_capture(
     source: str | None = typer.Option(
         None,
         "--source",
-        help="Provider id, e.g. nvm: capture the first install it reports instead of PATH's.",
+        help="Provider id, e.g. nvm: capture its listing command if it has one, else the first"
+        " install it reports, instead of PATH's install.",
+    ),
+    timeout: float = typer.Option(
+        DEFAULT_TIMEOUT_SECONDS,
+        "--timeout",
+        help="Seconds to wait for the command before giving up.",
     ),
     json_output: bool = typer.Option(False, "--json", help=_JSON_HELP),
 ) -> None:
     """Run a tool's version command and record its raw output as a replayable fixture."""
+    if not timeout > 0:
+        raise typer.BadParameter("must be more than 0 seconds", param_hint="--timeout")
     try:
         outcome = capture_tool(
             _system(ctx),
@@ -349,6 +363,7 @@ def debug_capture(
             out,
             providers=builtin_providers(),
             source=source,
+            timeout=timeout,
         )
     except CaptureError as error:
         if json_output:

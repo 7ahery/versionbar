@@ -295,7 +295,8 @@ export interface CaptureOutcome {
    */
   destination: string;
   /**
-   * Exit code of the tool's version command (recorded even when non-zero).
+   * Exit code of the captured command, the tool's version command or a provider's listing
+   * command (recorded even when non-zero).
    */
   exit_code: number;
 }
