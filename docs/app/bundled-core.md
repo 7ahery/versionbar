@@ -102,6 +102,10 @@ The 30-second limit is fixed and does not follow the config file: per-tool `time
 [preferences.md](preferences.md#timeouts-in-the-config-file) and
 [../config.md](../config.md#keys)).
 
+The timeout applies to each invocation separately, not to the job. On a first run the
+preferences query and the scan each get 180 seconds, so if the query hangs until it is
+stopped and the scan then runs as long as it may, `setting_up` can last about 6 minutes.
+
 ## Finding uv
 
 Looked up again for every scan job (one lookup serves its preferences query and scan), in this

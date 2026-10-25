@@ -123,5 +123,5 @@ The app gives each scan a fixed 30 seconds (180 on a first run). The config file
 and `timeouts.<id>` keys set how long the core waits for each tool's version command. A single
 tool timeout close to or above about 30 seconds can make the whole scan hit the app's limit,
 and so can several long ones, since the core runs only a few commands at a time. The scan then
-fails with reason `timeout` and the app keeps the last good results. The app does not raise its limit to match; keep per-tool timeouts well below 30
-seconds when using the tray app.
+fails with reason `timeout` and the app keeps the last good results. The app does not raise
+its limit to match; keep per-tool timeouts well below 30 seconds when using the tray app.

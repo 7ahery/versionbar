@@ -28,8 +28,8 @@ const REVIEWED: &[&str] = &[
     // existing file on a local drive in plain form (src/reveal.rs); Explorer selects it and
     // never runs it.
     "allow-open-containing-folder",
-    // Subscribe to and drop the `scan-updated` and `preferences-updated` events. Listening only: the webview cannot
-    // emit events.
+    // Subscribe to and drop the `scan-updated` and `preferences-updated` events. Listening
+    // only: the webview cannot emit events.
     "core:event:allow-listen",
     "core:event:allow-unlisten",
 ];

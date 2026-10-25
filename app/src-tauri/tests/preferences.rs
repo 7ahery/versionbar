@@ -9,7 +9,7 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicUsize, Ordering},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use serde_json::{Value, json};
@@ -56,7 +56,8 @@ fn scratch(name: &str) -> PathBuf {
     dir
 }
 
-/// A fake uv that prints a real scan for `list` and, for `config`, prints `config.json` (if
+/// A fake uv that prints a real scan for `list` (waiting first while `list-gate` exists) and,
+/// for `config`, prints `config.json` (if present) and `config-stderr.txt` (to stderr, if
 /// present) and exits with the code in `config-exit.txt` (default 0), or hangs while
 /// `config-hang` exists.
 struct Rig {
@@ -82,6 +83,21 @@ impl Rig {
     fn answer(&self, output: &str, code: i32) {
         fs::write(self.dir.join("config.json"), output).unwrap();
         fs::write(self.dir.join("config-exit.txt"), code.to_string()).unwrap();
+    }
+
+    /// Also makes the next `config --json` print `stderr` to stderr.
+    fn answer_with_stderr(&self, output: &str, code: i32, stderr: &str) {
+        self.answer(output, code);
+        fs::write(self.dir.join("config-stderr.txt"), stderr).unwrap();
+    }
+
+    /// Scans wait until `release_scans`.
+    fn hold_scans(&self) {
+        fs::write(self.dir.join("list-gate"), "").unwrap();
+    }
+
+    fn release_scans(&self) {
+        fs::remove_file(self.dir.join("list-gate")).unwrap();
     }
 
     fn hang(&self) {
@@ -132,10 +148,12 @@ fn write_fake(dir: &Path) -> PathBuf {
          echo %PYTHONPYCACHEPREFIX%>>\"{d}\\config-env.txt\"\r\n\
          if exist \"{d}\\config-hang\" ping -n 60 127.0.0.1 >nul\r\n\
          if exist \"{d}\\config.json\" type \"{d}\\config.json\"\r\n\
+         if exist \"{d}\\config-stderr.txt\" type \"{d}\\config-stderr.txt\" 1>&2\r\n\
          set CODE=0\r\n\
          if exist \"{d}\\config-exit.txt\" set /p CODE=<\"{d}\\config-exit.txt\"\r\n\
          exit /b %CODE%\r\n\
          :list\r\n\
+         if exist \"{d}\\list-gate\" ping -n 2 127.0.0.1 >nul & goto list\r\n\
          type \"{d}\\scan.json\"\r\n\
          exit /b 0\r\n",
         d = dir.display()
@@ -158,10 +176,12 @@ fn write_fake(dir: &Path) -> PathBuf {
            echo \"$PYTHONPYCACHEPREFIX\" >> '{d}/config-env.txt'\n\
            if [ -e '{d}/config-hang' ]; then sleep 60; fi\n\
            if [ -e '{d}/config.json' ]; then cat '{d}/config.json'; fi\n\
+           if [ -e '{d}/config-stderr.txt' ]; then cat '{d}/config-stderr.txt' >&2; fi\n\
            code=0\n\
            if [ -e '{d}/config-exit.txt' ]; then code=$(cat '{d}/config-exit.txt'); fi\n\
            exit $code\n\
          fi\n\
+         while [ -e '{d}/list-gate' ]; do sleep 0.1; done\n\
          cat '{d}/scan.json'\n",
         d = dir.display()
     );
@@ -432,4 +452,54 @@ fn a_query_failure_with_nothing_known_leaves_updates_off() {
     assert_eq!(state["config"], Value::Null);
     assert!(!app.preferences.update_check());
     assert_eq!(app.preferences.config_path(), None);
+}
+
+#[test]
+fn an_invalid_config_exit_without_an_answer_is_a_failed_exit_with_stderr() {
+    let app = after_defaults_then("exit-3-garbage", TIMEOUT, |rig| {
+        rig.answer_with_stderr("not json", 3, "invalid config file")
+    });
+    assert_failed_keeping_last(&app, "exit");
+    let state = wire(&app.preferences.state());
+    assert_eq!(state["outcome"]["stderr"], json!("invalid config file"));
+}
+
+#[test]
+fn an_answer_with_another_schema_version_is_incompatible() {
+    let mut answer = parsed(&update_off());
+    answer["schema_version"] = json!(2);
+    let app = after_defaults_then("incompatible", TIMEOUT, |rig| {
+        rig.answer(&answer.to_string(), 0)
+    });
+    // Its `update_check = false` is not believed either.
+    assert_failed_keeping_last(&app, "incompatible");
+}
+
+#[test]
+fn the_follow_up_job_queued_during_a_scan_rereads_preferences() {
+    let rig = Rig::new("queued");
+    rig.answer(&defaults(), 0);
+    rig.hold_scans();
+    let app = app(rig.config(TIMEOUT));
+
+    std::thread::scope(|scope| {
+        let first = scope.spawn(|| app.scanner.refresh());
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while !rig.commands().iter().any(|command| command == "list") {
+            assert!(Instant::now() < deadline, "the first scan never started");
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        // The config changes while the first scan runs; this request only queues.
+        rig.answer(&update_off(), 0);
+        assert!(!app.scanner.refresh());
+        rig.release_scans();
+        assert!(first.join().unwrap());
+    });
+
+    assert_eq!(rig.commands(), ["config", "list", "config", "list"]);
+    assert!(!app.preferences.update_check());
+    assert_eq!(
+        wire(&app.preferences.state())["config"],
+        parsed(&update_off())
+    );
 }

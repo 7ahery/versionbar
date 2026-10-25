@@ -14,7 +14,7 @@ Python is a Microsoft Store placeholder on this machine, so it is missing in all
 
 ## Preferences query
 
-Real `versionbar config --json` output from the same machine (ticket 41), redacted the same way. The two cases with a config file ran the real CLI with only the config folder redirected (platformdirs' `user_config_dir` patched to a scratch folder holding the file), which is why their `config_path` is not the usual `AppData\Roaming` one.
+Real `versionbar config --json` output from the same machine (ticket 41), redacted the same way. The two cases with a config file ran the real CLI with only the config folder redirected (platformdirs' `user_config_dir` patched to `%USERPROFILE%\vb-capture\<case>\versionbar`, a folder holding only the file), which is why their `config_path` is not the usual `AppData\Roaming` one.
 
 | File                             | Config file                                                                                                                                   | Exit code |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
