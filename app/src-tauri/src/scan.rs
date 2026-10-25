@@ -374,13 +374,14 @@ struct Envelope {
     schema_version: Option<serde_json::Value>,
 }
 
+fn malformed() -> (FailureReason, String) {
+    (
+        FailureReason::Malformed,
+        "The scan printed something that is not a scan result.".to_owned(),
+    )
+}
+
 fn check_scan(stdout: Vec<u8>) -> Result<Box<RawValue>, (FailureReason, String)> {
-    let malformed = || {
-        (
-            FailureReason::Malformed,
-            "The scan printed something that is not a scan result.".to_owned(),
-        )
-    };
     let text = String::from_utf8(stdout).map_err(|_| malformed())?;
     // Parsed once; the text is kept exactly as printed, minus surrounding whitespace.
     let scan = RawValue::from_string(text).map_err(|_| malformed())?;
@@ -391,12 +392,6 @@ fn check_scan(stdout: Vec<u8>) -> Result<Box<RawValue>, (FailureReason, String)>
 /// Accepts a JSON object with the supported `schema_version`, reading nothing else. Also
 /// applied to saved results, which may come from another build.
 pub(crate) fn check_envelope(scan: &RawValue) -> Result<(), (FailureReason, String)> {
-    let malformed = || {
-        (
-            FailureReason::Malformed,
-            "The scan printed something that is not a scan result.".to_owned(),
-        )
-    };
     // serde would also accept a JSON array as `Envelope` (fields by position), so insist on
     // an object before looking inside.
     if !scan.get().starts_with('{') {

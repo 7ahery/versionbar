@@ -49,8 +49,10 @@ results.
 ## When it refreshes
 
 - **At launch**, straight after loading the file, so restored results are soon replaced.
-- **Every 30 minutes**, counted from the end of the previous scheduled scan
-  (`REFRESH_INTERVAL`). Not configurable yet.
+- **Every 30 minutes** (`REFRESH_INTERVAL`). Not configurable yet. The wait normally starts
+  when the scheduled scan ends. If a tick lands while another scan (from the popup or the
+  menu) is running, the tick only queues the follow-up scan described below, and the next
+  wait starts at the tick, not when that scan ends.
 - **From the popup** (`refresh` command) and **from the tray menu's Refresh**. The menu item
   talks to the scanner directly, so it works before the popup has ever loaded and while its
   page is broken (spec story 57).

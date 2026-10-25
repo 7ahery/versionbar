@@ -146,9 +146,9 @@ fn announce<R: Runtime>(app: &AppHandle<R>) -> scan::Notify {
 /// Scans on a background thread so neither IPC nor the tray waits for the core. The tray is
 /// updated here, once the scan is over, and not from the state-change callback: that runs
 /// while the state is locked, and a tray change waits for the main thread, which may itself
-/// be waiting for that lock inside `get_state`. A refresh that was skipped because a scan was
-/// already running leaves the tray alone: the running scan updates it when it ends, and a
-/// snapshot taken now would be stale.
+/// be waiting for that lock inside `get_state`. A refresh that was queued because a scan was
+/// already running leaves the tray alone: the thread running that scan also runs the queued
+/// one and updates the tray when both end, and a snapshot taken now would be stale.
 fn start_refresh<R: Runtime>(app: AppHandle<R>, scanner: Arc<Scanner>) {
     thread::spawn(move || {
         if scanner.refresh() {
@@ -217,8 +217,9 @@ fn get_state(scanner: tauri::State<'_, Arc<Scanner>>) -> ShellState {
     scanner.state()
 }
 
-/// Starts a scan and returns at once; the result arrives as a `scan-updated` event. Does
-/// nothing while a scan is already running.
+/// Starts a scan and returns at once; the result arrives as a `scan-updated` event. While a
+/// scan is already running it queues one more scan after it, shared with any other requests
+/// made during that scan.
 #[tauri::command]
 fn refresh<R: Runtime>(app: AppHandle<R>, scanner: tauri::State<'_, Arc<Scanner>>) {
     start_refresh(app, scanner.inner().clone());
