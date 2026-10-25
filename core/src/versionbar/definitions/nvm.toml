@@ -1,0 +1,8 @@
+#:schema ../../../../schema/definition.schema.json
+id = "nvm"
+name = "nvm"
+os = ["windows", "linux"]
+binaries = ["nvm"]
+version_args = ["--version"]
+# nvm-windows prints `v2.0.1`; the `v` is a prefix, not part of the version.
+version_regex = '^v?(?P<version>\d+\.\d+\.\d+\S*)'
