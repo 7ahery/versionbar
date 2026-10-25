@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "tool": "pip",
+  "args": [
+    "--version"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "cGlwIDI2LjIuMiBmcm9tIEM6XGhvc3RlZHRvb2xjYWNoZVx3aW5kb3dzXFB5dGhvblwzLjEyLjEwXHg2NFxMaWJcc2l0ZS1wYWNrYWdlc1xwaXAgKHB5dGhvbiAzLjEyKQ0NCg==",
+  "stderr_b64": "",
+  "encoding": "utf-8",
+  "stdout_text": "pip 26.2.2 from C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\site-packages\\pip (python 3.12)\r\r\n",
+  "stderr_text": "",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-2025Server-10.0.26100-SP0",
+    "resolved_path": "C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Scripts\\pip.exe",
+    "command": [
+      "C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Scripts\\pip.exe",
+      "--version"
+    ],
+    "captured_at": "2026-10-25T21:15:34.817902Z",
+    "runner": {
+      "image_os": "win25-vs2026",
+      "image_version": "20261021.278.1",
+      "run_url": "https://github.com/7ahery/versionbar/actions/runs/40234606050"
+    },
+    "notes": null
+  }
+}

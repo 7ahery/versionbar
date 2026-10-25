@@ -77,3 +77,7 @@ Not supported by definitions, by design:
 ### JS tools and managers (ticket 13)
 
 Built-in so far: `npm` and `nvm`, with real Windows captures from the maintainer's machine (npm 11.19.0 under nvm's `.nodejs` folder, nvm-windows 2.0.1). `bun`, `deno`, `fnm` and `volta` (with volta attribution for node/npm) are pending real captures: none is installed on the capture machine and the capture workflow cannot take an unmerged definition without a pushed branch. A manager's own version detection is a tool, not a provider; only nvm has a provider ([docs/providers.md](providers.md)).
+
+### Python ecosystem (ticket 09): coverage and provenance
+
+Built-in definitions: `python` (with pyenv attribution, see the `via` rules in its file), `pip` and `pipx`, Windows and Linux. The `pip` and `pipx` fixtures are real captures from the `windows-latest` runner (`Scripts` folder of the hosted Python 3.12.10). `pip --version` prints `pip 26.2.2 from <path> (python 3.12)`, so its regex is anchored on `pip` to avoid the interpreter version. `poetry` and `pyenv` are not yet covered: neither was found on the runner and no maintainer capture exists. The pyenv tests replay a real python capture at synthetic shim paths. No Linux captures exist, so Linux behaviour is unverified.
