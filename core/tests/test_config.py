@@ -99,7 +99,7 @@ def test_list_order_without_config_is_built_ins_by_id_then_custom_tools_in_file_
     assert ids[-2:] == ["ssh", "openssh"]
     built_ins = ids[:-2]
     assert built_ins == sorted(built_ins)
-    assert {"git", "node", "python", "uv", "wsl"} <= set(built_ins)
+    assert {"git", "node", "npm", "nvm", "python", "uv", "wsl"} <= set(built_ins)
 
 
 def test_pinned_tools_come_first_then_ordered_ones_then_the_rest_in_default_order() -> None:
