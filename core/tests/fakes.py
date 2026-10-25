@@ -193,6 +193,7 @@ NODE_WINDOWS = "node/windows-node-24.21.0.json"
 NODE_24_22_WINDOWS = "node/windows-node-24.22.1.json"
 NVM_NODE_WINDOWS = "nvm/windows-node-24.21.0.json"
 UV_WINDOWS = "uv/windows-uv-0.12.23.json"
+UV_PYTHON_LIST_WINDOWS = "uv/windows-uv-python-list-0.12.23.json"
 PYTHON_314_WINDOWS = "python/windows-python-3.14.8.json"
 PYTHON_313_WINDOWS = "python/windows-python-3.13.16.json"
 

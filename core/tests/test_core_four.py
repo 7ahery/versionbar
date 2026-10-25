@@ -47,7 +47,13 @@ def core_four() -> FakeSystem:
     )
     system.add_executable(GIT, load_capture(GIT_WINDOWS))
     system.add_executable(NODE, load_capture(NODE_WINDOWS))
-    system.add_executable(UV, load_capture(UV_WINDOWS))
+    # This uv manages no Pythons; the provider's listing is tested with real data elsewhere.
+    no_pythons = ProcessResult(exit_code=0, stdout=b"[]", stderr=b"")
+    system.add_executable(
+        UV,
+        load_capture(UV_WINDOWS),
+        Capture(("python", "list", "--only-installed", "--output-format", "json"), no_pythons),
+    )
     system.add_executable(PYTHON, load_capture(PYTHON_314_WINDOWS))
     return system
 
