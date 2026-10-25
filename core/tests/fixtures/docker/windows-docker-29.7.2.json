@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "tool": "docker",
+  "args": [
+    "--version"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "RG9ja2VyIHZlcnNpb24gMjkuNy4yLCBidWlsZCBhN2RjYWE2Cg==",
+  "stderr_b64": "",
+  "encoding": "utf-8",
+  "stdout_text": "Docker version 29.7.2, build a7dcaa6\n",
+  "stderr_text": "",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-2025Server-10.0.26100-SP0",
+    "resolved_path": "C:\\Windows\\system32\\docker.exe",
+    "command": [
+      "C:\\Windows\\system32\\docker.exe",
+      "--version"
+    ],
+    "captured_at": "2026-10-25T21:16:29.763757Z",
+    "runner": {
+      "image_os": "win25-vs2026",
+      "image_version": "20261021.278.1",
+      "run_url": "https://github.com/7ahery/versionbar/actions/runs/40234683555"
+    },
+    "notes": null
+  }
+}

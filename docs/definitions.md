@@ -76,7 +76,7 @@ Not supported by definitions, by design:
 
 ### Hosting, shell and platform tools (ticket 15): coverage and provenance
 
-Built-in definitions shipped: `gh`, `pwsh`, `code` (Windows and Linux) and `wsl`, `winget` (Windows only). Fixtures are real Windows captures from the maintainer's machine (`wsl` included: its UTF-16 output is decoded from the raw bytes, with no `encoding` key in the definition). `code` resolved to `code.cmd`, so it runs as a wrapper through the shared cmd.exe path. `docker`, `kubectl`, `scoop` and `choco` are not on that machine; they need a capture from the `capture.yml` workflow before their definitions ship.
+Built-in definitions shipped: `gh`, `pwsh`, `code` (Windows and Linux) and `wsl`, `winget` (Windows only). Fixtures are real Windows captures from the maintainer's machine (`wsl` included: its UTF-16 output is decoded from the raw bytes, with no `encoding` key in the definition). `code` resolved to `code.cmd`, so it runs as a wrapper through the shared cmd.exe path. `docker` (Windows and Linux) is also shipped; its capture comes from the `windows-latest` runner via the capture workflow. `kubectl` and `choco` wait for a recapture with a longer timeout (#39), and `scoop` is deferred to #45 (DEV-7).
 
 ### Coverage checklist
 
@@ -92,12 +92,14 @@ The v1 catalog is 32 tools: spec #1's 34 minus `pnpm` and `yarn` (DEV-6). Status
 | | bun, deno | ticket 13 | pending |
 | PHP | php, composer | shipped (14) | yes |
 | Other languages | java, go, rustc, cargo, dotnet, ruby | shipped (14) | yes |
-| Containers | docker, kubectl | pending (15) | blocked: not on the maintainer's machine |
+| Containers | docker | shipped (15) | yes (`windows-latest` runner via the capture workflow) |
+| | kubectl | pending (15) | pending recapture with a longer timeout (#39) |
 | Managers | nvm | shipped (13) | yes |
 | | fnm, volta, pyenv | tickets 09 and 13 | pending |
 | | rustup | shipped (14) | yes |
 | | winget | shipped (15) | yes |
-| | scoop, choco | pending (15) | blocked: not on the maintainer's machine |
+| | choco | pending (15) | pending recapture with a longer timeout (#39) |
+| | scoop | deferred to #45 (DEV-7) | n/a |
 | Dev shell | pwsh, code, wsl | shipped (15) | yes |
 
 ### JS tools and managers (ticket 13)
