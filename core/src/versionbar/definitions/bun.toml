@@ -1,0 +1,8 @@
+#:schema ../../../../schema/definition.schema.json
+id = "bun"
+name = "bun"
+os = ["windows", "linux"]
+binaries = ["bun"]
+version_args = ["--version"]
+# Draft: deliberately loose until a real capture shows the output.
+version_regex = '(?P<version>\d+\.\d+\.\d+\S*)'
