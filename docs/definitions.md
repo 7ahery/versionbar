@@ -72,6 +72,7 @@ Fixtures are real Windows captures. `rustc`, `cargo` and `rustup` come from the 
 Not supported by definitions, by design:
 
 - Installs found only through an environment variable and not on PATH (`JAVA_HOME` without java on PATH, a manager binary off PATH). They are not what typing the command runs and need a `source` other than `path`, which is provider territory ([docs/providers.md](providers.md)).
+- Setting environment variables for the version command. That was only needed for corepack shims, and pnpm, yarn and so corepack are dropped from v1 (DEV-6), so no probe-environment key exists. Revisit if they return.
 
 ### Hosting, shell and platform tools (ticket 15): coverage and provenance
 
@@ -98,7 +99,6 @@ The v1 catalog is 32 tools: spec #1's 34 minus `pnpm` and `yarn` (DEV-6). Status
 | | winget | shipped (15) | yes |
 | | scoop, choco | pending (15) | blocked: not on the maintainer's machine |
 | Dev shell | pwsh, code, wsl | shipped (15) | yes |
-- Setting environment variables for the version command. That was only needed for corepack shims, and pnpm, yarn and so corepack are dropped from v1 (DEV-6), so no probe-environment key exists. Revisit if they return.
 
 ### JS tools and managers (ticket 13)
 
