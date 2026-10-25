@@ -65,7 +65,7 @@
           "type": "string"
         },
         "exit_code": {
-          "description": "Exit code of the tool's version command (recorded even when non-zero).",
+          "description": "Exit code of the captured command, the tool's version command or a provider's listing\ncommand (recorded even when non-zero).",
           "type": "integer"
         }
       },

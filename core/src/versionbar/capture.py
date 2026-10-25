@@ -103,7 +103,8 @@ class CaptureOutcome(StrictModel):
     destination: str
     """Path of the capture file that was written."""
     exit_code: int
-    """Exit code of the tool's version command (recorded even when non-zero)."""
+    """Exit code of the captured command, the tool's version command or a provider's listing
+    command (recorded even when non-zero)."""
 
 
 class CaptureFailure(StrictModel):
@@ -124,9 +125,12 @@ def capture_tool(
     *,
     providers: Sequence[Provider] = (),
     source: str | None = None,
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
 ) -> CaptureOutcome:
-    """Capture the install a scan would make active, or with `source` the first
-    install that provider reports (its own order), wherever it is."""
+    """Capture the install a scan would make active. With `source`, the
+    listing command that provider reads, or if it declares none here the first
+    install it reports (its own order), wherever it is. Commands get `timeout`
+    seconds."""
     matching = [d for d in definitions if d.id == tool_id]
     if not matching:
         known = ", ".join(sorted(d.id for d in definitions))
@@ -137,6 +141,7 @@ def capture_tool(
     definition = definition.for_os(system.os)
 
     notes = None
+    listing = None
     if source is None:
         # The install a scan would report as active, by the scan's own rules
         # (so a Store placeholder, which could open the Store, is never run).
@@ -144,25 +149,43 @@ def capture_tool(
         if path is None:
             names = ", ".join(definition.binaries)
             raise CaptureError("not-found", f"{tool_id} not found on PATH (looked for: {names})")
+        argv = [path, *definition.version_args]
     else:
         provider = _provider(system, providers, source, tool_id)
+        # As in a scan, a provider's failure is reported, not a crash.
         try:
-            located = provider.locate(system, tool_id, DEFAULT_TIMEOUT_SECONDS)
+            listing = provider.listing(system, tool_id)
+            if listing is not None and not listing:
+                raise ValueError("the command is empty")
         except Exception as error:
-            # As in a scan, a provider's failure is reported, not a crash.
-            message = f"{provider.name} could not list installs: {error}"
+            message = f"{provider.name} could not name its listing command: {error}"
             raise CaptureError("launch-error", message) from error
-        path = next(iter(located.executables), None)
-        if path is None:
-            raise CaptureError("not-found", f"{provider.name} reports no {tool_id} install")
-        notes = f"reported by the {provider.name} provider (source {provider.id}), not from PATH"
+        if listing is not None:
+            argv = list(listing)
+            notes = (
+                f"listing command of the {provider.name} provider (source {provider.id}),"
+                f" whose output it reads {tool_id} installs from; not a version command"
+            )
+        else:
+            try:
+                located = provider.locate(system, tool_id, timeout)
+            except Exception as error:
+                message = f"{provider.name} could not list installs: {error}"
+                raise CaptureError("launch-error", message) from error
+            path = next(iter(located.executables), None)
+            if path is None:
+                raise CaptureError("not-found", f"{provider.name} reports no {tool_id} install")
+            argv = [path, *definition.version_args]
+            notes = (
+                f"reported by the {provider.name} provider (source {provider.id}), not from PATH"
+            )
 
-    argv = [path, *definition.version_args]
-    process = system.run(argv, DEFAULT_TIMEOUT_SECONDS)
+    path = argv[0]
+    process = system.run(argv, timeout)
     # Without an exit status there is nothing true to record, and a fixture
     # that looks like a success would mislead whoever replays it.
     if process.timed_out:
-        raise CaptureError("timeout", f"{path} did not answer within {DEFAULT_TIMEOUT_SECONDS:g} s")
+        raise CaptureError("timeout", f"{path} did not answer within {timeout:g} s")
     if process.launch_error is not None or process.exit_code is None:
         reason = process.launch_error or "no exit status"
         raise CaptureError("launch-error", f"could not run {path}: {reason}")
@@ -172,7 +195,7 @@ def capture_tool(
     stderr_text = process.stderr.decode(encoding, errors="replace")
     record = CaptureFile(
         tool=tool_id,
-        args=definition.version_args,
+        args=argv[1:],
         exit_code=process.exit_code,
         # The field validates base64 input, so hand it base64 and it holds the raw bytes.
         stdout_b64=base64.b64encode(process.stdout),
@@ -193,9 +216,14 @@ def capture_tool(
         ),
     )
 
-    version = _file_version(definition, stdout_text + "\n" + stderr_text)
+    if listing is None:
+        version = _file_version(definition, stdout_text + "\n" + stderr_text)
+        name = f"{system.os}-{tool_id}-{version}.json"
+    else:
+        # A listing names many versions, or none, so no one version fits.
+        name = f"{system.os}-{tool_id}-{source}-listing.json"
     join = ntpath.join if system.os == "windows" else posixpath.join
-    destination = join(out_dir, f"{system.os}-{tool_id}-{version}.json")
+    destination = join(out_dir, name)
     try:
         system.write_file(destination, record.model_dump_json(indent=2).encode("utf-8") + b"\n")
     except OSError as error:
