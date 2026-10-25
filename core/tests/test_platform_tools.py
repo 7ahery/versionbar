@@ -105,3 +105,15 @@ def test_a_failing_version_command_is_an_error_not_a_version() -> None:
 
     assert tools["gh"]["status"] == "error"
     assert tools["pwsh"]["status"] == "found"
+
+
+def test_docker_version_drops_the_comma_before_the_build() -> None:
+    system = machine()
+    system.add_executable(
+        rf"{TOOLS_DIR}\docker.exe", load_capture("docker/windows-docker-29.7.2.json")
+    )
+
+    docker = listed(system)["docker"]["active"]
+
+    assert docker["version"] == "29.7.2"
+    assert docker["raw"].startswith("Docker version 29.7.2, build ")

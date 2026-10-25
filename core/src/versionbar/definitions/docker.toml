@@ -1,0 +1,8 @@
+#:schema ../../../../schema/definition.schema.json
+id = "docker"
+name = "Docker"
+os = ["windows", "linux"]
+binaries = ["docker"]
+version_args = ["--version"]
+# The line is `Docker version 29.7.2, build a7dcaa6`: the comma must not end up in the version.
+version_regex = '^Docker version (?P<version>\d+\.\d+\.\d+[^\s,]*)'
