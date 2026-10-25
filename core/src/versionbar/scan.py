@@ -2,6 +2,7 @@
 tool-specific knowledge comes from definitions."""
 
 import ntpath
+import posixpath
 import re
 from collections.abc import Callable, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -43,8 +44,9 @@ def scan(
             _submit(pool, system, definition, timeout_for(definition.id), usable)
             for definition in applicable
         ]
-        # Locating is quick (folders, or one manager command), so every
-        # provider's installs start probing once all locations are known.
+        # Locations are collected in definition order; each tool's provider
+        # installs start probing as soon as its own are known, while the PATH
+        # commands already submitted keep running.
         for job in jobs:
             job.probe_provided(pool, system)
         tools = [job.detect() for job in jobs]
@@ -67,7 +69,12 @@ class _Job:
     provider_notes: list[str] = field(default_factory=list)
 
     def probe_provided(self, pool: ThreadPoolExecutor, system: System) -> None:
-        fold = ntpath.normcase if system.os == "windows" else str
+        paths = ntpath if system.os == "windows" else posixpath
+
+        def fold(path: str) -> str:
+            # As PATH hits are compared: normalised, and caseless on Windows.
+            return paths.normcase(paths.normpath(path))
+
         # A PATH hit is already probed as a PATH install, and two providers
         # naming one file report one install: the first finder keeps it.
         seen = {fold(path) for path in self.hits.ordered}
