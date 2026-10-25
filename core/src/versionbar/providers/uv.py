@@ -15,7 +15,9 @@ from versionbar.provider import Located, Provider
 from versionbar.system import System
 from versionbar.system.resolve import path_hits
 
-_LIST_ARGS = ["python", "list", "--only-installed", "--output-format", "json"]
+# --no-config: a uv.toml or pyproject.toml in the working directory (a
+# python-preference, say) must not change which installed Pythons are listed.
+_LIST_ARGS = ["python", "list", "--no-config", "--only-installed", "--output-format", "json"]
 
 
 class Uv(Provider):

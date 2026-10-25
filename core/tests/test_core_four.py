@@ -52,7 +52,10 @@ def core_four() -> FakeSystem:
     system.add_executable(
         UV,
         load_capture(UV_WINDOWS),
-        Capture(("python", "list", "--only-installed", "--output-format", "json"), no_pythons),
+        Capture(
+            ("python", "list", "--no-config", "--only-installed", "--output-format", "json"),
+            no_pythons,
+        ),
     )
     system.add_executable(PYTHON, load_capture(PYTHON_314_WINDOWS))
     return system

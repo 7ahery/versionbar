@@ -29,7 +29,7 @@ UV = rf"{UV_BIN}\uv.exe"
 UV_PYTHONS = r"C:\Users\dev\AppData\Roaming\uv\python"
 PY_314 = rf"{UV_PYTHONS}\cpython-3.14.8-windows-x86_64-none\python.exe"
 PY_313 = rf"{UV_PYTHONS}\cpython-3.13.16-windows-x86_64-none\python.exe"
-LIST_ARGS = ("python", "list", "--only-installed", "--output-format", "json")
+LIST_ARGS = ("python", "list", "--no-config", "--only-installed", "--output-format", "json")
 WINDOWS_APPS = r"C:\Users\dev\AppData\Local\Microsoft\WindowsApps"
 
 
@@ -67,11 +67,7 @@ def test_uv_managed_pythons_off_path_are_listed_once_each_with_source_uv() -> No
 
 def test_a_python_on_path_stays_active_and_is_not_listed_twice() -> None:
     system = machine()
-    system.env["PATH"] += rf";{UV_PYTHONS}\cpython-3.13.16-windows-x86_64-none"
-    system.add_executable(
-        rf"{UV_PYTHONS}\cpython-3.13.16-windows-x86_64-none\python.exe",
-        load_capture(PYTHON_313_WINDOWS),
-    )
+    system.env["PATH"] += ";" + PY_313.rpartition("\\")[0]
 
     python = python_of(system)
 
