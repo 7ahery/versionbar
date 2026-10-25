@@ -202,6 +202,8 @@ include them):
   rewritten about every 30 minutes.
 - Replace `scan-state.json` with garbage and relaunch: the app starts without results (the
   normal first-scan path) and does not crash; the next scan writes a good file.
+- Ticket 12b-2: check that WebView2 delivers a DOM `focus` event on the shell's `set_focus`,
+  so the search box refocuses each time the popup is reopened.
 
 ## Rust: what and why (ticket 24)
 

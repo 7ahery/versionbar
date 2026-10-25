@@ -63,12 +63,12 @@ describe("usePreferences", () => {
   });
 
   it("keeps an event's answer over a get_preferences answer that lands later", async () => {
-    let release: ((value: PreferencesState) => void) | null = null;
+    const late: { release?: (value: PreferencesState) => void } = {};
     mockIPC(
       (cmd) => {
         if (cmd === "get_preferences")
           return new Promise<PreferencesState>((resolve) => {
-            release = resolve;
+            late.release = resolve;
           });
         throw new Error(`unexpected command ${cmd}`);
       },
@@ -76,13 +76,14 @@ describe("usePreferences", () => {
     );
     const { result } = renderHook(() => usePreferences());
     await waitFor(() => {
-      expect(release).not.toBeNull();
+      expect(late.release).toBeDefined();
     });
     await act(async () => {
       await emit("preferences-updated", answer(updateOff));
     });
-    act(() => {
-      (release as unknown as (v: PreferencesState) => void)(answer(defaults));
+    // Async so the hook's `await invoke` continuation runs inside the act.
+    await act(async () => {
+      late.release?.(answer(defaults));
     });
     expect(result.current?.config?.preferences?.update_check).toBe(false);
   });
