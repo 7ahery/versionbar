@@ -1,5 +1,5 @@
-//! The tray app's Rust shell: app lifecycle (tray, popup window, single instance) plus the
-//! scoped scan, state and preferences commands.
+//! The tray app's Rust shell: app lifecycle (tray, popup window, single instance, autostart)
+//! plus the scoped scan, state and preferences commands.
 //!
 //! Everything about tools and versions lives in the core and the React UI (ADR-0006/0007).
 //! The tray is built here at launch and never depends on the webview (ADR-0009).
@@ -11,13 +11,16 @@ use std::{
 };
 
 use tauri::{
-    AppHandle, Emitter, Manager, PhysicalPosition, Runtime, WebviewWindow, WindowEvent,
+    AppHandle, Emitter, Manager, PhysicalPosition, Runtime, WebviewWindow, WebviewWindowBuilder,
+    WindowEvent,
     image::Image,
-    menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem},
+    menu::{AboutMetadata, CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_positioner::{Position, WindowExt};
 
+pub mod autostart;
 pub mod badge;
 pub mod config_file;
 pub mod preferences;
@@ -50,6 +53,7 @@ const TRAY_ID: &str = "main";
 const MENU_REFRESH: &str = "refresh";
 const MENU_SHOW: &str = "show-versions";
 const MENU_CONFIG: &str = "open-config";
+const MENU_AUTOSTART: &str = "start-with-windows";
 // About is a predefined native item and raises no menu event, so it has no id here.
 const MENU_QUIT: &str = "quit";
 
@@ -87,9 +91,11 @@ pub fn run() {
         // Must be the first plugin: a second launch exits before anything else starts and
         // asks the running instance to show its popup instead of adding a second tray icon.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            show_popup(app);
+            on_second_launch(app);
         }))
         .plugin(tauri_plugin_positioner::init())
+        // No extra launch arguments: an autostarted app behaves exactly like a manual start.
+        .plugin(tauri_plugin_autostart::Builder::new().build())
         .manage(LastBlurHide::default())
         .invoke_handler(tauri::generate_handler![
             get_state,
@@ -303,7 +309,24 @@ fn open_config_file<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
+/// Start with Windows: flips autostart and sets the check mark to the state read back
+/// afterwards. Windows flips a check item's mark by itself when it is clicked, so the mark is
+/// always set here, also when the change failed, to keep it showing the real state.
+fn toggle_autostart<R: Runtime>(app: &AppHandle<R>, item: &CheckMenuItem<R>) {
+    let enabled = autostart::toggle(&*app.autolaunch());
+    let _ = item.set_checked(enabled);
+}
+
 fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    // Kept for the menu handler, which sets its check mark after each toggle.
+    let autostart_item = CheckMenuItem::with_id(
+        app,
+        MENU_AUTOSTART,
+        "Start with Windows",
+        true,
+        autostart::read_checked(&*app.autolaunch()),
+        None::<&str>,
+    )?;
     // Show versions is always in the menu: Linux trays do not report left-clicks (ADR-0009).
     let menu = Menu::with_items(
         app,
@@ -311,6 +334,7 @@ fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             &MenuItem::with_id(app, MENU_REFRESH, "Refresh", true, None::<&str>)?,
             &MenuItem::with_id(app, MENU_SHOW, "Show versions", true, None::<&str>)?,
             &MenuItem::with_id(app, MENU_CONFIG, "Open config file", true, None::<&str>)?,
+            &autostart_item,
             // Name and version come from the app's own metadata (tauri.conf.json and Cargo.toml),
             // never from literals here.
             &PredefinedMenuItem::about(
@@ -331,7 +355,7 @@ fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .tooltip(&app.package_info().name)
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .on_menu_event(|app, event| match event.id().as_ref() {
+        .on_menu_event(move |app, event| match event.id().as_ref() {
             // Talks to the scanner directly, never to the popup, so it works before the
             // popup has ever loaded and while its page is broken (spec story 57). The
             // scanner is registered right after the tray, so it is only missing in the
@@ -343,6 +367,7 @@ fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             }
             MENU_SHOW => show_popup(app),
             MENU_CONFIG => open_config_file(app),
+            MENU_AUTOSTART => toggle_autostart(app, &autostart_item),
             MENU_QUIT => app.exit(0),
             _ => {}
         })
@@ -365,8 +390,23 @@ fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     Ok(())
 }
 
+/// The popup window, recreated from its tauri.conf.json entry when it is gone, so a popup
+/// whose window was destroyed comes back on the next Show versions or tray click instead of
+/// leaving the tray with nothing to show (ADR-0009).
 fn popup<R: Runtime>(app: &AppHandle<R>) -> Option<WebviewWindow<R>> {
-    app.get_webview_window(POPUP)
+    if let Some(window) = app.get_webview_window(POPUP) {
+        return Some(window);
+    }
+    let config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|window| window.label == POPUP)?;
+    WebviewWindowBuilder::from_config(app, config)
+        .and_then(|builder| builder.build())
+        .inspect_err(|error| eprintln!("Could not recreate the popup: {error}"))
+        .ok()
 }
 
 fn toggle_popup<R: Runtime>(app: &AppHandle<R>) {
@@ -380,7 +420,15 @@ fn toggle_popup<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-fn show_popup<R: Runtime>(app: &AppHandle<R>) {
+/// What the running app does when it is launched again. The single-instance plugin has already
+/// made the new process exit before it built anything, so there is never a second tray; this
+/// only brings up the existing popup.
+pub fn on_second_launch<R: Runtime>(app: &AppHandle<R>) {
+    show_popup(app);
+}
+
+/// Shows the popup above the tray and focuses it, recreating it first if its window is gone.
+pub fn show_popup<R: Runtime>(app: &AppHandle<R>) {
     let Some(window) = popup(app) else { return };
     place_near_tray(&window);
     let _ = window.unminimize();

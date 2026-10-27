@@ -52,10 +52,11 @@ Refusals the user can see: "This is not a drive-letter path.", "This install no 
 exists.", "Explorer could not be found." (`SystemRoot` unset) and "Explorer could not be
 started."
 
-## Tray menu: Open config file and About
+## Tray menu: Open config file, Start with Windows and About
 
-Menu order: Refresh, Show versions, Open config file, About, Quit. Code:
-`app/src-tauri/src/config_file.rs` and the menu in `app/src-tauri/src/lib.rs`.
+Menu order: Refresh, Show versions, Open config file, Start with Windows, About, Quit. Code:
+`app/src-tauri/src/config_file.rs`, `app/src-tauri/src/autostart.rs` and the menu in
+`app/src-tauri/src/lib.rs`.
 
 - **About** is the native About dialog. Its name and version come from the app's metadata
   (`productName` in tauri.conf.json, the crate version), not from literals.
@@ -70,3 +71,38 @@ Menu order: Refresh, Show versions, Open config file, About, Quit. Code:
 - Nothing is cached: edits apply on the next refresh, which rereads preferences.
 - The menu has no place for messages, so a failure goes to stderr. If the path is not known yet
   (no query has answered), the click starts a refresh so the next click has one.
+
+### Start with Windows
+
+A check item backed by the official autostart plugin, which adds or removes the app's entry
+under the current user's `Run` registry key. No launch arguments are added, so an autostarted
+app behaves like a manual start.
+
+- **Off by default.** The app never turns autostart on by itself.
+- **The check mark is the real state.** It is read from the system when the menu is built and
+  again after every click; Rust stores nothing. A change made elsewhere (Task Manager's Startup
+  apps) shows on the next launch or click.
+- **A click flips the current state** as read at that moment. If the change fails, the mark is
+  set to the state read back afterwards, so it never claims a change that did not happen. If
+  the state cannot be read at all, nothing is changed and the item shows unchecked. Failures
+  go to stderr, as for Open config file.
+- **The webview has no autostart permission.** The toggle runs in Rust from the menu, so
+  `capabilities/default.json` grants none of the plugin's commands and
+  `tests/capabilities.rs` fails if one is added.
+
+## Tray survival and popup recreation
+
+The tray and its menu belong to Rust and never depend on the popup (ADR-0009):
+
+- **Refresh** from the menu talks to the scanner directly; the scan job runs its preferences
+  query too (DEC-22), so it works when the popup has never loaded or its page is broken.
+- **A reloaded popup** asks for the state and preferences again when its page loads
+  (`get_state`, `get_preferences`); nothing in the tray changes.
+- **A popup whose window is gone** is recreated from its `tauri.conf.json` entry by the next
+  Show versions, tray click or second launch, then shown as usual.
+- **A crashed renderer is not detected (DEV-8, v1).** If the WebView2 renderer crashes while the
+  popup's window stays open, the window is still there, so nothing recreates it and the popup
+  may stay blank until the app restarts. The tray and menu, Refresh included, keep working.
+  Manual QA (27c) covers this case.
+- **A second launch** exits at once (single-instance plugin) and the running app shows its
+  popup; no second tray icon appears.
