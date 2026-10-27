@@ -44,7 +44,7 @@ version_regex = 'OpenSSH_(?:for_Windows_)?(?P<version>\d+(?:\.\d+)*[a-z]*\d*)'
 | `order` | list of ids | Listed after the pinned tools, in this order. |
 | `hidden` | list of ids | Left out of `list`. |
 | `app.update_check` | boolean | Whether the tray app checks for updates. Default true. The CLI ignores it. |
-| `tools` | array of tables | Custom tool definitions; every key of [docs/definitions.md](definitions.md) (`via`, `overrides` included), validated exactly like a built-in. |
+| `tools` | array of tables | Custom tool definitions; every key of [docs/definitions.md](definitions.md) (`via`, `env`, `overrides` included), validated exactly like a built-in. |
 
 Values are typed strictly: `timeout = "5"` or `update_check = 1` is an error, not coerced.
 

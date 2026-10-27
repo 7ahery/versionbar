@@ -36,6 +36,18 @@ def test_rust_toolchain_tools_report_versions_from_real_captures() -> None:
     assert tools["rustup"]["active"]["path"] == rf"{BIN}\rustup.exe"
 
 
+def test_rustup_proxies_are_probed_with_auto_install_disabled() -> None:
+    # From a folder whose rust-toolchain.toml pins a missing toolchain, each
+    # rustup proxy would otherwise download it during the scan (#46).
+    system = rust_machine()
+    result = run_cli(system, "list", "--json")
+    assert result.exit_code == 0, result.output
+    guarded = {"RUSTUP_AUTO_INSTALL": "0"}
+    assert system.run_envs[(rf"{BIN}\rustc.exe", "--version")] == guarded
+    assert system.run_envs[(rf"{BIN}\cargo.exe", "--version")] == guarded
+    assert system.run_envs[(rf"{BIN}\rustup.exe", "--version")] == guarded
+
+
 def test_tools_without_an_install_are_missing() -> None:
     result = run_cli(rust_machine(), "list", "--json")
 

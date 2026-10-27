@@ -63,6 +63,10 @@
       "title": "Detection",
       "type": "object"
     },
+    "EnvName": {
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "type": "string"
+    },
     "FolderTemplate": {
       "description": "A folder starting with `{NAME}`, an environment variable, e.g. `{PYENV_ROOT}/shims`. Use `/`; it becomes `\\` on Windows.",
       "pattern": "^\\{[A-Za-z_][A-Za-z0-9_]*\\}([^{}]|\\{[A-Za-z_][A-Za-z0-9_]*\\})*$",
@@ -182,6 +186,17 @@
         "$ref": "#/$defs/ViaRule"
       },
       "type": "array"
+    },
+    "env": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {},
+      "description": "Environment variables set for this tool's version command only, laid over\nVersionBar's own, e.g. to stop the tool installing something when probed.",
+      "propertyNames": {
+        "$ref": "#/$defs/EnvName"
+      },
+      "type": "object"
     },
     "overrides": {
       "additionalProperties": {

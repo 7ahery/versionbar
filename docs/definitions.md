@@ -27,6 +27,7 @@ dirs = ["{PYENV}/shims", "{PYENV_ROOT}/shims"]
 | `version_args` | Arguments that print the version. |
 | `version_regex` | Python regex with a named group `(?P<version>...)`, searched in stdout then stderr. |
 | `via` | Shim rules, see below. Default: none. |
+| `env` | Table of environment variables set for this tool's version command only, laid over VersionBar's own. Names are letters, digits and `_`; values are strings. Default: none. See below. |
 | `overrides.<os>` | Replaces `binaries`, `version_args`, `version_regex` or `via` (the whole list) on that OS. |
 
 ## Installs come from PATH
@@ -38,6 +39,19 @@ Every runnable PATH hit is an install with `source = "path"`, the first one acti
 Nothing to declare. `binaries = ["npm"]` resolves to `npm.cmd` through PATHEXT, skipping the extensionless `npm` script beside it, exactly as `cmd.exe` would. The install's path is the wrapper's own path, since that is what typing the command runs.
 
 The runner starts wrappers through `%SYSTEMROOT%\System32\cmd.exe /d /e:on /v:off /s /c`: AutoRun hooks are skipped, command extensions are on and delayed expansion off. So `version_args` for a tool that may resolve to a wrapper must avoid characters `cmd.exe` would reinterpret: whitespace, `% " ^ & | < > ( ) ! , ; =`. A wrapper given such an argument (or an empty one), or whose path contains `%` or `"`, is not run and the install reports an error saying so. Plain flags (`--version`, `version`, `-v`, `--client`) are fine.
+
+## Probe environment (`env`)
+
+Some tools install things just from being asked their version, which a scan must never cause (hard rules 5 and 10). Where the tool has a documented opt-out variable, set it in `[env]`:
+
+```toml
+[env]
+RUSTUP_AUTO_INSTALL = "0"
+```
+
+The variables apply to every run of that tool's version command, in scans and in `versionbar debug capture`, and to nothing else. They are added to the environment VersionBar runs in, replacing a variable of the same name (case-insensitively on Windows). `env` is not an `overrides` key, so it applies on every OS the definition covers. Custom tools in the config can use it the same way (`[tools.env]` under a `[[tools]]` entry).
+
+Built-ins use it once: `rustc`, `cargo` and `rustup` set `RUSTUP_AUTO_INSTALL = "0"` (DEC-24, DEC-25). On PATH these are usually rustup's proxies, and in a folder whose `rust-toolchain.toml` (or a rustup override, `RUSTUP_TOOLCHAIN`, or an uninstalled default) pins a toolchain that is not installed, they start "syncing channel updates" and download it before answering. rustup older than 1.28.1 ignores the variable.
 
 ## Shim attribution (`via`)
 
@@ -56,7 +70,7 @@ Attribution never changes which install is active or what is run: `via` only exp
 | 09 | pyenv on Linux | `[[via]] manager = "pyenv"`, `dirs = ["{PYENV_ROOT}/shims", "{HOME}/.pyenv/shims"]` |
 | 09 | pip, pipx, poetry | Plain definitions; the same pyenv rule where pyenv shims them. |
 | 13 (#15) volta | `node`, `npm` served by Volta (pnpm and yarn are dropped from v1, DEV-6) | `[[via]] manager = "volta"`, `dirs = ["{VOLTA_HOME}/bin"]` (plus a Windows fallback such as `{LOCALAPPDATA}/Volta/bin` if captures show `VOLTA_HOME` can be unset). Not added yet: needs a real volta capture. |
-| 13 | corepack's `pnpm`/`yarn` | Dropped from v1 (DEV-6): no corepack attribution and no probe-environment work. |
+| 13 | corepack's `pnpm`/`yarn` | Dropped from v1 (DEV-6): no corepack attribution. A guard could now use `[env]` (DEC-25) if they return. |
 | 13 | `npm.cmd` | Nothing: wrappers resolve and run as above. |
 | 13 | nvm, fnm, volta themselves | Plain definitions; their binaries are on PATH. nvm-held Node versions are the nvm provider's ([docs/providers.md](providers.md)); node's `[[via]]` rule for nvm is already built in, so add other rules to the same list. |
 | 14 (#16) | java, go, rustc, cargo, rustup, dotnet, ruby, php, composer | Plain definitions (`composer.bat` is a wrapper). A `via` rule only where a manager shims the tool, such as `{CARGO_HOME}/bin` for rustup's proxies if that attribution is wanted. |
@@ -65,14 +79,13 @@ Attribution never changes which install is active or what is run: `via` only exp
 
 ### Language toolchains (ticket 14): coverage and provenance
 
-Built-in definitions: `java`, `go`, `rustc`, `cargo`, `rustup`, `dotnet`, `ruby`, `php`, `composer`, all plain (no `via`), all Windows and Linux. They only see installs on PATH; rustup toolchains and extra .NET SDKs are for later providers.
+Built-in definitions: `java`, `go`, `rustc`, `cargo`, `rustup`, `dotnet`, `ruby`, `php`, `composer`, all plain (no `via`), all Windows and Linux. The three Rust ones set `[env]` so that probing them never installs a toolchain (see above). They only see installs on PATH; rustup toolchains and extra .NET SDKs are for later providers.
 
 Fixtures are real Windows captures. `rustc`, `cargo` and `rustup` come from the maintainer's machine (`%USERPROFILE%\.cargo\bin`). `java` (Temurin 17), `go`, `dotnet`, `ruby`, `php` and `composer` come from the `windows-latest` runner via the capture workflow. Notable real output: `java -version` prints to stderr only, so the engine's per-stream search matters; `composer` is `composer.bat` and prints a PHP notice on stderr; `rustup` prints `info:` lines on stderr. No Linux captures exist yet, so Linux behaviour of these definitions is unverified.
 
 Not supported by definitions, by design:
 
 - Installs found only through an environment variable and not on PATH (`JAVA_HOME` without java on PATH, a manager binary off PATH). They are not what typing the command runs and need a `source` other than `path`, which is provider territory ([docs/providers.md](providers.md)).
-- Setting environment variables for the version command. That was only needed for corepack shims, and pnpm, yarn and so corepack are dropped from v1 (DEV-6), so no probe-environment key exists. Revisit if they return.
 
 ### Hosting, shell and platform tools (ticket 15): coverage and provenance
 
