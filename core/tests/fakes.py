@@ -202,6 +202,7 @@ UV_WINDOWS = "uv/windows-uv-0.12.23.json"
 UV_PYTHON_LIST_WINDOWS = "uv/windows-uv-python-list-0.12.23.json"
 RUSTC_RUSTUP_WINDOWS = "rustup/windows-rustc-1.99.1.json"
 CARGO_RUSTUP_WINDOWS = "rustup/windows-cargo-1.99.1.json"
+PY_LISTING_WINDOWS = "py/windows-py-listing-0p.json"
 PYTHON_314_WINDOWS = "python/windows-python-3.14.8.json"
 PYTHON_313_WINDOWS = "python/windows-python-3.13.16.json"
 
