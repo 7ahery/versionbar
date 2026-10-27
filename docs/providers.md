@@ -88,6 +88,15 @@ The `Capture tool output` workflow takes the same `source` (and `timeout`) as op
 - Windows only for now: the only real capture of the listing is from Windows (`core/tests/fixtures/uv/windows-uv-python-list-0.12.23.json`). The uv provider does not declare that listing through `listing()` yet, so `debug capture` cannot record it; that file is a seed made from the real command's output (user name replaced by `dev`), as its `provenance` says. Re-seed it the same way when uv's output format changes.
 - A failing listing (cannot start, non-zero exit, timeout, not JSON) is the note `uv: could not list installs: <why>` on Python; PATH installs are untouched.
 
+## py launcher (Python)
+
+- Runs `py -0p` with the `py` that typing `py` runs (PATH). Each tagged line (`-V:3.13  <path>`, older launchers `-3.13-64  <path>`) is one registered Python; its path is everything after the tag (so spaces are fine). The Python is then run for its exact version, like any other install. The launcher not found: nothing is added and nothing is said.
+- The untagged `*  <path>` line is the Python that is active right now (a virtual environment, say). That is what PATH finds, so it is not the launcher's install. Launcher preference is not PATH precedence: a registered Python never becomes `active`.
+- Overlap follows the shared rules: the same file reported by PATH, uv and the launcher is one install, `path` first, then providers in registry order (nvm, uv, py, rustup).
+- Windows only. The real listing is `core/tests/fixtures/py/windows-py-listing-0p.json`, recorded by the capture workflow with `source = py` on a GitHub runner (its Pythons live in `C:\hostedtoolcache`). Tests feed the launcher that real output with the lines of Pythons that have no captured `python --version` dropped, and paths swapped where a test needs overlap or a path with spaces (only machine state changes, never format). Version output is only ever a real capture.
+- Unverified, never captured: a `*` default marker after a tag and the older `-3.13-64` tag style (the parser tolerates both; no test or claim rests on them), and what a launcher with no registered Pythons prints (assumed: nothing, exit 0).
+- A failing listing (cannot start, non-zero exit, timeout) is the note `py launcher: could not list installs: <why>` on Python; PATH installs are untouched.
+
 ### Active versus held Pythons
 
 `active` is only what typing `python` runs. A Python that uv (or the py launcher) holds is listed in `installs` with its own `source`, and never becomes active, even when it is the only Python on the machine. So a machine whose `python` is only a Microsoft Store placeholder stays `missing` with `active: null`, the placeholder notes, and the managed Pythons listed. `check` says `python is not active: not found on PATH ... (2 installs found off PATH)` there, instead of "not installed".
