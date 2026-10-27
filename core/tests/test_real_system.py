@@ -54,6 +54,17 @@ def test_large_output_and_exit_code_are_captured_whole() -> None:
     assert result.stderr == b""
 
 
+def test_an_env_overlay_reaches_the_process_and_keeps_the_rest_of_the_environment() -> None:
+    script = "import os; print(os.environ['VERSIONBAR_TEST_OVERLAY'], 'PATH' in os.environ)"
+    result = local_system().run(
+        [sys.executable, "-c", script], 30, env={"VERSIONBAR_TEST_OVERLAY": "0"}
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert result.stdout.split() == [b"0", b"True"]
+    assert "VERSIONBAR_TEST_OVERLAY" not in os.environ
+
+
 def test_the_interpreter_running_the_core_is_not_found_on_path() -> None:
     # The suite runs under `uv run`, which puts this environment's scripts
     # folder first on PATH, as the app's scan command does.
