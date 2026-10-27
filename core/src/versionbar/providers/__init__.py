@@ -1,6 +1,7 @@
 """The built-in providers. Each is one `Provider` subclass (see `versionbar.provider`)."""
 
 from versionbar.provider import Provider
+from versionbar.providers.dotnet import DotnetSdks
 from versionbar.providers.nvm import NvmWindows
 from versionbar.providers.py import PyLauncher
 from versionbar.providers.rustup import Rustup
@@ -9,4 +10,4 @@ from versionbar.providers.uv import Uv
 
 def builtin_providers() -> list[Provider]:
     """Every built-in provider. Their installs are reported in this order, after PATH's."""
-    return [NvmWindows(), Uv(), PyLauncher(), Rustup()]
+    return [NvmWindows(), Uv(), PyLauncher(), Rustup(), DotnetSdks()]

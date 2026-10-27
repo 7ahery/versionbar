@@ -100,3 +100,12 @@ The `Capture tool output` workflow takes the same `source` (and `timeout`) as op
 ### Active versus held Pythons
 
 `active` is only what typing `python` runs. A Python that uv (or the py launcher) holds is listed in `installs` with its own `source`, and never becomes active, even when it is the only Python on the machine. So a machine whose `python` is only a Microsoft Store placeholder stays `missing` with `active: null`, the placeholder notes, and the managed Pythons listed. `check` says `python is not active: not found on PATH ... (2 installs found off PATH)` there, instead of "not installed".
+
+## .NET SDK (dotnet)
+
+- Reports the tool `dotnet`: every installed SDK, from `<dotnet.exe> --list-sdks`, as finished installs (`source: dotnet`). Nothing is run per SDK; they all go through one host. Runtime-only installs are not in that listing and are not reported. Nothing is ever installed.
+- Each line is `<version> [<folder>]`; the install's `path` is the SDK's own folder `<folder>\<version>` (`C:\Program Files\dotnet\sdk\10.0.402`), its `version` the exact string the host prints (previews included).
+- The host is what typing `dotnet` runs (PATH), else `%DOTNET_ROOT%\dotnet.exe`, else `%ProgramFiles%\dotnet\dotnet.exe`. No host: nothing is added and nothing is said. A host with no SDKs adds nothing (unverified assumption: no real capture from a host without SDKs exists; empty output with exit code 0 is assumed).
+- The PATH host stays `active` and stands for the SDK it runs (the same-version rule above), so the active SDK is listed once, as `source: path`; the other SDKs follow in the host's order.
+- A failing listing (cannot start, non-zero exit, timeout) or a line that is not `<version> [<folder>]` is the note `.NET SDK: could not list installs: <why>`; PATH installs are untouched.
+- Windows only in v1: the only real capture is from Windows (`core/tests/fixtures/dotnet/windows-dotnet-dotnet-listing.json`, from the `windows-latest` runner), and on Ubuntu `/usr/bin/dotnet` is a link into `/usr/lib/dotnet`, which the same-version rule cannot see through. Record the listing again with `versionbar debug capture dotnet --source dotnet`.
