@@ -53,6 +53,42 @@ export function MissingUvScreen({
         sees the new PATH. If uv is already installed somewhere VersionBar can
         see, press Retry.
       </p>
+      <UvInstallActions scanning={scanning} onRetry={onRetry} />
+    </Screen>
+  );
+}
+
+/**
+ * The same way out as the full screen, as a strip above the tool list: earlier results stay
+ * visible when uv disappears later, but the user still needs the command to fix it.
+ */
+export function UvMissingNotice({
+  scanning,
+  onRetry,
+}: {
+  scanning: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2 border-b border-border px-4 py-2 text-xs">
+      <p className="text-destructive">
+        uv was not found, so no scan could run. These results are from an
+        earlier scan. Run this in a terminal, then quit and restart VersionBar.
+      </p>
+      <UvInstallActions scanning={scanning} onRetry={onRetry} />
+    </div>
+  );
+}
+
+function UvInstallActions({
+  scanning,
+  onRetry,
+}: {
+  scanning: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <>
       <code className="block w-full rounded-md bg-muted px-3 py-2 text-left font-mono text-xs select-text">
         {UV_INSTALL_COMMAND}
       </code>
@@ -63,7 +99,7 @@ export function MissingUvScreen({
         </ActionButton>
         <RetryButton scanning={scanning} onRetry={onRetry} />
       </div>
-    </Screen>
+    </>
   );
 }
 

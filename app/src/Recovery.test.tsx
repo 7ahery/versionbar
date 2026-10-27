@@ -120,6 +120,32 @@ describe("preparing the environment", () => {
   });
 });
 
+describe("uv is missing while earlier results exist", () => {
+  const withResults = empty({ current: scan, outcome: { kind: "uv_missing" } });
+
+  it("keeps the list and still offers the command, docs link and Retry", async () => {
+    const copied = clipboard();
+    const calls = shell(withResults);
+
+    render(<App />);
+
+    expect(await screen.findByText("Git")).toBeDefined();
+    expect(screen.getByText("winget install astral-sh.uv")).toBeDefined();
+    expect(
+      screen.getByRole("button", { name: "Open the uv install guide" }),
+    ).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy command" }));
+    expect(await screen.findByText("Copied")).toBeDefined();
+    expect(copied).toEqual(["winget install astral-sh.uv"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => {
+      expect(calls).toContain("refresh");
+    });
+  });
+});
+
 describe("uv is missing", () => {
   it("shows the winget command, the docs link and says nothing is installed for you", async () => {
     shell(missingUv);

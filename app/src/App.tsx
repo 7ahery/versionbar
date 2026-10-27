@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { PRODUCT_NAME } from "@/product";
-import { FailedScreen, MissingUvScreen, SettingUpScreen } from "@/Recovery";
+import {
+  FailedScreen,
+  MissingUvScreen,
+  SettingUpScreen,
+  UvMissingNotice,
+} from "@/Recovery";
 import {
   type Outcome,
   type ShellState,
@@ -46,6 +51,9 @@ export default function App() {
       {state?.current ? (
         <>
           <StatusLine state={state} />
+          {state.outcome?.kind === "uv_missing" && (
+            <UvMissingNotice scanning={scanning} onRetry={refresh} />
+          )}
           <ToolList
             tools={state.current.tools}
             previous={state.previous?.tools ?? null}
@@ -116,9 +124,8 @@ function describeProblem(outcome: Outcome): string | null {
   switch (outcome.kind) {
     case "failed":
       return outcome.message ?? "The last scan failed.";
-    case "uv_missing":
-      return "uv was not found, so no scan could run.";
     default:
+      // uv_missing has its own notice with the fix; a second line would only repeat it.
       return null;
   }
 }
