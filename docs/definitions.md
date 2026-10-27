@@ -107,13 +107,13 @@ The v1 catalog is 32 tools: spec #1's 34 minus `pnpm` and `yarn` (DEV-6). Status
 | PHP | php, composer | shipped (14) | yes |
 | Other languages | java, go, rustc, cargo, dotnet, ruby | shipped (14) | yes |
 | Containers | docker | shipped (15) | yes (`windows-latest` runner via the capture workflow) |
-| | kubectl | pending (15) | pending recapture with a longer timeout (#39) |
+| | kubectl | shipped (15) | yes (`windows-latest` runner via the capture workflow) |
 | Managers | nvm | shipped (13) | yes |
 | | fnm, volta | ticket 13 | pending |
 | | pyenv | deferred to #45 (DEV-7); python attribution shipped (09) | n/a |
 | | rustup | shipped (14) | yes |
 | | winget | shipped (15) | yes |
-| | choco | pending (15) | pending recapture with a longer timeout (#39) |
+| | choco | shipped (15) | yes (`windows-latest` runner via the capture workflow) |
 | | scoop | deferred to #45 (DEV-7) | n/a |
 | Dev shell | pwsh, code, wsl | shipped (15) | yes |
 

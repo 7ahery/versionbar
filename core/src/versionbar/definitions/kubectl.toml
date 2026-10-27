@@ -1,0 +1,8 @@
+#:schema ../../../../schema/definition.schema.json
+id = "kubectl"
+name = "kubectl"
+os = ["windows", "linux"]
+binaries = ["kubectl"]
+version_args = ["version", "--client"]
+# A second line reports the bundled Kustomize version; the anchor keeps the client's.
+version_regex = '^Client Version: v(?P<version>\d+\.\d+\.\d+\S*)'
