@@ -55,7 +55,7 @@ pub fn explorer_command(path: &str, system_root: Option<&OsStr>) -> Result<Comma
     Ok(command)
 }
 
-fn is_plain_local_path(path: &str) -> bool {
+pub(crate) fn is_plain_local_path(path: &str) -> bool {
     let mut chars = path.chars();
     let drive = matches!(
         (chars.next(), chars.next(), chars.next()),
