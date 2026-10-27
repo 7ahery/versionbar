@@ -156,6 +156,10 @@ versionbar --help
 
 `npm run build` produces an NSIS installer under `app/src-tauri/target/release/bundle/` for local testing only. Published installers are built by CI from a release tag (the release workflow arrives with the release tickets), never on a contributor's machine.
 
+### Installer and SmartScreen
+
+The `Installer` workflow builds the per-user NSIS installer on a clean Windows runner for every push to a `ticket/**` or `integration/**` branch, and uploads it with `SHA256SUMS.txt`. The installer and the Windows executables are **unsigned** in v1, so SmartScreen shows "Windows protected your PC": verify the SHA-256 checksum, then choose "More info" and "Run anyway". The installer needs no administrator rights. The steps, and the manual install proof, are in [docs/app/install-proof.md](docs/app/install-proof.md). (Updater metadata is signed separately; that arrives with the release tickets.)
+
 ## Commands
 
 All work goes through root npm scripts. `lint` and `test` run every part; the `:core`, `:repo`, `:gen`, `:ui` and `:rust` variants run one part each.

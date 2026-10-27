@@ -1,0 +1,66 @@
+name: Installer
+
+# Builds the per-user NSIS installer on a clean Windows runner and publishes it with
+# SHA-256 checksums as a downloadable artifact, so a human can install it on a machine
+# that has never seen the repo (the install proof in docs/app/install-proof.md).
+#
+# This is a test build. Published installers come from the release workflow (later
+# tickets), which can reuse this one through workflow_call. The installer is unsigned in
+# v1; the checksums are how users verify it.
+
+on:
+  # Pushes to work branches give an artifact without a PR; a dispatch-only workflow could
+  # not be run before it reaches the default branch.
+  push:
+    branches: ["ticket/**", "integration/**"]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installer:
+    name: NSIS installer (windows-latest)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - uses: Swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: app/src-tauri
+      - run: npm ci
+      # The same root script a contributor runs; tauri.conf.json limits targets to NSIS and
+      # its bundle.resources copies core/ (pyproject, uv.lock, .python-version, README, src)
+      # from this same checkout, so the core in the installer matches the app's commit.
+      - run: npm run build
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          $dir = 'app/src-tauri/target/release/bundle/nsis'
+          $installers = @(Get-ChildItem -Path $dir -Filter '*-setup.exe')
+          if ($installers.Count -ne 1) { throw "expected exactly one installer in $dir, found $($installers.Count)" }
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item $installers[0].FullName dist/
+          # sha256sum format ("<hash> *<name>") so `sha256sum -c` and Get-FileHash both work.
+          $name = $installers[0].Name
+          $hash = (Get-FileHash -Algorithm SHA256 -Path "dist/$name").Hash.ToLower()
+          "$hash *$name" | Set-Content -Path dist/SHA256SUMS.txt -Encoding ascii
+          Get-Content dist/SHA256SUMS.txt
+          Get-Content dist/SHA256SUMS.txt | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: installer-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
