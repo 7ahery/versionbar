@@ -107,6 +107,32 @@ def test_a_failing_version_command_is_an_error_not_a_version() -> None:
     assert tools["pwsh"]["status"] == "found"
 
 
+def test_kubectl_reports_the_client_version_without_the_v_or_the_kustomize_line() -> None:
+    system = machine()
+    system.add_executable(
+        rf"{TOOLS_DIR}\kubectl.exe", load_capture("kubectl/windows-kubectl-1.37.1.json")
+    )
+
+    kubectl = listed(system)["kubectl"]["active"]
+
+    assert kubectl["version"] == "1.37.1"
+    assert kubectl["raw"].startswith("Client Version: v1.37.1")
+
+
+def test_choco_reports_its_bare_version() -> None:
+    system = machine()
+    system.add_executable(rf"{TOOLS_DIR}\choco.exe", load_capture("choco/windows-choco-2.7.4.json"))
+
+    assert listed(system)["choco"]["active"]["version"] == "2.7.4"
+
+
+def test_choco_is_not_scanned_on_linux() -> None:
+    tools = listed(FakeSystem(os="linux", env={"PATH": "/usr/bin"}))
+
+    assert "choco" not in tools
+    assert "kubectl" in tools
+
+
 def test_docker_version_drops_the_comma_before_the_build() -> None:
     system = machine()
     system.add_executable(
