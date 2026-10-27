@@ -30,6 +30,8 @@ pub enum ConfigError {
     CannotCreate,
     /// `SystemRoot` is unset, so Explorer cannot be found by full path.
     NoExplorer,
+    /// Explorer was found but the launch failed.
+    CannotStart,
 }
 
 impl fmt::Display for ConfigError {
@@ -39,6 +41,7 @@ impl fmt::Display for ConfigError {
             ConfigError::NotAConfigPath => "The config file path is not a drive-letter .toml path.",
             ConfigError::CannotCreate => "The config file could not be created.",
             ConfigError::NoExplorer => "Explorer could not be found.",
+            ConfigError::CannotStart => "Explorer could not be started.",
         })
     }
 }
@@ -86,9 +89,13 @@ fn create_if_absent(path: &Path, starter: &str) -> Result<(), ConfigError> {
         .create_new(true)
         .open(path)
     {
-        Ok(mut file) => file
-            .write_all(starter.as_bytes())
-            .map_err(|_| ConfigError::CannotCreate),
+        Ok(mut file) => file.write_all(starter.as_bytes()).map_err(|_| {
+            // The file is ours (`create_new` succeeded). A partial one would never be
+            // repaired, since later calls see an existing file and leave it alone.
+            drop(file);
+            let _ = fs::remove_file(path);
+            ConfigError::CannotCreate
+        }),
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists && path.is_file() => Ok(()),
         Err(_) => Err(ConfigError::CannotCreate),
     }

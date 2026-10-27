@@ -291,7 +291,7 @@ fn open_config_file<R: Runtime>(app: &AppHandle<R>) {
         explorer
             .spawn()
             .map(drop)
-            .map_err(|_| config_file::ConfigError::NoExplorer)
+            .map_err(|_| config_file::ConfigError::CannotStart)
     });
     if let Err(error) = opened {
         eprintln!("Open config file: {error}");

@@ -48,6 +48,9 @@ fn creates_the_starter_when_absent_and_opens_it_from_the_windows_folder() {
         command.get_program(),
         OsStr::new(&format!(r"{SYSTEM_ROOT}\explorer.exe"))
     );
+    // Raw argument: quotes around the path only, as `reveal` does.
+    let args: Vec<_> = command.get_args().collect();
+    assert_eq!(args, [OsStr::new(&format!("\"{}\"", path.display()))]);
 }
 
 #[test]
