@@ -1,8 +1,8 @@
 """The Windows `py` launcher: the Pythons registered with it, found by `py -0p`.
 
 `py -0p` prints one line per registered Python: a tag (`-V:3.13`), then the
-path of its `python.exe`. A tag line may carry a `*` before the path when the
-launcher's default is that Python. A line without a tag, only `*` and a path,
+path of its `python.exe`. A `*` on a tagged line (a default Python)
+is tolerated but never captured. A line without a tag, only `*` and a path,
 is the Python that is active right now (a virtual environment, say); it is the
 `python` that PATH finds, so it is left to PATH. Paths may contain spaces, so
 the path is everything after the tag, never a split on whitespace.
@@ -38,7 +38,7 @@ class PyLauncher(Provider):
         if process.timed_out:
             raise RuntimeError(f"py -0p did not answer within {timeout:g} s")
         if process.exit_code != 0:
-            # A launcher with no Python registered exits non-zero on some versions.
+            # Assumption, never captured: any non-zero exit means no usable listing.
             raise RuntimeError(f"py -0p exited with code {process.exit_code}")
         text = process.stdout.decode("utf-8", errors="replace")
         paths = []

@@ -90,10 +90,11 @@ The `Capture tool output` workflow takes the same `source` (and `timeout`) as op
 
 ## py launcher (Python)
 
-- Runs `py -0p` with the `py` that typing `py` runs (PATH). Each tagged line (`-V:3.13  <path>`, older launchers `-3.13-64  <path>`) is one registered Python; its path is everything after the tag (so spaces are fine) with an optional `*` default marker dropped. The Python is then run for its exact version, like any other install. The launcher not found: nothing is added and nothing is said.
+- Runs `py -0p` with the `py` that typing `py` runs (PATH). Each tagged line (`-V:3.13  <path>`, older launchers `-3.13-64  <path>`) is one registered Python; its path is everything after the tag (so spaces are fine). The Python is then run for its exact version, like any other install. The launcher not found: nothing is added and nothing is said.
 - The untagged `*  <path>` line is the Python that is active right now (a virtual environment, say). That is what PATH finds, so it is not the launcher's install. Launcher preference is not PATH precedence: a registered Python never becomes `active`.
 - Overlap follows the shared rules: the same file reported by PATH, uv and the launcher is one install, `path` first, then providers in registry order (nvm, uv, py, rustup).
-- Windows only. The real listing is `core/tests/fixtures/py/windows-py-listing-0p.json`, recorded by the capture workflow with `source = py` on a GitHub runner (its Pythons live in `C:\hostedtoolcache`, so the overlap test replaces one path of the real listing with a uv path). Only that Python has a captured version output, so the others are run and fail in tests.
+- Windows only. The real listing is `core/tests/fixtures/py/windows-py-listing-0p.json`, recorded by the capture workflow with `source = py` on a GitHub runner (its Pythons live in `C:\hostedtoolcache`). Tests feed the launcher that real output with the lines of Pythons that have no captured `python --version` dropped, and paths swapped where a test needs overlap or a path with spaces (only machine state changes, never format). Version output is only ever a real capture.
+- Unverified, never captured: a `*` default marker after a tag and the older `-3.13-64` tag style (the parser tolerates both; no test or claim rests on them), and what a launcher with no registered Pythons prints (assumed: nothing, exit 0).
 - A failing listing (cannot start, non-zero exit, timeout) is the note `py launcher: could not list installs: <why>` on Python; PATH installs are untouched.
 
 ### Active versus held Pythons
