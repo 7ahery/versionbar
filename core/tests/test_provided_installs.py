@@ -10,7 +10,7 @@ import json
 
 import pytest
 
-from versionbar import cli, providers
+from versionbar import cli
 from versionbar.provider import Located, ProvidedInstall, Provider
 from versionbar.system import System
 
@@ -41,7 +41,7 @@ class SdkKit(Provider):
 def with_kit(monkeypatch: pytest.MonkeyPatch, *reports: ProvidedInstall) -> None:
     kit = SdkKit()
     kit.reports = reports
-    monkeypatch.setattr(cli, "builtin_providers", lambda: [*providers.builtin_providers(), kit])
+    monkeypatch.setattr(cli, "builtin_providers", lambda: [kit])
 
 
 def machine(*, host_on_path: bool) -> FakeSystem:

@@ -79,7 +79,7 @@ Attribution never changes which install is active or what is run: `via` only exp
 
 ### Language toolchains (ticket 14): coverage and provenance
 
-Built-in definitions: `java`, `go`, `rustc`, `cargo`, `rustup`, `dotnet`, `ruby`, `php`, `composer`, all plain (no `via`), all Windows and Linux. The three Rust ones set `[env]` so that probing them never installs a toolchain (see above). They only see installs on PATH; rustup toolchains and extra .NET SDKs are for later providers.
+Built-in definitions: `java`, `go`, `rustc`, `cargo`, `rustup`, `dotnet`, `ruby`, `php`, `composer`, all plain (no `via`), all Windows and Linux. The three Rust ones set `[env]` so that probing them never installs a toolchain (see above). They only see installs on PATH; the other .NET SDKs come from the dotnet [provider](providers.md).
 
 Fixtures are real Windows captures. `rustc`, `cargo` and `rustup` come from the maintainer's machine (`%USERPROFILE%\.cargo\bin`). `java` (Temurin 17), `go`, `dotnet`, `ruby`, `php` and `composer` come from the `windows-latest` runner via the capture workflow. Notable real output: `java -version` prints to stderr only, so the engine's per-stream search matters; `composer` is `composer.bat` and prints a PHP notice on stderr; `rustup` prints `info:` lines on stderr. No Linux captures exist yet, so Linux behaviour of these definitions is unverified.
 

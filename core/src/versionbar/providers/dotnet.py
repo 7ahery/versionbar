@@ -10,6 +10,7 @@ import ntpath
 import re
 from collections.abc import Sequence
 
+from versionbar.decoding import decode_output
 from versionbar.provider import Located, ProvidedInstall, Provider
 from versionbar.system import System
 from versionbar.system.resolve import path_hits
@@ -40,7 +41,7 @@ class DotnetSdks(Provider):
             raise RuntimeError(f"dotnet --list-sdks did not answer within {timeout:g} s")
         if process.exit_code != 0:
             raise RuntimeError(f"dotnet --list-sdks exited with code {process.exit_code}")
-        return Located(installs=_parse(process.stdout))
+        return Located(installs=_parse(decode_output(process.stdout)))
 
     def listing(self, system: System, tool: str) -> Sequence[str] | None:
         host = _find_host(system)

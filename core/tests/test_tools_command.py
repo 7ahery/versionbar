@@ -30,6 +30,7 @@ NODE = {"id": "node", "name": "Node.js", "os": ["windows", "linux"], "custom": F
 NVM = {"id": "nvm", "name": "nvm-windows", "os": ["windows"], "tools": ["node"]}
 UV = {"id": "uv", "name": "uv", "os": ["windows"], "tools": ["python"]}
 RUSTUP = {"id": "rustup", "name": "rustup", "os": ["windows"], "tools": ["rustc", "cargo"]}
+DOTNET = {"id": "dotnet", "name": ".NET SDK", "os": ["windows"], "tools": ["dotnet"]}
 
 
 def catalog(system: FakeSystem) -> dict:
@@ -49,7 +50,7 @@ def test_the_catalog_lists_every_built_in_tool_and_provider_without_running_anyt
     assert {"id": "git", "name": "Git", "os": ["windows", "linux"], "custom": False} in tools[
         "tools"
     ]
-    assert tools["providers"] == [NVM, UV, RUSTUP]
+    assert tools["providers"] == [NVM, UV, RUSTUP, DOTNET]
     assert system.runs == []
 
 
@@ -77,7 +78,7 @@ def test_the_catalog_on_linux_still_names_windows_only_providers() -> None:
     tools = catalog(FakeSystem(os="linux", env={"PATH": "/usr/bin"}))
 
     assert tools["platform"] == "linux"
-    assert tools["providers"] == [NVM, UV, RUSTUP]
+    assert tools["providers"] == [NVM, UV, RUSTUP, DOTNET]
 
 
 def test_an_invalid_config_stops_the_catalog_with_exit_code_3() -> None:
