@@ -76,6 +76,19 @@ fn webview_holds_only_reviewed_permissions() {
 }
 
 #[test]
+fn webview_cannot_control_autostart() {
+    // Start with Windows is a tray menu item handled in Rust, so the popup needs none of the
+    // autostart plugin's commands; a page that could call them could switch autostart on.
+    for (file, capability) in capabilities() {
+        let granted = capability["permissions"].to_string();
+        assert!(
+            !granted.contains("autostart:"),
+            "{file}: the webview must not hold autostart permissions"
+        );
+    }
+}
+
+#[test]
 fn capabilities_apply_only_to_the_bundled_popup() {
     for (file, capability) in capabilities() {
         assert!(
