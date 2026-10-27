@@ -91,6 +91,8 @@ class ViaRule(StrictModel):
         return self
 
 
+type EnvName = Annotated[str, Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")]
+
 # A definition that names no OS or no binary can never detect anything, so it
 # is a typo to reject, not a tool to report missing.
 NonEmptyOs = Annotated[list[OsName], Field(min_length=1)]
@@ -122,6 +124,9 @@ class ToolDefinition(StrictModel):
     version_regex: VersionRegex
     via: list[ViaRule] = []
     """Shim rules, tried in order; the first that matches an install names its `via`."""
+    env: dict[EnvName, str] = {}
+    """Environment variables set for this tool's version command only, laid over
+    VersionBar's own, e.g. to stop the tool installing something when probed."""
     overrides: dict[OsName, Detection] = {}
     """Per-OS replacements for `binaries`, `version_args`, `version_regex` or `via`."""
 

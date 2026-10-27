@@ -6,3 +6,8 @@ binaries = ["rustc"]
 version_args = ["--version"]
 # The commit hash and date after the version stay in `raw`.
 version_regex = '^rustc (?P<version>\d+\.\d+\.\d+\S*)'
+
+# rustc on PATH is usually a rustup proxy, which downloads a pinned or missing
+# toolchain before answering. A scan must never install anything.
+[env]
+RUSTUP_AUTO_INSTALL = "0"

@@ -248,7 +248,7 @@ class _Failed:
 def _probe(
     system: System, definition: ToolDefinition, path: str, timeout: float, source: str
 ) -> Install | _Failed:
-    process = system.run([path, *definition.version_args], timeout)
+    process = system.run([path, *definition.version_args], timeout, definition.env)
     if process.launch_error is not None:
         return _Failed("error", f"could not run {path}: {process.launch_error}")
 

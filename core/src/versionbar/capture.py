@@ -181,7 +181,9 @@ def capture_tool(
             )
 
     path = argv[0]
-    process = system.run(argv, timeout)
+    # The definition's env guards its version command, as in a scan; a
+    # provider's listing command is the provider's, not the definition's.
+    process = system.run(argv, timeout, definition.env if listing is None else None)
     # Without an exit status there is nothing true to record, and a fixture
     # that looks like a success would mislead whoever replays it.
     if process.timed_out:

@@ -50,6 +50,23 @@ def test_a_custom_tool_from_the_config_is_listed_with_its_real_version() -> None
     assert listed["ssh"]["active"]["path"] == SSH_PATH
 
 
+def test_a_custom_tool_is_probed_with_the_env_its_definition_sets() -> None:
+    system = machine(SSH_TOOL + '[tools.env]\nSSH_GUARD = "1"\n')
+
+    listed = {tool["id"]: tool for tool in tools(system, "list")}
+
+    assert listed["ssh"]["active"]["version"] == "9.5p2"
+    assert system.run_envs[(SSH_PATH, "-V")] == {"SSH_GUARD": "1"}
+    assert system.run_envs[(GIT_PATH, "--version")] == {}
+
+
+def test_an_env_name_that_is_not_a_variable_name_is_rejected() -> None:
+    result = run_cli(machine(SSH_TOOL + '[tools.env]\n"A=B" = "1"\n'), "list", "--json")
+
+    assert result.exit_code != 0
+    assert "env" in result.output
+
+
 def test_show_and_check_resolve_a_custom_tool() -> None:
     system = machine(SSH_TOOL)
 
