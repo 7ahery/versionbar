@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { PRODUCT_NAME } from "@/product";
-import { FailedScreen, MissingUvScreen, SettingUpScreen } from "@/Recovery";
 import {
-  type Outcome,
-  type ShellState,
-  usePreferences,
-  useShellState,
-} from "@/shell";
+  FailedNotice,
+  FailedScreen,
+  MissingUvScreen,
+  SettingUpScreen,
+  UvMissingNotice,
+} from "@/Recovery";
+import { type ShellState, usePreferences, useShellState } from "@/shell";
 import { ToolList } from "@/ToolList";
 
 // Without usable preferences (not answered yet, or an invalid config) nothing is pinned.
@@ -46,6 +47,16 @@ export default function App() {
       {state?.current ? (
         <>
           <StatusLine state={state} />
+          {state.outcome?.kind === "uv_missing" && (
+            <UvMissingNotice scanning={scanning} onRetry={refresh} />
+          )}
+          {state.outcome?.kind === "failed" && (
+            <FailedNotice
+              outcome={state.outcome}
+              scanning={scanning}
+              onRetry={refresh}
+            />
+          )}
           <ToolList
             tools={state.current.tools}
             previous={state.previous?.tools ?? null}
@@ -61,8 +72,8 @@ export default function App() {
 
 /**
  * What fills the popup while there is nothing to list: the first run's setup, or the recovery
- * screen for the last outcome. With results on screen, problems stay a line in the status
- * bar instead (see `describeProblem`), so a failed refresh never hides good data.
+ * screen for the last outcome. With results on screen, problems show as a notice above the
+ * list instead (`UvMissingNotice`, `FailedNotice`), so a failed refresh never hides good data.
  */
 function NoResults({
   state,
@@ -93,11 +104,10 @@ function NoResults({
   );
 }
 
-/** Freshness, progress and the latest failure, above whatever results there are. */
+/** Freshness and progress, above whatever results there are. */
 function StatusLine({ state }: { state: ShellState | null }) {
   const scannedAt = state?.current?.scanned_at ?? null;
   const age = useAge(scannedAt);
-  const problem = state?.outcome ? describeProblem(state.outcome) : null;
 
   return (
     <div className="space-y-1 border-b border-border px-4 py-2 text-xs text-muted-foreground">
@@ -106,21 +116,8 @@ function StatusLine({ state }: { state: ShellState | null }) {
         {age && <span>{age}</span>}
         <span aria-live="polite">{state?.scanning ? "Scanning…" : null}</span>
       </p>
-      {problem && <p className="text-destructive">{problem}</p>}
     </div>
   );
-}
-
-/** A failure to mention, or null when the last attempt is fine or of a kind we don't know. */
-function describeProblem(outcome: Outcome): string | null {
-  switch (outcome.kind) {
-    case "failed":
-      return outcome.message ?? "The last scan failed.";
-    case "uv_missing":
-      return "uv was not found, so no scan could run.";
-    default:
-      return null;
-  }
 }
 
 const MINUTE = 60_000;

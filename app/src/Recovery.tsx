@@ -4,9 +4,10 @@ import { type ReactNode, useState } from "react";
 import { type Outcome, openUvDocs } from "@/shell";
 
 /**
- * The screens shown instead of the tool list when there are no results to show: the first
- * run's setup, uv missing, and a failed scan. VersionBar installs nothing itself; the only
- * things it offers are text to copy, a link to uv's own instructions and Retry.
+ * The first run's setup, uv missing and a failed scan. Without results they replace the tool
+ * list as screens; with earlier results the same pieces show as a strip above it. VersionBar
+ * installs nothing itself; the only things it offers are text to copy, a link to uv's own
+ * instructions and Retry.
  */
 
 /** The install command we suggest. Copied by the user and run in their own terminal. */
@@ -53,6 +54,42 @@ export function MissingUvScreen({
         sees the new PATH. If uv is already installed somewhere VersionBar can
         see, press Retry.
       </p>
+      <UvInstallActions scanning={scanning} onRetry={onRetry} />
+    </Screen>
+  );
+}
+
+/**
+ * The same way out as the full screen, as a strip above the tool list: earlier results stay
+ * visible when uv disappears later, but the user still needs the command to fix it.
+ */
+export function UvMissingNotice({
+  scanning,
+  onRetry,
+}: {
+  scanning: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2 border-b border-border px-4 py-2 text-xs">
+      <p className="text-destructive">
+        uv was not found, so no scan could run. These results are from an
+        earlier scan. Run this in a terminal, then quit and restart VersionBar.
+      </p>
+      <UvInstallActions scanning={scanning} onRetry={onRetry} />
+    </div>
+  );
+}
+
+function UvInstallActions({
+  scanning,
+  onRetry,
+}: {
+  scanning: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <>
       <code className="block w-full rounded-md bg-muted px-3 py-2 text-left font-mono text-xs select-text">
         {UV_INSTALL_COMMAND}
       </code>
@@ -63,11 +100,45 @@ export function MissingUvScreen({
         </ActionButton>
         <RetryButton scanning={scanning} onRetry={onRetry} />
       </div>
-    </Screen>
+    </>
   );
 }
 
 export function FailedScreen({
+  outcome,
+  scanning,
+  onRetry,
+}: {
+  outcome: Outcome;
+  scanning: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <Screen>
+      <h2 className="text-sm font-semibold">The scan failed</h2>
+      <FailureDetails outcome={outcome} scanning={scanning} onRetry={onRetry} />
+    </Screen>
+  );
+}
+
+/** The failure as a strip above the tool list, so a failed refresh never hides good data. */
+export function FailedNotice({
+  outcome,
+  scanning,
+  onRetry,
+}: {
+  outcome: Outcome;
+  scanning: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-2 border-b border-border px-4 py-2 text-center text-xs">
+      <FailureDetails outcome={outcome} scanning={scanning} onRetry={onRetry} />
+    </div>
+  );
+}
+
+function FailureDetails({
   outcome,
   scanning,
   onRetry,
@@ -87,8 +158,7 @@ export function FailedScreen({
   const report = stderr ? `${message}\n\n${stderr}` : message;
 
   return (
-    <Screen>
-      <h2 className="text-sm font-semibold">The scan failed</h2>
+    <>
       <p className="text-xs text-destructive">{message}</p>
       {stderr && (
         <pre
@@ -105,7 +175,7 @@ export function FailedScreen({
         <CopyButton label="Copy error" text={report} />
         <RetryButton scanning={scanning} onRetry={onRetry} />
       </div>
-    </Screen>
+    </>
   );
 }
 

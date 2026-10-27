@@ -120,6 +120,83 @@ describe("preparing the environment", () => {
   });
 });
 
+describe("uv is missing while earlier results exist", () => {
+  const withResults = empty({ current: scan, outcome: { kind: "uv_missing" } });
+
+  it("keeps the list and still offers the command, docs link and Retry", async () => {
+    const copied = clipboard();
+    const calls = shell(withResults);
+
+    render(<App />);
+
+    expect(await screen.findByText("Git")).toBeDefined();
+    expect(screen.getByText("winget install astral-sh.uv")).toBeDefined();
+    expect(
+      screen.getByRole("button", { name: "Open the uv install guide" }),
+    ).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy command" }));
+    expect(await screen.findByText("Copied")).toBeDefined();
+    expect(copied).toEqual(["winget install astral-sh.uv"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => {
+      expect(calls).toContain("refresh");
+    });
+  });
+
+  it("goes away after a successful scan", async () => {
+    shell(withResults);
+    render(<App />);
+    await screen.findByText("winget install astral-sh.uv");
+
+    await act(() =>
+      emit("scan-updated", empty({ current: scan, outcome: { kind: "ok" } })),
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByText("winget install astral-sh.uv")).toBeNull();
+    });
+    expect(screen.getByText("Git")).toBeDefined();
+  });
+});
+
+describe("a scan fails while earlier results exist", () => {
+  it("keeps the list and shows the error tail, Copy error and Retry", async () => {
+    const copied = clipboard();
+    const calls = shell(
+      empty({
+        current: scan,
+        outcome: {
+          kind: "failed",
+          reason: "exit",
+          message: "The scan failed (code 2).",
+          stderr: "boom line 1\nboom line 2",
+        },
+      }),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByText("Git")).toBeDefined();
+    expect(screen.getByText("The scan failed (code 2).")).toBeDefined();
+    expect(screen.getByLabelText("Error output").textContent).toBe(
+      "boom line 1\nboom line 2",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy error" }));
+    expect(await screen.findByText("Copied")).toBeDefined();
+    expect(copied).toEqual([
+      "The scan failed (code 2).\n\nboom line 1\nboom line 2",
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => {
+      expect(calls).toContain("refresh");
+    });
+  });
+});
+
 describe("uv is missing", () => {
   it("shows the winget command, the docs link and says nothing is installed for you", async () => {
     shell(missingUv);
