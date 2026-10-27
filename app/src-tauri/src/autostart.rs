@@ -26,10 +26,11 @@ impl Autostart for AutoLaunchManager {
     }
 }
 
-/// Whether the menu item starts out checked. The app never enables autostart by itself, so a
+/// Whether the menu item should show checked, read now from the system: used when the menu is
+/// built and after every toggle. The app never enables autostart by itself, so a
 /// fresh install reads as off. An unreadable state also shows as off: the menu has nowhere to
 /// show an error, so it goes to stderr.
-pub fn checked_at_menu_build(autostart: &dyn Autostart) -> bool {
+pub fn read_checked(autostart: &dyn Autostart) -> bool {
     autostart.is_enabled().unwrap_or_else(|error| {
         eprintln!("Start with Windows: could not read the current state: {error}");
         false
@@ -48,5 +49,5 @@ pub fn toggle(autostart: &dyn Autostart) -> bool {
     if let Err(error) = changed {
         eprintln!("Start with Windows: {error}");
     }
-    checked_at_menu_build(autostart)
+    read_checked(autostart)
 }

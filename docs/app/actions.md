@@ -100,5 +100,9 @@ The tray and its menu belong to Rust and never depend on the popup (ADR-0009):
   (`get_state`, `get_preferences`); nothing in the tray changes.
 - **A popup whose window is gone** is recreated from its `tauri.conf.json` entry by the next
   Show versions, tray click or second launch, then shown as usual.
+- **A crashed renderer is not detected (DEV-8, v1).** If the WebView2 renderer crashes while the
+  popup's window stays open, the window is still there, so nothing recreates it and the popup
+  may stay blank until the app restarts. The tray and menu, Refresh included, keep working.
+  Manual QA (27c) covers this case.
 - **A second launch** exits at once (single-instance plugin) and the running app shows its
   popup; no second tray icon appears.

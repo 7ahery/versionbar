@@ -4,6 +4,8 @@
 //! which windows exist, not what is on screen; position and focus are covered by manual QA.
 //! Its event loop never runs here, so a destroyed window would never leave the app's window
 //! list: a popup whose window is gone is modelled by an app that has no popup window.
+//! Nor does it keep any window property, so nothing here can tell the existing popup from a
+//! rebuilt one; reusing the existing popup is left to manual QA.
 
 use tauri::{
     App, Config, Manager, WebviewWindowBuilder,
@@ -55,16 +57,7 @@ fn show_versions_recreates_the_popup_when_its_window_is_gone() {
 }
 
 #[test]
-fn show_versions_reuses_a_popup_that_exists() {
-    let app = app_with_popup();
-
-    tray_shell::show_popup(app.handle());
-
-    assert_eq!(app.webview_windows().keys().collect::<Vec<_>>(), [POPUP]);
-}
-
-#[test]
-fn a_second_launch_shows_the_existing_popup_and_adds_no_tray() {
+fn a_second_launch_opens_no_other_window_and_adds_no_tray() {
     let app = app_with_popup();
 
     tray_shell::on_second_launch(app.handle());

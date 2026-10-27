@@ -324,7 +324,7 @@ fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         MENU_AUTOSTART,
         "Start with Windows",
         true,
-        autostart::checked_at_menu_build(&*app.autolaunch()),
+        autostart::read_checked(&*app.autolaunch()),
         None::<&str>,
     )?;
     // Show versions is always in the menu: Linux trays do not report left-clicks (ADR-0009).

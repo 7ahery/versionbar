@@ -3,7 +3,7 @@
 
 use std::cell::{Cell, RefCell};
 
-use tray_shell::autostart::{Autostart, checked_at_menu_build, toggle};
+use tray_shell::autostart::{Autostart, read_checked, toggle};
 
 /// Remembers whether autostart is on, like the registry entry would, and can be told to fail.
 #[derive(Default)]
@@ -45,7 +45,7 @@ impl Autostart for FakeAutostart {
 fn a_fresh_install_shows_start_with_windows_unchecked() {
     let autostart = FakeAutostart::default();
 
-    assert!(!checked_at_menu_build(&autostart));
+    assert!(!read_checked(&autostart));
     assert!(
         autostart.calls.borrow().is_empty(),
         "building the menu must not change autostart"
@@ -57,7 +57,7 @@ fn the_menu_shows_autostart_already_enabled_outside_the_app() {
     let autostart = FakeAutostart::default();
     autostart.enabled.set(true);
 
-    assert!(checked_at_menu_build(&autostart));
+    assert!(read_checked(&autostart));
 }
 
 #[test]
@@ -102,7 +102,7 @@ fn an_unreadable_state_shows_unchecked_and_changes_nothing() {
     let autostart = FakeAutostart::default();
     autostart.fail_reads.set(true);
 
-    assert!(!checked_at_menu_build(&autostart));
+    assert!(!read_checked(&autostart));
     assert!(!toggle(&autostart));
     assert!(autostart.calls.borrow().is_empty());
 }
