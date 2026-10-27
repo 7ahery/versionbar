@@ -4,9 +4,10 @@ import { type ReactNode, useState } from "react";
 import { type Outcome, openUvDocs } from "@/shell";
 
 /**
- * The screens shown instead of the tool list when there are no results to show: the first
- * run's setup, uv missing, and a failed scan. VersionBar installs nothing itself; the only
- * things it offers are text to copy, a link to uv's own instructions and Retry.
+ * The first run's setup, uv missing and a failed scan. Without results they replace the tool
+ * list as screens; with earlier results the same pieces show as a strip above it. VersionBar
+ * installs nothing itself; the only things it offers are text to copy, a link to uv's own
+ * instructions and Retry.
  */
 
 /** The install command we suggest. Copied by the user and run in their own terminal. */
@@ -112,6 +113,40 @@ export function FailedScreen({
   scanning: boolean;
   onRetry: () => void;
 }) {
+  return (
+    <Screen>
+      <h2 className="text-sm font-semibold">The scan failed</h2>
+      <FailureDetails outcome={outcome} scanning={scanning} onRetry={onRetry} />
+    </Screen>
+  );
+}
+
+/** The failure as a strip above the tool list, so a failed refresh never hides good data. */
+export function FailedNotice({
+  outcome,
+  scanning,
+  onRetry,
+}: {
+  outcome: Outcome;
+  scanning: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-2 border-b border-border px-4 py-2 text-center text-xs">
+      <FailureDetails outcome={outcome} scanning={scanning} onRetry={onRetry} />
+    </div>
+  );
+}
+
+function FailureDetails({
+  outcome,
+  scanning,
+  onRetry,
+}: {
+  outcome: Outcome;
+  scanning: boolean;
+  onRetry: () => void;
+}) {
   const message = outcome.message ?? "The scan failed.";
   const stderr = outcome.stderr?.trim() ?? "";
   const shown = stderr.split("\n").slice(-STDERR_LINES_SHOWN).join("\n");
@@ -123,8 +158,7 @@ export function FailedScreen({
   const report = stderr ? `${message}\n\n${stderr}` : message;
 
   return (
-    <Screen>
-      <h2 className="text-sm font-semibold">The scan failed</h2>
+    <>
       <p className="text-xs text-destructive">{message}</p>
       {stderr && (
         <pre
@@ -141,7 +175,7 @@ export function FailedScreen({
         <CopyButton label="Copy error" text={report} />
         <RetryButton scanning={scanning} onRetry={onRetry} />
       </div>
-    </Screen>
+    </>
   );
 }
 
