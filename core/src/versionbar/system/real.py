@@ -9,7 +9,7 @@ import platform
 import signal
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -61,7 +61,9 @@ class _LocalSystem:
         except OSError:
             return None
 
-    def run(self, argv: Sequence[str], timeout: float) -> ProcessResult:
+    def run(
+        self, argv: Sequence[str], timeout: float, env: Mapping[str, str] | None = None
+    ) -> ProcessResult:
         # Not subprocess.run: after a timeout it kills only the direct child
         # and then, on Windows, waits without limit for the pipes to close. A
         # `.cmd` shim whose hung grandchild inherited them would then stall the
@@ -79,6 +81,7 @@ class _LocalSystem:
             process = subprocess.Popen(
                 command,
                 executable=executable,
+                env=_overlaid_environment(env),
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -180,6 +183,20 @@ def _system32(name: str) -> str:
     # under inspection happens to offer.
     system_root = os.environ.get("SYSTEMROOT", r"C:\Windows")
     return os.path.join(system_root, "System32", name)
+
+
+def _overlaid_environment(overlay: Mapping[str, str] | None) -> dict[str, str] | None:
+    if not overlay:
+        return None  # Popen's default: inherit VersionBar's environment unchanged.
+    names = {name.upper() for name in overlay} if sys.platform == "win32" else set(overlay)
+    # Windows names are case-insensitive, so a differently cased copy of an
+    # overlaid name must go, or the child would see whichever it reads first.
+    kept = {
+        name: value
+        for name, value in os.environ.items()
+        if (name.upper() if sys.platform == "win32" else name) not in names
+    }
+    return kept | dict(overlay)
 
 
 def _is_batch(path: str) -> bool:

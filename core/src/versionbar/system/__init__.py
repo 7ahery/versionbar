@@ -5,7 +5,7 @@ files only through a `System`. Tests inject a fixture-backed fake; real
 implementations live behind the platform boundary in `versionbar.system.real`.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Protocol
@@ -69,7 +69,15 @@ class System(Protocol):
         """
         ...
 
-    def run(self, argv: Sequence[str], timeout: float) -> ProcessResult: ...
+    def run(
+        self, argv: Sequence[str], timeout: float, env: Mapping[str, str] | None = None
+    ) -> ProcessResult:
+        """Run `argv` and collect its output.
+
+        `env` is laid over VersionBar's own environment for this process only,
+        e.g. to stop a tool installing something while it is probed (DEC-24).
+        """
+        ...
 
     def read_file_head(self, path: str, limit: int) -> bytes | None:
         """At most the first `limit` bytes of the file at `path`, or None if it cannot be read.

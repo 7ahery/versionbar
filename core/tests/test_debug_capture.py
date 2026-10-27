@@ -75,6 +75,21 @@ def test_capture_records_raw_bytes_exit_code_and_provenance() -> None:
     }
 
 
+def test_capture_runs_the_version_command_with_the_definitions_env() -> None:
+    # Capturing must be as safe as scanning: a rustup proxy must not install.
+    rustc = r"C:\Users\dev\.cargo\bin\rustc.exe"
+    system = FakeSystem(
+        os="windows",
+        env={"PATH": r"C:\Users\dev\.cargo\bin", "PATHEXT": WINDOWS_PATHEXT},
+    )
+    system.add_executable(rustc, load_capture("rustc/windows-rustc-1.99.1.json"))
+
+    result = capture(system, "rustc")
+
+    assert result.exit_code == 0, result.output
+    assert system.run_envs[(rustc, "--version")] == {"RUSTUP_AUTO_INSTALL": "0"}
+
+
 def test_human_output_names_the_destination() -> None:
     result = capture(windows_with_git())
 

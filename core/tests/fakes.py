@@ -5,7 +5,7 @@ test; command output only ever comes from captured fixtures, never invented
 strings.
 """
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -55,6 +55,9 @@ class FakeSystem:
     clock: datetime = datetime(2026, 10, 23, 21, 4, 52, tzinfo=UTC)
     _executables: dict[str, list[Capture]] = field(default_factory=dict)
     runs: list[tuple[str, ...]] = field(default_factory=list)
+    # The environment overlay each command line last ran with, so a test can
+    # prove a probe was guarded. An empty dict means no overlay.
+    run_envs: dict[tuple[str, ...], dict[str, str]] = field(default_factory=dict)
     os_description: str = "Windows-11-10.0.26200-SP0"
     files: dict[str, bytes] = field(default_factory=dict)
     _aliases: dict[str, AppExecutionAlias | UnreadableAlias] = field(default_factory=dict)
@@ -162,8 +165,11 @@ class FakeSystem:
     def is_executable(self, path: str) -> bool:
         return self._key(path) in self._executables
 
-    def run(self, argv: Sequence[str], timeout: float) -> ProcessResult:
+    def run(
+        self, argv: Sequence[str], timeout: float, env: Mapping[str, str] | None = None
+    ) -> ProcessResult:
         self.runs.append(tuple(argv))
+        self.run_envs[tuple(argv)] = dict(env or {})
         if self.before_run is not None:
             self.before_run(tuple(argv))
         captures = self._executables[self._key(argv[0])]
