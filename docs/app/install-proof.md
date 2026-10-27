@@ -4,7 +4,7 @@ The `Installer` workflow (`.github/workflows/installer.yml`) builds the per-user
 
 ## Verify a download
 
-1. Download and unzip the artifact (or, for a release, download the installer and `SHA256SUMS.txt`).
+1. Download the artifact in a browser and unzip it with Explorer (or, for a release, download the installer and `SHA256SUMS.txt`). Chrome blocks the unsigned installer as dangerous: open `chrome://downloads` and choose **Keep** (in some versions under the entry's menu). Downloading another way (`gh run download`, some archivers) drops the Mark-of-the-Web, and SmartScreen then shows no warning.
 2. In PowerShell, in the folder that holds both files:
 
    ```powershell

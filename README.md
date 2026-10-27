@@ -158,7 +158,7 @@ versionbar --help
 
 ### Installer and SmartScreen
 
-The `Installer` workflow builds the per-user NSIS installer on a clean Windows runner for every push to a `ticket/**` or `integration/**` branch, and uploads it with `SHA256SUMS.txt`. The installer and the Windows executables are **unsigned** in v1, so SmartScreen shows "Windows protected your PC": verify the SHA-256 checksum, then choose "More info" and "Run anyway". The installer needs no administrator rights. The steps, and the manual install proof, are in [docs/app/install-proof.md](docs/app/install-proof.md). (Updater metadata is signed separately; that arrives with the release tickets.)
+The `Installer` workflow builds the per-user NSIS installer on a clean Windows runner for every push to a `ticket/**` or `integration/**` branch, and uploads it with `SHA256SUMS.txt`. The installer and the Windows executables are **unsigned** in v1, so browsers may flag the download (Chrome blocks it as dangerous: open `chrome://downloads` and choose **Keep**) and SmartScreen shows "Windows protected your PC": verify the SHA-256 checksum, then choose "More info" and "Run anyway". The installer needs no administrator rights. The steps, and the manual install proof, are in [docs/app/install-proof.md](docs/app/install-proof.md). (Updater metadata is signed separately; that arrives with the release tickets.)
 
 ## Commands
 
