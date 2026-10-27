@@ -95,7 +95,38 @@ def test_the_host_is_found_through_dotnet_root_when_not_on_path() -> None:
 def test_the_host_is_found_through_program_files_when_not_on_path() -> None:
     system = machine(on_path=False, env={"ProgramFiles": r"C:\Program Files"})
 
-    assert len(sdks(dotnet_of(system))) == 11
+    assert [i[0] for i in sdks(dotnet_of(system))] == CAPTURED_VERSIONS
+
+
+# A second host whose listing is empty: using it instead of the intended one
+# would show as missing SDKs.
+OTHER_DIR = r"D:\tools\dotnet"
+OTHER = rf"{OTHER_DIR}\dotnet.exe"
+NO_SDKS = Capture(LIST_ARGS, ProcessResult(exit_code=0, stdout=b"", stderr=b""))
+
+
+def test_the_path_host_is_asked_before_dotnet_root() -> None:
+    system = machine(env={"DOTNET_ROOT": OTHER_DIR})
+    system.add_executable(OTHER, NO_SDKS)
+
+    dotnet = dotnet_of(system)
+
+    # Listing from another host would list the active SDK a second time.
+    assert sdks(dotnet) == [
+        ("10.0.402", HOST, "path"),
+        *[(v, rf"{SDK_DIR}\{v}", "dotnet") for v in CAPTURED_VERSIONS[:-1]],
+    ]
+    assert OTHER not in {run[0] for run in system.runs}
+
+
+def test_dotnet_root_is_asked_before_program_files() -> None:
+    system = machine(
+        on_path=False,
+        env={"DOTNET_ROOT": HOST_DIR, "ProgramFiles": r"D:\tools"},
+    )
+    system.add_executable(OTHER, NO_SDKS)
+
+    assert [i[0] for i in sdks(dotnet_of(system))] == CAPTURED_VERSIONS
 
 
 def test_without_a_host_nothing_is_added_and_nothing_is_said() -> None:
@@ -106,6 +137,8 @@ def test_without_a_host_nothing_is_added_and_nothing_is_said() -> None:
 
 
 def test_a_host_with_no_sdks_adds_nothing() -> None:
+    # Unverified assumption: no real capture exists from a host with zero SDKs;
+    # empty output with exit 0 is the transport-style stand-in for it.
     empty = failing(ProcessResult(exit_code=0, stdout=b"", stderr=b""))
 
     dotnet = dotnet_of(machine(listing=empty))
@@ -115,7 +148,9 @@ def test_a_host_with_no_sdks_adds_nothing() -> None:
 
 
 def test_malformed_output_is_a_note_and_loses_nothing_else() -> None:
-    garbled = failing(ProcessResult(exit_code=0, stdout=b"Welcome to .NET\r\n", stderr=b""))
+    # Real output of another tool (uv --version), which is not a listing.
+    foreign = load_capture("uv/windows-uv-0.12.23.json").result.stdout
+    garbled = failing(ProcessResult(exit_code=0, stdout=foreign, stderr=b""))
 
     dotnet = dotnet_of(machine(listing=garbled))
 
