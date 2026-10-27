@@ -51,3 +51,22 @@ the file. Nothing at the path is run, and the webview cannot pass any other argu
 Refusals the user can see: "This is not a drive-letter path.", "This install no longer
 exists.", "Explorer could not be found." (`SystemRoot` unset) and "Explorer could not be
 started."
+
+## Tray menu: Open config file and About
+
+Menu order: Refresh, Show versions, Open config file, About, Quit. Code:
+`app/src-tauri/src/config_file.rs` and the menu in `app/src-tauri/src/lib.rs`.
+
+- **About** is the native About dialog. Its name and version come from the app's metadata
+  (`productName` in tauri.conf.json, the crate version), not from literals.
+- **Open config file** opens the `config_path` from the latest preferences query (DEC-13,
+  DEC-22) with `%SystemRoot%\explorer.exe "<path>"`. The path must be a drive-absolute `.toml`
+  path in the same plain-local form as the folder action; anything else is refused, because
+  Explorer runs what it is given.
+- When the file does not exist, its folder is created if needed and the starter template is
+  written first. The write is create-only: an existing file is never opened for writing, so it
+  is never overwritten or truncated. The template is `core/src/versionbar/starter_config.toml`,
+  embedded at build time; a test asserts the embedded text equals that file.
+- Nothing is cached: edits apply on the next refresh, which rereads preferences.
+- The menu has no place for messages, so a failure goes to stderr. If the path is not known yet
+  (no query has answered), the click starts a refresh so the next click has one.

@@ -13,12 +13,13 @@ use std::{
 use tauri::{
     AppHandle, Emitter, Manager, PhysicalPosition, Runtime, WebviewWindow, WindowEvent,
     image::Image,
-    menu::{Menu, MenuItem, PredefinedMenuItem},
+    menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 use tauri_plugin_positioner::{Position, WindowExt};
 
 pub mod badge;
+pub mod config_file;
 pub mod preferences;
 pub mod reveal;
 mod saved;
@@ -48,6 +49,8 @@ const POPUP: &str = "popup";
 const TRAY_ID: &str = "main";
 const MENU_REFRESH: &str = "refresh";
 const MENU_SHOW: &str = "show-versions";
+const MENU_CONFIG: &str = "open-config";
+// About is a predefined native item and raises no menu event, so it has no id here.
 const MENU_QUIT: &str = "quit";
 
 /// Gap between the popup and the taskbar, like Windows 11's own flyouts (logical pixels).
@@ -270,6 +273,36 @@ fn refresh<R: Runtime>(app: AppHandle<R>, scanner: tauri::State<'_, Arc<Scanner>
     start_refresh(app, scanner.inner().clone());
 }
 
+/// Opens the config file from the tray menu, creating the starter file first if there is none.
+/// The path is whatever the latest preferences query reported, read now, so nothing about the
+/// config is cached here beyond that path. The menu has no place to show an error, so failures
+/// go to stderr; an unknown path also starts a refresh, whose preferences query learns it.
+fn open_config_file<R: Runtime>(app: &AppHandle<R>) {
+    let path = app
+        .try_state::<Arc<Preferences>>()
+        .and_then(|preferences| preferences.config_path());
+    let opened = config_file::open_command(
+        path.as_deref(),
+        config_file::STARTER_CONFIG,
+        std::env::var_os("SystemRoot").as_deref(),
+    )
+    .and_then(|mut explorer| {
+        // Not waited for, as in `open_containing_folder`.
+        explorer
+            .spawn()
+            .map(drop)
+            .map_err(|_| config_file::ConfigError::CannotStart)
+    });
+    if let Err(error) = opened {
+        eprintln!("Open config file: {error}");
+        if path.is_none()
+            && let Some(scanner) = app.try_state::<Arc<Scanner>>()
+        {
+            start_refresh(app.clone(), scanner.inner().clone());
+        }
+    }
+}
+
 fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     // Show versions is always in the menu: Linux trays do not report left-clicks (ADR-0009).
     let menu = Menu::with_items(
@@ -277,6 +310,18 @@ fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         &[
             &MenuItem::with_id(app, MENU_REFRESH, "Refresh", true, None::<&str>)?,
             &MenuItem::with_id(app, MENU_SHOW, "Show versions", true, None::<&str>)?,
+            &MenuItem::with_id(app, MENU_CONFIG, "Open config file", true, None::<&str>)?,
+            // Name and version come from the app's own metadata (tauri.conf.json and Cargo.toml),
+            // never from literals here.
+            &PredefinedMenuItem::about(
+                app,
+                Some(&format!("About {}", app.package_info().name)),
+                Some(AboutMetadata {
+                    name: Some(app.package_info().name.clone()),
+                    version: Some(app.package_info().version.to_string()),
+                    ..Default::default()
+                }),
+            )?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, MENU_QUIT, "Quit", true, None::<&str>)?,
         ],
@@ -297,6 +342,7 @@ fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
                 }
             }
             MENU_SHOW => show_popup(app),
+            MENU_CONFIG => open_config_file(app),
             MENU_QUIT => app.exit(0),
             _ => {}
         })
