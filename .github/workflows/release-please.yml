@@ -35,6 +35,7 @@ jobs:
       tag_name: ${{ steps.release.outputs.tag_name }}
       version: ${{ steps.release.outputs.version }}
       sha: ${{ steps.release.outputs.sha }}
+      body: ${{ steps.release.outputs.body }}
       pr: ${{ steps.release.outputs.pr }}
     steps:
       - id: release
@@ -42,6 +43,17 @@ jobs:
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+      # release-please's own `prerelease` option would also flag every 0.x release, so no
+      # release would ever be `latest` and the updater feed URL would never resolve. Flag
+      # only versions with a semver prerelease part (0.2.0-rc.1), before anything is built,
+      # so `releases/latest` never moves to a prerelease for longer than this step takes.
+      - name: Mark a prerelease version as a GitHub prerelease
+        if: steps.release.outputs.release_created == 'true' && contains(steps.release.outputs.version, '-')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+          REPO: ${{ github.repository }}
+        run: gh release edit "$TAG" --repo "$REPO" --prerelease --latest=false
 
   # GITHUB_TOKEN pushes do not trigger CI on the release PR, so the checks that matter for a
   # version bump run here against the PR branch instead.
@@ -63,9 +75,10 @@ jobs:
       # The lockfile must already hold the bumped version, or `uv sync --locked` breaks later.
       - run: uv lock --check --project core
 
-  # Last gate before anything is built or published from the tag.
+  # Last gate before anything is built or published from the tag. Every job that builds or
+  # publishes (the installer below, PyPI in #33) needs this one, so a failure ships nothing.
   verify-release:
-    name: Check the release tag matches every version
+    name: Check the release commit
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-latest
@@ -77,6 +90,73 @@ jobs:
       - uses: actions/setup-node@v7.1.0
         with:
           node-version: 24
+          cache: npm
+      - uses: astral-sh/setup-uv@v10.3.2
       - run: node scripts/check-versions.mjs --tag "$TAG"
         env:
           TAG: ${{ needs.release-please.outputs.tag_name }}
+      # ci.yml never ran on this commit, so stale schema or TS types would otherwise ship.
+      - run: npm ci
+      - run: npm run lint:gen
+
+  build-installer:
+    name: Build the signed release
+    needs: [release-please, verify-release]
+    uses: ./.github/workflows/installer.yml
+    with:
+      ref: ${{ needs.release-please.outputs.sha }}
+      sign-updater: true
+    # This job has no environment, so these expressions are empty here: the key exists only in
+    # the `release` environment. The mapping declares which names the called workflow may use;
+    # its job that sets `environment: release` then gets the environment's values instead
+    # (GitHub resolves an environment secret the caller does not name to an empty string).
+    # Named one by one, not `secrets: inherit`, so the build can see nothing else.
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+  # The only job with write access to releases. It writes the feed before uploading anything,
+  # and uploads latest.json last, so a failure never leaves a feed pointing at a missing file.
+  attach-release:
+    name: Attach installer, checksums and update feed
+    needs: [release-please, build-installer]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: ${{ needs.build-installer.outputs.artifact }}
+          path: dist
+      - name: Write latest.json
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          NOTES: ${{ needs.release-please.outputs.body }}
+          REPO: ${{ github.repository }}
+        run: |
+          shopt -s nullglob
+          installers=(dist/*-setup.exe)
+          if [ "${#installers[@]}" -ne 1 ]; then
+            echo "::error::expected exactly one installer in dist, found ${#installers[@]}"
+            exit 1
+          fi
+          printf '%s' "$NOTES" > "$RUNNER_TEMP/notes.md"
+          node scripts/updater-feed.mjs --installer "${installers[0]}" --tag "$TAG" --repo "$REPO" \
+            --notes-file "$RUNNER_TEMP/notes.md" --out dist/latest.json
+          echo "INSTALLER=${installers[0]}" >> "$GITHUB_ENV"
+      # --clobber makes a re-run of a failed attach replace what an earlier attempt uploaded.
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh release upload "$TAG" "$INSTALLER" "$INSTALLER.sig" dist/SHA256SUMS.txt --repo "$REPO" --clobber
+          gh release upload "$TAG" dist/latest.json --repo "$REPO" --clobber

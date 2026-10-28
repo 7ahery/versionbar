@@ -154,15 +154,26 @@ versionbar --help
 
 `npm run dev` starts Vite with hot reload and runs the shell. The app lives in the system tray: left-click the icon to toggle the popup, or use the tray menu (Show versions, Quit). Launching it a second time shows the running instance's popup instead of adding a second icon. UI edits reload in place; Rust edits make `tauri dev` rebuild and restart the app. What has been verified on a real machine is recorded in [docs/app/native-observations.md](docs/app/native-observations.md).
 
-`npm run build` produces an NSIS installer under `app/src-tauri/target/release/bundle/` for local testing only. Published installers are built by CI from a release tag (the release workflow arrives with the release tickets), never on a contributor's machine.
+`npm run build` produces an NSIS installer under `app/src-tauri/target/release/bundle/` for local testing only. Published installers are built by CI in the release workflow (see [Releases](#releases)), never on a contributor's machine.
 
 ### Installer and SmartScreen
 
-The `Installer` workflow builds the per-user NSIS installer on a clean Windows runner for every push to a `ticket/**` or `integration/**` branch, and uploads it with `SHA256SUMS.txt`. The installer and the Windows executables are **unsigned** in v1, so browsers may flag the download (Chrome blocks it as dangerous: open `chrome://downloads` and choose **Keep**) and SmartScreen shows "Windows protected your PC": verify the SHA-256 checksum, then choose "More info" and "Run anyway". The installer needs no administrator rights. The steps, and the manual install proof, are in [docs/app/install-proof.md](docs/app/install-proof.md). (Updater metadata is signed separately; that arrives with the release tickets.)
+The `Installer` workflow builds the per-user NSIS installer on a clean Windows runner for every push to a `ticket/**` or `integration/**` branch, and uploads it with `SHA256SUMS.txt`. The installer and the Windows executables are **unsigned** in v1, so browsers may flag the download (Chrome blocks it as dangerous: open `chrome://downloads` and choose **Keep**) and SmartScreen shows "Windows protected your PC": verify the SHA-256 checksum, then choose "More info" and "Run anyway". The installer needs no administrator rights. The steps, and the manual install proof, are in [docs/app/install-proof.md](docs/app/install-proof.md). Release builds also carry update metadata, which **is** signed (see [Releases](#releases)).
 
 ## Releases
 
 The `Release` workflow (`.github/workflows/release-please.yml`) keeps a release PR open from Conventional Commits on `main`; merging it tags the release. The repository needs the setting **Allow GitHub Actions to create and approve pull requests** (Settings, Actions, General) or the workflow cannot open that PR. The PR is opened with `GITHUB_TOKEN`, so `ci.yml` does not run on it; the workflow runs the version consistency check (`npm run lint:versions`) and `uv lock --check` against it instead. `.release-please-manifest.json` says `0.0.0` until the first release, so the first release PR proposes `0.1.0`; release-please keeps it current afterwards.
+
+Merging the release PR tags the release, and the same run then builds and publishes it (a tag pushed with `GITHUB_TOKEN` triggers no other workflow, so nothing builds from a tag on its own):
+
+1. If the version has a semver prerelease part (`0.2.0-rc.1`), the `release-please` job marks the GitHub release as a prerelease straight away. Full versions (`0.2.0`) stay normal releases and become `latest`.
+2. `verify-release` checks that every version file matches the tag and that the generated schema and TS types are current (`npm run lint:gen`).
+3. `build-installer` calls the `Installer` workflow with `sign-updater: true`. Its `release-installer` job merges in `app/src-tauri/tauri.updater.conf.json`, which turns on `bundle.createUpdaterArtifacts`, and signs the update with `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. The build fails if that key does not match `plugins.updater.pubkey` in `tauri.conf.json`.
+4. `attach-release` writes `latest.json`, the Tauri static update feed (`scripts/updater-feed.mjs`), and attaches the installer, its `.sig` and `SHA256SUMS.txt`, then `latest.json`, to the GitHub release.
+
+The signing secrets live in a GitHub environment named **`release`** (Settings, Environments), with the deployment branch rule set to `main` only, and nowhere else (no repository secrets of the same name). Only the signed `release-installer` job names that environment, so push and dispatch runs of `Installer`, and any work branch that edits the workflow, cannot read the key; they build unsigned. The private key is never in the repository; the app holds only the public key in `tauri.conf.json`.
+
+A failed step stops the run before anything is attached. The installer itself stays unsigned; only the update is signed. The app reads the feed from `https://github.com/7ahery/versionbar/releases/latest/download/latest.json`, which GitHub serves from the newest release that is not a prerelease, so prereleases never reach installed apps through the updater. release-please publishes the release before the build starts, so that URL returns 404 while a full release is building (about 15 minutes), and keeps returning 404 after a failed build until the failed jobs are re-run (Re-run failed jobs on the workflow run; the uploads overwrite any partial attempt). During that time the app's update check fails with an error: the Tauri updater counts only a 204 response as "no update", so a 404 is a failed check. The app must handle a failed check quietly, without an error message (#34).
 
 ## Commands
 

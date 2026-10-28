@@ -4,9 +4,11 @@ name: Installer
 # SHA-256 checksums as a downloadable artifact, so a human can install it on a machine
 # that has never seen the repo (the install proof in docs/app/install-proof.md).
 #
-# This is a test build. Published installers come from the release workflow (later
-# tickets), which can reuse this one through workflow_call. The installer is unsigned in
-# v1; the checksums are how users verify it.
+# Push and dispatch runs are unsigned test builds (job `installer`). The release workflow
+# (release-please.yml) calls this one with `sign-updater: true`, which runs job
+# `release-installer` instead: it adds the updater artifact signature (`<installer>.sig`).
+# The installer itself is unsigned in v1 either way (ADR 0010); the checksums are how users
+# verify it.
 
 on:
   # Pushes to work branches give an artifact without a PR; a dispatch-only workflow could
@@ -15,21 +17,45 @@ on:
     branches: ["ticket/**", "integration/**"]
   workflow_dispatch:
   workflow_call:
+    inputs:
+      ref:
+        description: Commit to build (the release commit); defaults to the triggering commit.
+        type: string
+        default: ""
+      sign-updater:
+        description: Create and sign the updater artifact. Only the release workflow sets this.
+        type: boolean
+        default: false
+    # The values live in the `release` environment, not the repository. The caller passes
+    # empty values under these names; the job that sets `environment: release` reads the
+    # environment's values instead, and every other job sees nothing.
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY:
+        required: false
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD:
+        required: false
+    outputs:
+      artifact:
+        description: Name of the uploaded artifact holding the installer, checksums and signature.
+        value: ${{ jobs.release-installer.outputs.artifact }}
 
 permissions:
   contents: read
 
+# A newer push may cancel a test build, but nothing may cancel a release build halfway.
 concurrency:
-  group: installer-${{ github.ref }}
-  cancel-in-progress: true
+  group: installer-${{ inputs.sign-updater && 'release' || github.ref }}
+  cancel-in-progress: ${{ !inputs.sign-updater }}
 
 jobs:
   installer:
     name: NSIS installer (windows-latest)
+    if: ${{ !inputs.sign-updater }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7.0.1
         with:
+          ref: ${{ inputs.ref }}
           persist-credentials: false
       - uses: actions/setup-node@v7.1.0
         with:
@@ -43,24 +69,53 @@ jobs:
       # its bundle.resources copies core/ (pyproject, uv.lock, .python-version, README, src)
       # from this same checkout, so the core in the installer matches the app's commit.
       - run: npm run build
-
-      - name: Checksums
-        shell: pwsh
-        run: |
-          $dir = 'app/src-tauri/target/release/bundle/nsis'
-          $installers = @(Get-ChildItem -Path $dir -Filter '*-setup.exe')
-          if ($installers.Count -ne 1) { throw "expected exactly one installer in $dir, found $($installers.Count)" }
-          New-Item -ItemType Directory -Force dist | Out-Null
-          Copy-Item $installers[0].FullName dist/
-          # sha256sum format ("<hash> *<name>") so `sha256sum -c` and Get-FileHash both work.
-          $name = $installers[0].Name
-          $hash = (Get-FileHash -Algorithm SHA256 -Path "dist/$name").Hash.ToLower()
-          "$hash *$name" | Set-Content -Path dist/SHA256SUMS.txt -Encoding ascii
-          Get-Content dist/SHA256SUMS.txt
-          Get-Content dist/SHA256SUMS.txt | Add-Content -Path $env:GITHUB_STEP_SUMMARY
-
-      - uses: actions/upload-artifact@v7.0.2
+      - uses: ./.github/actions/package-installer
         with:
-          name: installer-${{ github.sha }}
-          path: dist/
-          if-no-files-found: error
+          signed: false
+          artifact: installer-${{ inputs.ref || github.sha }}
+
+  # A separate job because only this one may name the `release` environment, which holds the
+  # signing key and can be deployed from `main` only. A push to a work branch that edited
+  # this file still could not reach the key.
+  release-installer:
+    name: Signed release installer (windows-latest)
+    if: ${{ inputs.sign-updater }}
+    runs-on: windows-latest
+    environment: release
+    outputs:
+      artifact: installer-${{ inputs.ref || github.sha }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      # No Rust build cache: a published installer is built from scratch, so nothing an earlier
+      # run left in a cache can end up in it. Releases are rare enough to pay the extra minutes.
+      - run: npm ci
+      # tauri.updater.conf.json only turns on bundle.createUpdaterArtifacts. It is passed to
+      # the app workspace script directly because a nested `npm run` would eat `--config`.
+      - name: Build and sign the updater artifact
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is empty; check the release environment's secrets"
+            exit 1
+          fi
+          npm run build -w app -- --config src-tauri/tauri.updater.conf.json 2>&1 | tee build.log
+          # Tauri only warns when the key does not match plugins.updater.pubkey, but every
+          # installed app would then reject the update, so the release must stop here.
+          if grep -q 'does not match the public key' build.log; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY does not match plugins.updater.pubkey in tauri.conf.json"
+            exit 1
+          fi
+      - uses: ./.github/actions/package-installer
+        with:
+          signed: true
+          artifact: installer-${{ inputs.ref || github.sha }}
