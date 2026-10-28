@@ -43,6 +43,17 @@ jobs:
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+      # release-please's own `prerelease` option would also flag every 0.x release, so no
+      # release would ever be `latest` and the updater feed URL would never resolve. Flag
+      # only versions with a semver prerelease part (0.2.0-rc.1), before anything is built,
+      # so `releases/latest` never moves to a prerelease for longer than this step takes.
+      - name: Mark a prerelease version as a GitHub prerelease
+        if: steps.release.outputs.release_created == 'true' && contains(steps.release.outputs.version, '-')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+          REPO: ${{ github.repository }}
+        run: gh release edit "$TAG" --repo "$REPO" --prerelease --latest=false
 
   # GITHUB_TOKEN pushes do not trigger CI on the release PR, so the checks that matter for a
   # version bump run here against the PR branch instead.
@@ -95,7 +106,9 @@ jobs:
     with:
       ref: ${{ needs.release-please.outputs.sha }}
       sign-updater: true
-    # Passed by name, not `secrets: inherit`, so the build sees the updater key and nothing else.
+    # The values exist only in the `release` environment; a reusable workflow still needs them
+    # passed by name, and only its job that sets `environment: release` gets them. By name, not
+    # `secrets: inherit`, so the build sees the updater key and nothing else.
     secrets:
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}

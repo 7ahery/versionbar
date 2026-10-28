@@ -166,11 +166,14 @@ The `Release` workflow (`.github/workflows/release-please.yml`) keeps a release 
 
 Merging the release PR tags the release, and the same run then builds and publishes it (a tag pushed with `GITHUB_TOKEN` triggers no other workflow, so nothing builds from a tag on its own):
 
-1. `verify-release` checks that every version file matches the tag and that the generated schema and TS types are current (`npm run lint:gen`).
-2. `build-installer` calls the `Installer` workflow with `sign-updater: true`. It merges in `app/src-tauri/tauri.updater.conf.json`, which turns on `bundle.createUpdaterArtifacts`, and signs the update with the `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` repository secrets. The build fails if that key does not match `plugins.updater.pubkey` in `tauri.conf.json`. Push and dispatch runs of `Installer` never receive the secrets and stay unsigned.
-3. `attach-release` writes `latest.json`, the Tauri static update feed (`scripts/updater-feed.mjs`), and attaches the installer, its `.sig` and `SHA256SUMS.txt`, then `latest.json`, to the GitHub release.
+1. If the version has a semver prerelease part (`0.2.0-rc.1`), the `release-please` job marks the GitHub release as a prerelease straight away. Full versions (`0.2.0`) stay normal releases and become `latest`.
+2. `verify-release` checks that every version file matches the tag and that the generated schema and TS types are current (`npm run lint:gen`).
+3. `build-installer` calls the `Installer` workflow with `sign-updater: true`. Its `release-installer` job merges in `app/src-tauri/tauri.updater.conf.json`, which turns on `bundle.createUpdaterArtifacts`, and signs the update with `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. The build fails if that key does not match `plugins.updater.pubkey` in `tauri.conf.json`.
+4. `attach-release` writes `latest.json`, the Tauri static update feed (`scripts/updater-feed.mjs`), and attaches the installer, its `.sig` and `SHA256SUMS.txt`, then `latest.json`, to the GitHub release.
 
-A failed step stops the run before anything is attached. The installer itself stays unsigned; only the update is signed. The app reads the feed from `https://github.com/7ahery/versionbar/releases/latest/download/latest.json`, which GitHub serves from the newest release that is not a prerelease, so prereleases never reach installed apps through the updater. The private key is never in the repository; the app holds only the public key in `tauri.conf.json`.
+The signing secrets live in a GitHub environment named **`release`** (Settings, Environments), with the deployment branch rule set to `main` only, and nowhere else (no repository secrets of the same name). Only the signed `release-installer` job names that environment, so push and dispatch runs of `Installer`, and any work branch that edits the workflow, cannot read the key; they build unsigned. The private key is never in the repository; the app holds only the public key in `tauri.conf.json`.
+
+A failed step stops the run before anything is attached. The installer itself stays unsigned; only the update is signed. The app reads the feed from `https://github.com/7ahery/versionbar/releases/latest/download/latest.json`, which GitHub serves from the newest release that is not a prerelease, so prereleases never reach installed apps through the updater. release-please publishes the release before the build starts, so that URL returns 404 while a full release is building (about 15 minutes), and keeps returning 404 after a failed build until the failed jobs are re-run (Re-run failed jobs on the workflow run; the uploads overwrite any partial attempt). The updater treats a 404 as "no update".
 
 ## Commands
 

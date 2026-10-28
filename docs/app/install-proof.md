@@ -59,15 +59,17 @@ Done by a person before the first production release. No evidence is recorded un
 Updater key and secrets
 
 1. Keep the updater private key and its password outside the repository (a password manager). The public key is already in `plugins.updater.pubkey` in `app/src-tauri/tauri.conf.json`; if the key pair is ever replaced, update it there in the same change.
-2. Add the repository secrets `TAURI_SIGNING_PRIVATE_KEY` (the key file's content) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (Settings, Secrets and variables, Actions).
+2. Create the environment `release` (Settings, Environments). Under Deployment branches and tags choose Selected branches and tags and add `main` only. Add the environment secrets `TAURI_SIGNING_PRIVATE_KEY` (the key file's content) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Do not also add them as repository secrets: those would be readable from any branch.
 3. Before relying on the updater, confirm from a signed-out browser or `curl` without credentials that a release's assets and `https://github.com/7ahery/versionbar/releases/latest/download/latest.json` download anonymously. While the repository is private they will not, and installed apps cannot update.
 
 Prerelease rehearsal
 
-4. Release a prerelease from CI (the release PR with prerelease versioning), never from a local build.
-5. Record the published version and tag, the release's assets (installer, `.sig`, `SHA256SUMS.txt`, `latest.json`), and the installer's SHA-256 checked against `SHA256SUMS.txt` as in [Verify a download](#verify-a-download).
-6. Check `latest.json`: `version` matches the tag, `platforms.windows-x86_64.url` downloads that release's installer, and `signature` is the `.sig` file's content.
-7. Verify the signature against the public key. The `.sig` file and `plugins.updater.pubkey` are both base64-encoded minisign files: decode each to a file and run `minisign -V -p <decoded pubkey> -m <installer> -x <decoded sig>` (the Tauri CLI has no verify command). Once the updater exists (#34), also update an older installed build through it.
-8. A prerelease is not served by the `releases/latest` URL, so the rehearsal checks feed reachability through the prerelease's own asset URL (`releases/download/<tag>/latest.json`) or, while the repository is private, a controlled reachable test feed. Record which one was used.
+4. Trigger a prerelease from CI, never from a local build: land a commit on `main` whose message ends with the footer `Release-As: 0.1.0-rc.1`, for example a PR containing `git commit --allow-empty -m "chore: release 0.1.0-rc.1" -m "Release-As: 0.1.0-rc.1"`. With a squash merge, check that the footer is still in the squashed commit's description. release-please then opens a release PR for `0.1.0-rc.1`; merge it. For the next full release, use a `Release-As: 0.1.0` footer the same way so the version is not guessed from the prerelease.
+5. Confirm the release page shows the release as **Pre-release** and that `releases/latest` still points at the previous full release (or 404s if there is none) before going on. If it shows as a normal release, stop: installed apps would be offered it.
+6. Record the published version and tag, the release's assets (installer, `.sig`, `SHA256SUMS.txt`, `latest.json`), and the installer's SHA-256 checked against `SHA256SUMS.txt` as in [Verify a download](#verify-a-download).
+7. Check the prerelease's own feed, `https://github.com/7ahery/versionbar/releases/download/v0.1.0-rc.1/latest.json`, not `releases/latest` (which never serves a prerelease): it downloads anonymously, `version` matches the tag, `platforms.windows-x86_64.url` downloads that release's installer, and `signature` is the `.sig` file's content. While the repository is private, use a controlled reachable test feed instead and record which one was used.
+8. Verify the signature against the public key. The `.sig` file and `plugins.updater.pubkey` are both base64-encoded minisign files: decode each to a file and run `minisign -V -p <decoded pubkey> -m <installer> -x <decoded sig>` (the Tauri CLI has no verify command). Once the updater exists (#34), also update an older installed build through it.
+
+If a release run fails after release-please has published the release, the release has no assets and `releases/latest/download/latest.json` returns 404 (for a full release) until the failed jobs are re-run with Re-run failed jobs on that workflow run. The same 404 is normal while a full release is still building. Installed apps treat 404 as "no update".
 
 Record the date, versions, checksums and results in [native-observations.md](native-observations.md).

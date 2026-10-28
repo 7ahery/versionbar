@@ -1,0 +1,45 @@
+name: Package the installer
+description: >-
+  Copies the one NSIS installer (and, for a signed build, its updater signature) into dist/,
+  writes SHA256SUMS.txt and uploads dist/ as an artifact. Shared by the unsigned and the
+  signed job in installer.yml so both publish the same layout.
+
+inputs:
+  signed:
+    description: Whether the build produced an updater signature that must be included.
+    required: true
+  artifact:
+    description: Artifact name.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Checksums
+      shell: pwsh
+      env:
+        SIGNED: ${{ inputs.signed }}
+      run: |
+        $dir = 'app/src-tauri/target/release/bundle/nsis'
+        # -like rather than -Filter: Windows wildcards can match more than the pattern says.
+        $installers = @(Get-ChildItem -Path $dir | Where-Object { $_.Name -like '*-setup.exe' })
+        if ($installers.Count -ne 1) { throw "expected exactly one installer in $dir, found $($installers.Count)" }
+        New-Item -ItemType Directory -Force dist | Out-Null
+        Copy-Item $installers[0].FullName dist/
+        $sig = "$($installers[0].FullName).sig"
+        if ($env:SIGNED -eq 'true') {
+          if (-not (Test-Path $sig)) { throw "signed build produced no $sig" }
+          Copy-Item $sig dist/
+        }
+        # sha256sum format ("<hash> *<name>") so `sha256sum -c` and Get-FileHash both work.
+        $name = $installers[0].Name
+        $hash = (Get-FileHash -Algorithm SHA256 -Path "dist/$name").Hash.ToLower()
+        "$hash *$name" | Set-Content -Path dist/SHA256SUMS.txt -Encoding ascii
+        Get-Content dist/SHA256SUMS.txt
+        Get-Content dist/SHA256SUMS.txt | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+
+    - uses: actions/upload-artifact@v7.0.2
+      with:
+        name: ${{ inputs.artifact }}
+        path: dist/
+        if-no-files-found: error
