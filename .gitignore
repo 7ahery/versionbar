@@ -1,5 +1,6 @@
 tickets/
 .scratch/
+.orchestration/
 prototypes/
 .claude/*
 !.claude/settings.json
