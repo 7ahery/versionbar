@@ -16,6 +16,8 @@ export const VERSION_FILES = [
   "app/src-tauri/Cargo.toml",
   "app/src-tauri/Cargo.lock",
   "core/uv.lock",
+  "package.json",
+  "package-lock.json",
 ];
 
 const PRE = { alpha: "a", a: "a", beta: "b", b: "b", rc: "rc", c: "rc" };
@@ -53,32 +55,41 @@ const READERS = {
   "app/src-tauri/Cargo.toml": (t) => versionInTable(t, "[package]"),
   "app/src-tauri/Cargo.lock": (t) => versionInPackageBlock(t, "tray-shell"),
   "core/uv.lock": (t) => versionInPackageBlock(t, "versionbar"),
+  "package.json": (t) => JSON.parse(t).version,
+  // Both the top-level and the root-workspace entry carry the version; npm ci rejects a lock
+  // whose root entry disagrees with package.json.
+  "package-lock.json": (t) => {
+    const lock = JSON.parse(t);
+    return [lock.version, lock.packages?.[""]?.version];
+  },
 };
 
 export function checkVersions(root, tag) {
   const problems = [];
-  const found = {};
+  const found = [];
   for (const file of VERSION_FILES) {
-    let raw;
+    let raws;
     try {
-      raw = READERS[file](readFileSync(join(root, file), "utf8"));
+      raws = [READERS[file](readFileSync(join(root, file), "utf8"))].flat();
     } catch (e) {
       problems.push(`${file}: cannot read (${e.message})`);
       continue;
     }
-    if (raw === undefined) {
-      problems.push(`${file}: no version found`);
-      continue;
-    }
-    try {
-      found[file] = { raw, norm: normalise(raw) };
-    } catch (e) {
-      problems.push(`${file}: ${e.message}`);
+    for (const raw of raws) {
+      if (typeof raw !== "string") {
+        problems.push(`${file}: no version found`);
+        continue;
+      }
+      try {
+        found.push({ file, raw, norm: normalise(raw) });
+      } catch (e) {
+        problems.push(`${file}: ${e.message}`);
+      }
     }
   }
-  const truth = found[VERSION_FILES[0]];
+  const truth = found.find((v) => v.file === VERSION_FILES[0]);
   if (truth) {
-    for (const [file, v] of Object.entries(found)) {
+    for (const { file, ...v } of found) {
       if (v.norm !== truth.norm) {
         problems.push(`${file}: version ${v.raw} differs from ${VERSION_FILES[0]} (${truth.raw})`);
       }

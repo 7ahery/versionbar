@@ -10,7 +10,7 @@ import { test } from "node:test";
 const here = dirname(fileURLToPath(import.meta.url));
 const script = join(here, "check-versions.mjs");
 
-function makeRepo({ pyproject = "0.1.0", cargo = "0.1.0", cargoLock = "0.1.0", uvLock = "0.1.0" } = {}) {
+function makeRepo({ pyproject = "0.1.0", cargo = "0.1.0", cargoLock = "0.1.0", uvLock = "0.1.0", pkg = "0.1.0", lockTop = "0.1.0", lockRoot = "0.1.0" } = {}) {
   const root = mkdtempSync(join(tmpdir(), "vb-ver-"));
   const put = (path, text) => {
     mkdirSync(dirname(join(root, path)), { recursive: true });
@@ -25,6 +25,11 @@ function makeRepo({ pyproject = "0.1.0", cargo = "0.1.0", cargoLock = "0.1.0", u
   put(
     "core/uv.lock",
     `[[package]]\nname = "other"\nversion = "9.9.9"\n\n[[package]]\nname = "versionbar"\nversion = "${uvLock}"\nsource = { editable = "." }\n`,
+  );
+  put("package.json", JSON.stringify({ name: "w", version: pkg }));
+  put(
+    "package-lock.json",
+    JSON.stringify({ name: "w", version: lockTop, packages: { "": { name: "w", version: lockRoot } } }),
   );
   return root;
 }
@@ -49,6 +54,9 @@ test("fails for each of the other copies too", () => {
   for (const [key, file] of [
     ["cargo", "Cargo\\.toml"],
     ["uvLock", "uv\\.lock"],
+    ["pkg", "package\\.json"],
+    ["lockTop", "package-lock\\.json"],
+    ["lockRoot", "package-lock\\.json"],
   ]) {
     const r = run(makeRepo({ [key]: "0.3.0" }));
     assert.equal(r.status, 1, key);
@@ -58,14 +66,14 @@ test("fails for each of the other copies too", () => {
 
 test("treats semver prerelease and PEP 440 spellings as the same version", () => {
   const r = run(
-    makeRepo({ pyproject: "0.2.0b1", cargo: "0.2.0-beta.1", cargoLock: "0.2.0-beta.1", uvLock: "0.2.0b1" }),
+    makeRepo({ pyproject: "0.2.0b1", cargo: "0.2.0-beta.1", cargoLock: "0.2.0-beta.1", uvLock: "0.2.0b1", pkg: "0.2.0-beta.1", lockTop: "0.2.0-beta.1", lockRoot: "0.2.0-beta.1" }),
   );
   assert.equal(r.status, 0, r.stderr);
 });
 
 test("a different prerelease number is a mismatch", () => {
   const r = run(
-    makeRepo({ pyproject: "0.2.0b1", cargo: "0.2.0-beta.2", cargoLock: "0.2.0-beta.2", uvLock: "0.2.0b1" }),
+    makeRepo({ pyproject: "0.2.0b1", cargo: "0.2.0-beta.2", cargoLock: "0.2.0-beta.2", uvLock: "0.2.0b1", pkg: "0.2.0-beta.1", lockTop: "0.2.0-beta.1", lockRoot: "0.2.0-beta.1" }),
   );
   assert.equal(r.status, 1);
 });
@@ -76,6 +84,9 @@ test("--tag accepts the matching release tag and rejects another", () => {
     cargo: "0.2.0-beta.1",
     cargoLock: "0.2.0-beta.1",
     uvLock: "0.2.0b1",
+    pkg: "0.2.0-beta.1",
+    lockTop: "0.2.0-beta.1",
+    lockRoot: "0.2.0-beta.1",
   });
   assert.equal(run(root, "--tag", "v0.2.0-beta.1").status, 0);
   const bad = run(root, "--tag", "v0.2.1");
@@ -96,11 +107,13 @@ test("the real repository is consistent and release-please updates exactly the c
   const r = run(repoRoot);
   assert.equal(r.status, 0, r.stderr);
   const config = JSON.parse(readFileSync(join(repoRoot, "release-please-config.json"), "utf8"));
-  const listed = config.packages["."]["extra-files"].map((f) => f.path).sort();
-  assert.deepEqual(listed, [
+  const listed = config.packages["."]["extra-files"].map((f) => f.path);
+  assert.deepEqual([...new Set(listed)].sort(), [
     "app/src-tauri/Cargo.lock",
     "app/src-tauri/Cargo.toml",
     "core/pyproject.toml",
     "core/uv.lock",
+    "package-lock.json",
+    "package.json",
   ]);
 });
