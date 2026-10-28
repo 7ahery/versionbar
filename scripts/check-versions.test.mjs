@@ -94,6 +94,12 @@ test("--tag accepts the matching release tag and rejects another", () => {
   assert.match(bad.stderr, /v0\.2\.1/);
 });
 
+test("--tag with an empty or missing value fails instead of skipping the comparison", () => {
+  const root = makeRepo();
+  assert.equal(run(root, "--tag", "").status, 1);
+  assert.equal(run(root, "--tag").status, 1);
+});
+
 test("fails clearly when a file has no version for its package", () => {
   const root = makeRepo();
   writeFileSync(join(root, "core/uv.lock"), `[[package]]\nname = "other"\nversion = "1.0.0"\n`);

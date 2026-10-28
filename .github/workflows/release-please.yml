@@ -7,6 +7,8 @@ name: Release
 # cannot run inside a reusable workflow, so the publish job (#33) must be a job here, and the
 # installer build (#53) is called from here too. A tag created with GITHUB_TOKEN triggers no
 # other workflow, which is why those jobs hang off `release_created` in this same run.
+#
+# The repo setting "Allow GitHub Actions to create and approve pull requests" must be on.
 
 on:
   push:

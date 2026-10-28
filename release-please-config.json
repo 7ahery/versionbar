@@ -19,8 +19,8 @@
           "type": "toml",
           "path": "core/uv.lock",
           "jsonpath": "$.package[?(@.name.value=='versionbar')].version"
-        }
-        ,{ "type": "json", "path": "package.json", "jsonpath": "$.version" },
+        },
+        { "type": "json", "path": "package.json", "jsonpath": "$.version" },
         { "type": "json", "path": "package-lock.json", "jsonpath": "$.version" },
         { "type": "json", "path": "package-lock.json", "jsonpath": "$.packages[\"\"].version" }
       ]

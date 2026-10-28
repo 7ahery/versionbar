@@ -65,6 +65,7 @@ const READERS = {
 };
 
 export function checkVersions(root, tag) {
+  // `tag` is undefined when --tag was not given; a given but empty value must fail closed.
   const problems = [];
   const found = [];
   for (const file of VERSION_FILES) {
@@ -94,7 +95,7 @@ export function checkVersions(root, tag) {
         problems.push(`${file}: version ${v.raw} differs from ${VERSION_FILES[0]} (${truth.raw})`);
       }
     }
-    if (tag) {
+    if (tag !== undefined) {
       try {
         if (normalise(tag) !== truth.norm) problems.push(`tag ${tag} does not match version ${truth.raw}`);
       } catch (e) {
@@ -107,7 +108,7 @@ export function checkVersions(root, tag) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
-  const opt = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
+  const opt = (name) => (args.includes(name) ? (args[args.indexOf(name) + 1] ?? "") : undefined);
   const root = opt("--root") ?? join(dirname(fileURLToPath(import.meta.url)), "..");
   const { version, problems } = checkVersions(root, opt("--tag"));
   if (problems.length) {
