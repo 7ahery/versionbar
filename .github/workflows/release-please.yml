@@ -1,0 +1,82 @@
+name: Release
+
+# Keeps a release PR open from Conventional Commits on main; merging it creates the tag and
+# GitHub release (ADR 0010). Releases come from CI only.
+#
+# This file is the single top-level release workflow on purpose: PyPI Trusted Publishing
+# cannot run inside a reusable workflow, so the publish job (#33) must be a job here, and the
+# installer build (#53) is called from here too. A tag created with GITHUB_TOKEN triggers no
+# other workflow, which is why those jobs hang off `release_created` in this same run.
+#
+# The repo setting "Allow GitHub Actions to create and approve pull requests" must be on.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Release PR and tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+      sha: ${{ steps.release.outputs.sha }}
+      pr: ${{ steps.release.outputs.pr }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # GITHUB_TOKEN pushes do not trigger CI on the release PR, so the checks that matter for a
+  # version bump run here against the PR branch instead.
+  verify-release-pr:
+    name: Check the release PR
+    needs: release-please
+    if: needs.release-please.outputs.pr != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+      - uses: astral-sh/setup-uv@v10.3.2
+      - run: node scripts/check-versions.mjs
+      # The lockfile must already hold the bumped version, or `uv sync --locked` breaks later.
+      - run: uv lock --check --project core
+
+  # Last gate before anything is built or published from the tag.
+  verify-release:
+    name: Check the release tag matches every version
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+      - run: node scripts/check-versions.mjs --tag "$TAG"
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}

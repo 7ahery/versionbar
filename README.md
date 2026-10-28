@@ -160,6 +160,10 @@ versionbar --help
 
 The `Installer` workflow builds the per-user NSIS installer on a clean Windows runner for every push to a `ticket/**` or `integration/**` branch, and uploads it with `SHA256SUMS.txt`. The installer and the Windows executables are **unsigned** in v1, so browsers may flag the download (Chrome blocks it as dangerous: open `chrome://downloads` and choose **Keep**) and SmartScreen shows "Windows protected your PC": verify the SHA-256 checksum, then choose "More info" and "Run anyway". The installer needs no administrator rights. The steps, and the manual install proof, are in [docs/app/install-proof.md](docs/app/install-proof.md). (Updater metadata is signed separately; that arrives with the release tickets.)
 
+## Releases
+
+The `Release` workflow (`.github/workflows/release-please.yml`) keeps a release PR open from Conventional Commits on `main`; merging it tags the release. The repository needs the setting **Allow GitHub Actions to create and approve pull requests** (Settings, Actions, General) or the workflow cannot open that PR. The PR is opened with `GITHUB_TOKEN`, so `ci.yml` does not run on it; the workflow runs the version consistency check (`npm run lint:versions`) and `uv lock --check` against it instead. `.release-please-manifest.json` says `0.0.0` until the first release, so the first release PR proposes `0.1.0`; release-please keeps it current afterwards.
+
 ## Commands
 
 All work goes through root npm scripts. `lint` and `test` run every part; the `:core`, `:repo`, `:gen`, `:ui` and `:rust` variants run one part each.

@@ -34,9 +34,11 @@ jobs:
       # are exactly these plus the Rust parts, which run in the `rust` job below.
       - run: npm run lint:core
       - run: npm run lint:repo
+      - run: npm run lint:versions
       - run: npm run lint:gen
       - run: npm run lint:ui
       - run: npm run test:core
+      - run: npm run test:repo
       - run: npm run test:ui
 
   rust:
