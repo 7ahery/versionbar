@@ -37,6 +37,7 @@ jobs:
       - run: npm run lint:gen
       - run: npm run lint:ui
       - run: npm run test:core
+      - run: npm run test:repo
       - run: npm run test:ui
 
   rust:
