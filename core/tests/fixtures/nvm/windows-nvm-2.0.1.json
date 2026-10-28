@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "tool": "nvm",
+  "args": [
+    "--version"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "djIuMC4xCg==",
+  "stderr_b64": "",
+  "encoding": "utf-8",
+  "stdout_text": "v2.0.1\n",
+  "stderr_text": "",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-11-10.0.26200-SP0",
+    "resolved_path": "%USERPROFILE%\\AppData\\Local\\Author Software\\nvm\\nvm.exe",
+    "command": [
+      "%USERPROFILE%\\AppData\\Local\\Author Software\\nvm\\nvm.exe",
+      "--version"
+    ],
+    "captured_at": "2026-10-25T21:11:18.763028Z",
+    "runner": null,
+    "notes": null
+  }
+}

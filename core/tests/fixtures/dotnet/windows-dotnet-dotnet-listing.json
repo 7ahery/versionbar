@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "tool": "dotnet",
+  "args": [
+    "--list-sdks"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "OC4wLjEzMiBbQzpcUHJvZ3JhbSBGaWxlc1xkb3RuZXRcc2RrXQ0KOC4wLjIwNiBbQzpcUHJvZ3JhbSBGaWxlc1xkb3RuZXRcc2RrXQ0KOC4wLjMxOSBbQzpcUHJvZ3JhbSBGaWxlc1xkb3RuZXRcc2RrXQ0KOC4wLjQyNiBbQzpcUHJvZ3JhbSBGaWxlc1xkb3RuZXRcc2RrXQ0KOS4wLjEyMiBbQzpcUHJvZ3JhbSBGaWxlc1xkb3RuZXRcc2RrXQ0KOS4wLjIwNSBbQzpcUHJvZ3JhbSBGaWxlc1xkb3RuZXRcc2RrXQ0KOS4wLjMxOSBbQzpcUHJvZ3JhbSBGaWxlc1xkb3RuZXRcc2RrXQ0KMTAuMC4xMTMgW0M6XFByb2dyYW0gRmlsZXNcZG90bmV0XHNka10NCjEwLjAuMjA0IFtDOlxQcm9ncmFtIEZpbGVzXGRvdG5ldFxzZGtdDQoxMC4wLjMwMyBbQzpcUHJvZ3JhbSBGaWxlc1xkb3RuZXRcc2RrXQ0KMTAuMC40MDIgW0M6XFByb2dyYW0gRmlsZXNcZG90bmV0XHNka10NCg==",
+  "stderr_b64": "",
+  "encoding": "utf-8",
+  "stdout_text": "8.0.132 [C:\\Program Files\\dotnet\\sdk]\r\n8.0.206 [C:\\Program Files\\dotnet\\sdk]\r\n8.0.319 [C:\\Program Files\\dotnet\\sdk]\r\n8.0.426 [C:\\Program Files\\dotnet\\sdk]\r\n9.0.122 [C:\\Program Files\\dotnet\\sdk]\r\n9.0.205 [C:\\Program Files\\dotnet\\sdk]\r\n9.0.319 [C:\\Program Files\\dotnet\\sdk]\r\n10.0.113 [C:\\Program Files\\dotnet\\sdk]\r\n10.0.204 [C:\\Program Files\\dotnet\\sdk]\r\n10.0.303 [C:\\Program Files\\dotnet\\sdk]\r\n10.0.402 [C:\\Program Files\\dotnet\\sdk]\r\n",
+  "stderr_text": "",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-2025Server-10.0.26100-SP0",
+    "resolved_path": "C:\\Program Files\\dotnet\\dotnet.exe",
+    "command": [
+      "C:\\Program Files\\dotnet\\dotnet.exe",
+      "--list-sdks"
+    ],
+    "captured_at": "2026-10-27T15:05:46.797260Z",
+    "runner": {
+      "image_os": "win25-vs2026",
+      "image_version": "20261021.278.1",
+      "run_url": "https://github.com/7ahery/versionbar/actions/runs/40527489822"
+    },
+    "notes": "listing command of the .NET SDK provider (source dotnet), whose output it reads dotnet installs from; not a version command"
+  }
+}

@@ -1,0 +1,124 @@
+"""The one interface between the core and the machine (ADR 0004).
+
+Everything outside this package reaches processes, environment variables and
+files only through a `System`. Tests inject a fixture-backed fake; real
+implementations live behind the platform boundary in `versionbar.system.real`.
+"""
+
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Literal, Protocol
+
+# Ids used both for the running machine and in tool definitions' `os` lists.
+type OsName = Literal["windows", "linux"]
+
+
+@dataclass(frozen=True)
+class ProcessResult:
+    # None when the process never produced an exit status (launch failure or timeout).
+    exit_code: int | None
+    stdout: bytes
+    stderr: bytes
+    timed_out: bool = False
+    launch_error: str | None = None
+
+
+@dataclass(frozen=True)
+class AppExecutionAlias:
+    """What a Windows App Execution Alias (a zero-byte file in a `WindowsApps`
+    folder) launches, read from the file itself without running it."""
+
+    package_family: str
+    # The application user model id, `<package family>!<app>`.
+    app_user_model_id: str
+    target: str
+
+
+@dataclass(frozen=True)
+class UnreadableAlias:
+    """A file that is an App Execution Alias, but whose data could not be read."""
+
+    reason: str
+
+
+class System(Protocol):
+    @property
+    def os(self) -> OsName: ...
+
+    def getenv(self, name: str) -> str | None: ...
+
+    @property
+    def runtime_dirs(self) -> Sequence[str]:
+        """PATH folders of the environment VersionBar itself runs in.
+
+        `uv run` and `uvx` put that environment's scripts folder first on PATH,
+        so without this the uv-managed Python running the core would be
+        reported as the user's active Python.
+        """
+        ...
+
+    def is_executable(self, path: str) -> bool: ...
+
+    def list_dir(self, path: str) -> list[str]:
+        """The names of the entries in the folder at `path`, in no particular order.
+
+        Raises FileNotFoundError when there is no such folder, NotADirectoryError
+        when `path` is a file, and OSError when it cannot be read, so callers
+        can tell an absent manager from a broken one.
+        """
+        ...
+
+    def run(
+        self, argv: Sequence[str], timeout: float, env: Mapping[str, str] | None = None
+    ) -> ProcessResult:
+        """Run `argv` and collect its output.
+
+        `env` is laid over VersionBar's own environment for this process only,
+        e.g. to stop a tool installing something while it is probed (DEC-24).
+        """
+        ...
+
+    def read_file_head(self, path: str, limit: int) -> bytes | None:
+        """At most the first `limit` bytes of the file at `path`, or None if it cannot be read.
+
+        For recognising shims by what their manager wrote into them, without running them.
+        """
+        ...
+
+    def app_execution_alias(self, path: str) -> AppExecutionAlias | UnreadableAlias | None:
+        """The alias stored in `path`, or None when it is not one (always None off Windows).
+
+        UnreadableAlias when the file is an alias but its data could not be
+        read, so callers can refuse to run it rather than guess.
+
+        Reads the file's reparse data only: running an alias can have side
+        effects, such as the Store placeholders opening the Microsoft Store.
+        """
+        ...
+
+    @property
+    def config_dir(self) -> str:
+        """The platform's per-user config folder for VersionBar. It may not exist yet."""
+        ...
+
+    def read_file(self, path: str) -> bytes:
+        """The whole file at `path`.
+
+        Raises FileNotFoundError when there is no such file, and OSError when
+        it exists but cannot be read, so callers can tell absent from broken.
+        """
+        ...
+
+    @property
+    def platform_description(self) -> str:
+        """Human-readable OS name and version, recorded as capture provenance."""
+        ...
+
+    def write_file(self, path: str, data: bytes) -> None:
+        """Write `data` to `path`, creating missing parent folders. Raises OSError on failure."""
+        ...
+
+    def now(self) -> datetime:
+        """Current time, timezone-aware. Behind the seam so scans are reproducible in tests."""
+        ...

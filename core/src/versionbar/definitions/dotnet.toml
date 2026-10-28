@@ -1,0 +1,9 @@
+#:schema ../../../../schema/definition.schema.json
+id = "dotnet"
+name = ".NET SDK"
+os = ["windows", "linux"]
+binaries = ["dotnet"]
+version_args = ["--version"]
+# `dotnet --version` prints the bare SDK version on its own line. Other installed SDKs are a
+# later provider's job, not this definition's.
+version_regex = '(?m)^(?P<version>\d+\.\d+\.\d+\S*)\s*$'

@@ -1,0 +1,14 @@
+#:schema ../../../../schema/definition.schema.json
+id = "rustup"
+name = "rustup"
+os = ["windows", "linux"]
+binaries = ["rustup"]
+version_args = ["--version"]
+# rustup may add `info:` lines on stderr; the banner line carries the version. Installed
+# toolchains are a later provider's job, not this definition's.
+version_regex = '^rustup (?P<version>\d+\.\d+\.\d+\S*)'
+
+# `rustup --version` also reports the active rustc, so from a folder pinning a
+# missing toolchain it downloads that toolchain first. A scan must never install anything.
+[env]
+RUSTUP_AUTO_INSTALL = "0"

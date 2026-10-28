@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "tool": "npm",
+  "args": [
+    "--version"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "MTEuMTkuMAo=",
+  "stderr_b64": "",
+  "encoding": "utf-8",
+  "stdout_text": "11.19.0\n",
+  "stderr_text": "",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-11-10.0.26200-SP0",
+    "resolved_path": "%USERPROFILE%\\AppData\\Local\\Author Software\\nvm\\.nodejs\\npm.exe",
+    "command": [
+      "%USERPROFILE%\\AppData\\Local\\Author Software\\nvm\\.nodejs\\npm.exe",
+      "--version"
+    ],
+    "captured_at": "2026-10-25T21:11:17.711999Z",
+    "runner": null,
+    "notes": null
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "tool": "java",
+  "args": [
+    "-version"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "",
+  "stderr_b64": "b3BlbmpkayB2ZXJzaW9uICIxNy4wLjIwLjEiIDIwMjYtMDgtMTgNCk9wZW5KREsgUnVudGltZSBFbnZpcm9ubWVudCBUZW11cmluLTE3LjAuMjAuMSsxIChidWlsZCAxNy4wLjIwLjErMSkNCk9wZW5KREsgNjQtQml0IFNlcnZlciBWTSBUZW11cmluLTE3LjAuMjAuMSsxIChidWlsZCAxNy4wLjIwLjErMSwgbWl4ZWQgbW9kZSwgc2hhcmluZykNCg==",
+  "encoding": "utf-8",
+  "stdout_text": "",
+  "stderr_text": "openjdk version \"17.0.20.1\" 2026-08-18\r\nOpenJDK Runtime Environment Temurin-17.0.20.1+1 (build 17.0.20.1+1)\r\nOpenJDK 64-Bit Server VM Temurin-17.0.20.1+1 (build 17.0.20.1+1, mixed mode, sharing)\r\n",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-2025Server-10.0.26100-SP0",
+    "resolved_path": "C:\\hostedtoolcache\\windows\\Java_Temurin-Hotspot_jdk\\17.0.20-101\\x64\\bin\\java.exe",
+    "command": [
+      "C:\\hostedtoolcache\\windows\\Java_Temurin-Hotspot_jdk\\17.0.20-101\\x64\\bin\\java.exe",
+      "-version"
+    ],
+    "captured_at": "2026-10-25T18:02:13.661187Z",
+    "runner": {
+      "image_os": "win25-vs2026",
+      "image_version": "20261021.278.1",
+      "run_url": "https://github.com/7ahery/versionbar/actions/runs/40219287296"
+    },
+    "notes": null
+  }
+}

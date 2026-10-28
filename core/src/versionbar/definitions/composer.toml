@@ -1,0 +1,9 @@
+#:schema ../../../../schema/definition.schema.json
+id = "composer"
+name = "Composer"
+os = ["windows", "linux"]
+binaries = ["composer"]
+version_args = ["--version"]
+# On Windows composer is a `.bat` wrapper; `--version` is a plain flag so it runs. No start
+# anchor because composer can print PHP warnings before its banner.
+version_regex = 'Composer version (?P<version>\d+\.\d+\.\d+\S*)'

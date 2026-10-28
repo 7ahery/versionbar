@@ -1,0 +1,14 @@
+{
+  "name": "schema",
+  "private": true,
+  "description": "Generated JSON contracts and TS types. Do not edit by hand: run `npm run gen` at the repo root.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./output.d.ts"
+    },
+    "./output.schema.json": "./output.schema.json",
+    "./definition.schema.json": "./definition.schema.json"
+  }
+}

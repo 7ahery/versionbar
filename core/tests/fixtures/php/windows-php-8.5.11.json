@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "tool": "php",
+  "args": [
+    "--version"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "UEhQIDguNS4xMSAoY2xpKSAoYnVpbHQ6IFNlcCAyMiAyMDI2IDEzOjUxOjM4KSAoTlRTIFZpc3VhbCBDKysgMjAyMiB4NjQpCkNvcHlyaWdodCAoYykgVGhlIFBIUCBHcm91cApCdWlsdCBieSBUaGUgUEhQIEdyb3VwClplbmQgRW5naW5lIHY0LjUuMTEsIENvcHlyaWdodCAoYykgWmVuZCBUZWNobm9sb2dpZXMKICAgIHdpdGggWmVuZCBPUGNhY2hlIHY4LjUuMTEsIENvcHlyaWdodCAoYyksIGJ5IFplbmQgVGVjaG5vbG9naWVzCg==",
+  "stderr_b64": "",
+  "encoding": "utf-8",
+  "stdout_text": "PHP 8.5.11 (cli) (built: Sep 22 2026 13:51:38) (NTS Visual C++ 2022 x64)\nCopyright (c) The PHP Group\nBuilt by The PHP Group\nZend Engine v4.5.11, Copyright (c) Zend Technologies\n    with Zend OPcache v8.5.11, Copyright (c), by Zend Technologies\n",
+  "stderr_text": "",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-2025Server-10.0.26100-SP0",
+    "resolved_path": "c:\\tools\\php\\php.exe",
+    "command": [
+      "c:\\tools\\php\\php.exe",
+      "--version"
+    ],
+    "captured_at": "2026-10-25T18:02:20.880842Z",
+    "runner": {
+      "image_os": "win25-vs2026",
+      "image_version": "20261021.278.1",
+      "run_url": "https://github.com/7ahery/versionbar/actions/runs/40219287296"
+    },
+    "notes": null
+  }
+}

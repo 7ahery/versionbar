@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "tool": "python",
+  "args": [
+    "-0p"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "ICAqICAgICAgICAgICAgICAgRDpcYVx2ZXJzaW9uYmFyXHZlcnNpb25iYXJcY29yZVwudmVudlxTY3JpcHRzXHB5dGhvbi5leGUNCiAtVjozLjE1ICAgICAgICAgIEM6XGhvc3RlZHRvb2xjYWNoZVx3aW5kb3dzXFB5dGhvblwzLjE1LjFceDY0XHB5dGhvbi5leGUNCiAtVjozLjE0ICAgICAgICAgIEM6XGhvc3RlZHRvb2xjYWNoZVx3aW5kb3dzXFB5dGhvblwzLjE0LjlceDY0XHB5dGhvbi5leGUNCiAtVjozLjEzICAgICAgICAgIEM6XGhvc3RlZHRvb2xjYWNoZVx3aW5kb3dzXFB5dGhvblwzLjEzLjE2XHg2NFxweXRob24uZXhlDQogLVY6My4xMiAgICAgICAgICBDOlxob3N0ZWR0b29sY2FjaGVcd2luZG93c1xQeXRob25cMy4xMi4xMFx4NjRccHl0aG9uLmV4ZQ0KIC1WOjMuMTEgICAgICAgICAgQzpcaG9zdGVkdG9vbGNhY2hlXHdpbmRvd3NcUHl0aG9uXDMuMTEuOVx4NjRccHl0aG9uLmV4ZQ0K",
+  "stderr_b64": "",
+  "encoding": "utf-8",
+  "stdout_text": "  *               D:\\a\\versionbar\\versionbar\\core\\.venv\\Scripts\\python.exe\r\n -V:3.15          C:\\hostedtoolcache\\windows\\Python\\3.15.1\\x64\\python.exe\r\n -V:3.14          C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\python.exe\r\n -V:3.13          C:\\hostedtoolcache\\windows\\Python\\3.13.16\\x64\\python.exe\r\n -V:3.12          C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\python.exe\r\n -V:3.11          C:\\hostedtoolcache\\windows\\Python\\3.11.9\\x64\\python.exe\r\n",
+  "stderr_text": "",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-2025Server-10.0.26100-SP0",
+    "resolved_path": "C:\\Windows\\py.exe",
+    "command": [
+      "C:\\Windows\\py.exe",
+      "-0p"
+    ],
+    "captured_at": "2026-10-27T15:06:30.662534Z",
+    "runner": {
+      "image_os": "win25-vs2026",
+      "image_version": "20261021.278.1",
+      "run_url": "https://github.com/7ahery/versionbar/actions/runs/40527613347"
+    },
+    "notes": "listing command of the py launcher provider (source py), whose output it reads python installs from; not a version command"
+  }
+}

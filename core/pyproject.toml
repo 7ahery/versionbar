@@ -1,0 +1,32 @@
+[project]
+name = "versionbar"
+version = "0.1.0"
+description = "Inventory the dev tools installed on a machine."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Michael Tahery" }]
+requires-python = ">=3.14"
+dependencies = ["typer>=0.12", "rich>=13", "pydantic>=2.11", "platformdirs>=4"]
+
+[project.scripts]
+versionbar = "versionbar.cli:main"
+
+[dependency-groups]
+dev = ["jsonschema>=4.23", "pytest>=8", "ruff>=0.6", "ty>=0.0.1a1"]
+
+[build-system]
+requires = ["uv_build>=0.8,<0.13"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+# Test helpers imported from the tests directory (pytest puts it on sys.path).
+known-local-folder = ["fakes"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "tool": "go",
+  "args": [
+    "version"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "Z28gdmVyc2lvbiBnbzEuMjQuMTMgd2luZG93cy9hbWQ2NAo=",
+  "stderr_b64": "",
+  "encoding": "utf-8",
+  "stdout_text": "go version go1.24.13 windows/amd64\n",
+  "stderr_text": "",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-2025Server-10.0.26100-SP0",
+    "resolved_path": "C:\\hostedtoolcache\\windows\\go\\1.24.13\\x64\\bin\\go.exe",
+    "command": [
+      "C:\\hostedtoolcache\\windows\\go\\1.24.13\\x64\\bin\\go.exe",
+      "version"
+    ],
+    "captured_at": "2026-10-25T18:02:15.309569Z",
+    "runner": {
+      "image_os": "win25-vs2026",
+      "image_version": "20261021.278.1",
+      "run_url": "https://github.com/7ahery/versionbar/actions/runs/40219287296"
+    },
+    "notes": null
+  }
+}

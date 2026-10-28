@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "popup",
+  "description": "Everything the popup webview may call. Keep it minimal: one permission per scoped command, never shell or process access.",
+  "windows": ["popup"],
+  "permissions": [
+    "core:app:allow-version",
+    "allow-get-state",
+    "allow-get-preferences",
+    "allow-refresh",
+    "allow-open-uv-docs",
+    "allow-open-containing-folder",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
+}

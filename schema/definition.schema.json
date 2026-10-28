@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Detection": {
+      "additionalProperties": false,
+      "description": "The fields an OS override may replace.",
+      "properties": {
+        "binaries": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "version_args": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "version_regex": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VersionRegex"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "via": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ViaRule"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Detection",
+      "type": "object"
+    },
+    "EnvName": {
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "type": "string"
+    },
+    "FolderTemplate": {
+      "description": "A folder starting with `{NAME}`, an environment variable, e.g. `{PYENV_ROOT}/shims`. Use `/`; it becomes `\\` on Windows.",
+      "pattern": "^\\{[A-Za-z_][A-Za-z0-9_]*\\}([^{}]|\\{[A-Za-z_][A-Za-z0-9_]*\\})*$",
+      "type": "string"
+    },
+    "OsName": {
+      "enum": [
+        "windows",
+        "linux"
+      ],
+      "type": "string"
+    },
+    "VersionRegex": {
+      "description": "Python regex with a named group `(?P<version>...)`.",
+      "pattern": "\\(\\?P<version>",
+      "type": "string"
+    },
+    "ViaRule": {
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "dirs"
+          ]
+        },
+        {
+          "required": [
+            "content_regex"
+          ]
+        }
+      ],
+      "description": "Recognises installs served by a manager's shim. Every condition given must match.",
+      "properties": {
+        "manager": {
+          "description": "Reported as the install's `via`, e.g. `pyenv`.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "dirs": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/FolderTemplate"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The install's folder is one of these. A folder naming an unset or empty\nvariable, or not absolute once expanded, is ignored."
+        },
+        "content_regex": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Python regex searched for in the first 16 KiB of the install's file\n(decoded as UTF-8), for shims recognisable only by what their manager wrote\ninto them. The file is read, never run."
+        }
+      },
+      "required": [
+        "manager"
+      ],
+      "title": "ViaRule",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A declarative tool definition: one TOML file, detected by the generic engine.",
+  "properties": {
+    "id": {
+      "description": "Stable id used on the command line and in the JSON, e.g. `git`.",
+      "type": "string"
+    },
+    "name": {
+      "description": "Display name.",
+      "type": "string"
+    },
+    "os": {
+      "description": "The operating systems the tool is detected on.",
+      "items": {
+        "$ref": "#/$defs/OsName"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "binaries": {
+      "description": "Command names to look up on PATH, in order; PATHEXT applies on Windows.",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "version_args": {
+      "description": "Arguments that make the tool print its version.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "version_regex": {
+      "$ref": "#/$defs/VersionRegex"
+    },
+    "via": {
+      "default": [],
+      "description": "Shim rules, tried in order; the first that matches an install names its `via`.",
+      "items": {
+        "$ref": "#/$defs/ViaRule"
+      },
+      "type": "array"
+    },
+    "env": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {},
+      "description": "Environment variables set for this tool's version command only, laid over\nVersionBar's own, e.g. to stop the tool installing something when probed.",
+      "propertyNames": {
+        "$ref": "#/$defs/EnvName"
+      },
+      "type": "object"
+    },
+    "overrides": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Detection"
+      },
+      "default": {},
+      "description": "Per-OS replacements for `binaries`, `version_args`, `version_regex` or `via`.",
+      "propertyNames": {
+        "$ref": "#/$defs/OsName"
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "os",
+    "binaries",
+    "version_args",
+    "version_regex"
+  ],
+  "title": "ToolDefinition",
+  "type": "object"
+}

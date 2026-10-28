@@ -1,0 +1,37 @@
+## The command line and the tray app both read this file, and changes apply
+## to the next scan. Every setting is optional: remove the leading "# " from a
+## line to use it. Lines starting with "##" explain. The full reference is
+## docs/config.md in the source repository.
+
+## Seconds each version command may take before its tool is reported as
+## timed out (default 5).
+# timeout = 5
+
+## Tool ids shown first, in this order.
+# pinned = ["node", "git"]
+
+## Tool ids shown after the pinned ones, in this order. The rest follow.
+# order = ["python"]
+
+## Tool ids left out of the list. Asking for one by name still shows it.
+# hidden = ["uv"]
+
+## Per-tool timeouts in seconds; each wins over `timeout` for its tool.
+# [timeouts]
+# git = 10
+
+## Settings only the tray app uses.
+# [app]
+## Whether the app checks for updates (default true).
+# update_check = false
+
+## Your own tools, in the same format as the built-in ones (see
+## docs/definitions.md). One [[tools]] table per tool; a tool with a built-in
+## tool's id replaces it.
+# [[tools]]
+# id = "ssh"
+# name = "OpenSSH"
+# os = ["windows"]
+# binaries = ["ssh"]
+# version_args = ["-V"]
+# version_regex = 'OpenSSH_(?:for_Windows_)?(?P<version>\d+(?:\.\d+)*[a-z]*\d*)'

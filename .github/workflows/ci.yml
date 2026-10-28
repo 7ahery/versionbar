@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+    # `edited` re-runs the PR title check after a title fix.
+    types: [opened, edited, synchronize, reopened]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: core and UI lint and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - uses: astral-sh/setup-uv@v10.3.2
+      - run: npm ci
+      # CI runs the same root scripts a contributor runs locally. `npm run lint` and `npm test`
+      # are exactly these plus the Rust parts, which run in the `rust` job below.
+      - run: npm run lint:core
+      - run: npm run lint:repo
+      - run: npm run lint:gen
+      - run: npm run lint:ui
+      - run: npm run test:core
+      - run: npm run test:ui
+
+  rust:
+    # Windows only: the shell ships only for Windows in v1, and building Tauri on Linux would
+    # need the WebKitGTK system packages just for CI.
+    name: Rust shell lint and test (windows-latest)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      # Only for running the root npm scripts; the Rust checks need no npm packages.
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+      # rustup on the runner installs the toolchain pinned in rust-toolchain.toml on first use.
+      - uses: Swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: app/src-tauri
+      - uses: taiki-e/install-action@v2.87.30
+        with:
+          tool: cargo-deny@0.20.2
+      - run: npm run lint:rust
+      - run: npm run test:rust
+
+  pr-title:
+    name: Conventional Commit PR title
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

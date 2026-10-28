@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "tool": "gh",
+  "args": [
+    "--version"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "Z2ggdmVyc2lvbiAyLjEwMi4wICgyMDI2LTA5LTMwKQpodHRwczovL2dpdGh1Yi5jb20vY2xpL2NsaS9yZWxlYXNlcy90YWcvdjIuMTAyLjAK",
+  "stderr_b64": "",
+  "encoding": "utf-8",
+  "stdout_text": "gh version 2.102.0 (2026-09-30)\nhttps://github.com/cli/cli/releases/tag/v2.102.0\n",
+  "stderr_text": "",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-11-10.0.26200-SP0",
+    "resolved_path": "C:\\Program Files\\GitHub CLI\\gh.exe",
+    "command": [
+      "C:\\Program Files\\GitHub CLI\\gh.exe",
+      "--version"
+    ],
+    "captured_at": "2026-10-25T21:11:34.287725Z",
+    "runner": null,
+    "notes": null
+  }
+}

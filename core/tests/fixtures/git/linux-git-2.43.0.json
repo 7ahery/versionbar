@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "tool": "git",
+  "args": [
+    "--version"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "Z2l0IHZlcnNpb24gMi40My4wCg==",
+  "stderr_b64": "",
+  "encoding": "utf-8",
+  "stdout_text": "git version 2.43.0\n",
+  "stderr_text": "",
+  "provenance": {
+    "method": "hand-seeded before `versionbar debug capture` existed; migrated to capture format 1 with the same bytes",
+    "versionbar_version": "0.1.0",
+    "os_id": "linux",
+    "os_description": "Ubuntu 24.04.4 LTS, kernel 6.18.33.2-microsoft-standard-WSL2",
+    "resolved_path": "/usr/bin/git",
+    "command": [
+      "/usr/bin/git",
+      "--version"
+    ],
+    "captured_at": "2026-10-23T21:15:30Z",
+    "runner": null,
+    "notes": "Maintainer's dev machine, WSL2 distro Ubuntu. Originally recorded with: wsl -d Ubuntu -e sh -c 'git --version >out 2>err; echo $?; od -An -c out' (exit 0, stderr empty). Not re-recorded with `debug capture` because the capture workflow is Windows-only."
+  }
+}

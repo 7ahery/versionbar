@@ -1,0 +1,581 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CommandOutput",
+  "description": "Every document the CLI prints with --json. Scan results (list, show), check results, config results and tools results carry schema_version 1, which changes only on breaking changes.",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/ScanResult"
+    },
+    {
+      "$ref": "#/$defs/CheckResult"
+    },
+    {
+      "$ref": "#/$defs/ConfigResult"
+    },
+    {
+      "$ref": "#/$defs/ToolsResult"
+    },
+    {
+      "$ref": "#/$defs/CaptureOutcome"
+    },
+    {
+      "$ref": "#/$defs/CaptureFailure"
+    }
+  ],
+  "$defs": {
+    "CaptureFailure": {
+      "additionalProperties": false,
+      "description": "What `debug capture --json` prints when nothing was recorded.",
+      "properties": {
+        "outcome": {
+          "$ref": "#/$defs/FailureOutcome"
+        },
+        "tool": {
+          "description": "The tool id that was asked for.",
+          "type": "string"
+        },
+        "message": {
+          "description": "Human-readable explanation.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "outcome",
+        "tool",
+        "message"
+      ],
+      "title": "CaptureFailure",
+      "type": "object"
+    },
+    "CaptureOutcome": {
+      "additionalProperties": false,
+      "description": "What `debug capture --json` prints after writing a capture file.",
+      "properties": {
+        "outcome": {
+          "const": "captured",
+          "default": "captured",
+          "type": "string"
+        },
+        "tool": {
+          "description": "The tool id that was captured.",
+          "type": "string"
+        },
+        "destination": {
+          "description": "Path of the capture file that was written.",
+          "type": "string"
+        },
+        "exit_code": {
+          "description": "Exit code of the captured command, the tool's version command or a provider's listing\ncommand (recorded even when non-zero).",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "outcome",
+        "tool",
+        "destination",
+        "exit_code"
+      ],
+      "title": "CaptureOutcome",
+      "type": "object"
+    },
+    "CatalogProvider": {
+      "additionalProperties": false,
+      "description": "A provider: code that reports a version manager's installs, including ones not on\nPATH.",
+      "properties": {
+        "id": {
+          "description": "Provider id, which is also the `source` of the installs it reports (e.g. `nvm`).",
+          "type": "string"
+        },
+        "name": {
+          "description": "Display name.",
+          "type": "string"
+        },
+        "os": {
+          "description": "The operating systems it runs on.",
+          "items": {
+            "$ref": "#/$defs/OsName"
+          },
+          "type": "array"
+        },
+        "tools": {
+          "description": "Ids of the tools it reports installs for.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "os",
+        "tools"
+      ],
+      "title": "CatalogProvider",
+      "type": "object"
+    },
+    "CatalogTool": {
+      "additionalProperties": false,
+      "description": "A tool VersionBar knows how to detect.",
+      "properties": {
+        "id": {
+          "description": "Stable tool id, as used on the command line and in scan results.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Display name.",
+          "type": "string"
+        },
+        "os": {
+          "description": "The operating systems it is detected on; elsewhere scans leave it out.",
+          "items": {
+            "$ref": "#/$defs/OsName"
+          },
+          "type": "array"
+        },
+        "custom": {
+          "description": "True when its definition comes from the user config file (a custom tool, possibly\nreplacing a built-in of the same id).",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "os",
+        "custom"
+      ],
+      "title": "CatalogTool",
+      "type": "object"
+    },
+    "CheckResult": {
+      "additionalProperties": false,
+      "description": "The result of `check --json`: one live scan, then every requirement tested against the\nactive install of its tool. The exit code is 0 exactly when `passed` is true.",
+      "properties": {
+        "schema_version": {
+          "default": 1,
+          "description": "Changes only on breaking changes to this format; the same counter as ScanResult's.",
+          "type": "integer"
+        },
+        "scanned_at": {
+          "description": "When the scan ran, RFC 3339 in UTC.",
+          "format": "date-time",
+          "type": "string"
+        },
+        "platform": {
+          "$ref": "#/$defs/OsName"
+        },
+        "passed": {
+          "description": "True when every requirement passed.",
+          "type": "boolean"
+        },
+        "requirements": {
+          "description": "One entry per requirement, in the order given.",
+          "items": {
+            "$ref": "#/$defs/RequirementResult"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "scanned_at",
+        "platform",
+        "passed",
+        "requirements"
+      ],
+      "title": "CheckResult",
+      "type": "object"
+    },
+    "ConfigProblem": {
+      "additionalProperties": false,
+      "description": "One thing wrong with the user config file.",
+      "properties": {
+        "key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Where in the file, as a dotted TOML key with list indexes (e.g. `tools[0].version_regex`;\na part that is not a bare key is quoted, e.g. `timeouts.\"my.tool\"`), or null when the\nproblem is the whole file (unreadable, not UTF-8, not valid TOML)."
+        },
+        "message": {
+          "description": "Human-readable description of the problem; not for parsing.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "message"
+      ],
+      "title": "ConfigProblem",
+      "type": "object"
+    },
+    "ConfigResult": {
+      "additionalProperties": false,
+      "description": "The result of `config --json`, the preferences query: where the user config file is\nand the preferences it sets. Read live; nothing is run.\n\nExit code 0 when the config is usable (absent counts: defaults apply), 3 when it is not,\nin which case `problems` says why and `preferences` is null.",
+      "properties": {
+        "schema_version": {
+          "default": 1,
+          "description": "Changes only on breaking changes to this format; the same counter as ScanResult's.",
+          "type": "integer"
+        },
+        "config_path": {
+          "description": "Absolute path of the user config file, whether or not it exists.",
+          "type": "string"
+        },
+        "config_exists": {
+          "description": "Whether there is a file at `config_path`. False means every default applies.",
+          "type": "boolean"
+        },
+        "problems": {
+          "description": "Everything wrong with the file; empty when it is usable.",
+          "items": {
+            "$ref": "#/$defs/ConfigProblem"
+          },
+          "type": "array"
+        },
+        "preferences": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Preferences"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The preferences in effect, or null when the file is unusable (see `problems`)."
+        }
+      },
+      "required": [
+        "schema_version",
+        "config_path",
+        "config_exists",
+        "problems",
+        "preferences"
+      ],
+      "title": "ConfigResult",
+      "type": "object"
+    },
+    "FailureOutcome": {
+      "description": "Why nothing was captured. More values may be added without a breaking change; handle unknown ones.",
+      "enum": [
+        "unknown-tool",
+        "unknown-source",
+        "unsupported-os",
+        "not-found",
+        "timeout",
+        "launch-error",
+        "write-failed"
+      ],
+      "type": "string"
+    },
+    "Install": {
+      "additionalProperties": false,
+      "description": "One installation of a tool.",
+      "properties": {
+        "version": {
+          "description": "The version as the tool prints it, vendor suffixes included.",
+          "type": "string"
+        },
+        "path": {
+          "description": "Absolute path of the executable that was run.",
+          "type": "string"
+        },
+        "source": {
+          "description": "`path`, or the id of the provider that reported the install.",
+          "type": "string"
+        },
+        "via": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The manager whose shim serves this install, or null."
+        },
+        "raw": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Decoded version output the version was parsed from, or null."
+        }
+      },
+      "required": [
+        "version",
+        "path",
+        "source",
+        "via",
+        "raw"
+      ],
+      "title": "Install",
+      "type": "object"
+    },
+    "OsName": {
+      "enum": [
+        "windows",
+        "linux"
+      ],
+      "type": "string"
+    },
+    "Preferences": {
+      "additionalProperties": false,
+      "description": "The preferences the app needs from the config file, defaults filled in.",
+      "properties": {
+        "update_check": {
+          "description": "Whether the app may check for VersionBar updates. When false it must make no update\nrequests.",
+          "type": "boolean"
+        },
+        "pinned": {
+          "description": "Tool ids to show first, in this order. Each id appears at most once in `pinned` and\n`order` together; ids of tools that are not in a scan are allowed and are skipped.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "order": {
+          "description": "Tool ids to show after the pinned ones, in this order.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "update_check",
+        "pinned",
+        "order"
+      ],
+      "title": "Preferences",
+      "type": "object"
+    },
+    "RequirementOutcome": {
+      "description": "`passed`: met. Every other value is a failure: `unmet` (the active version is outside the range), `not-comparable` (the active version has no leading number to compare), `missing`, `error` or `timeout` (the tool has no usable active install; same meaning as the tool status). More values may be added without a schema_version bump; handle unknown ones.",
+      "enum": [
+        "passed",
+        "unmet",
+        "not-comparable",
+        "missing",
+        "error",
+        "timeout"
+      ],
+      "type": "string"
+    },
+    "RequirementResult": {
+      "additionalProperties": false,
+      "description": "The verdict on one requirement given to `check`.",
+      "properties": {
+        "requirement": {
+          "description": "The requirement exactly as given, e.g. `node@>=20`.",
+          "type": "string"
+        },
+        "tool": {
+          "description": "Tool id the requirement is about.",
+          "type": "string"
+        },
+        "spec": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The version spec after `@` (e.g. `>=20,<23`), or null for a presence-only requirement."
+        },
+        "passed": {
+          "description": "True when the outcome is `passed`.",
+          "type": "boolean"
+        },
+        "outcome": {
+          "$ref": "#/$defs/RequirementOutcome"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Version of the active install as the tool prints it, or null when there is none."
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Absolute path of the active install, or null when there is none."
+        },
+        "message": {
+          "description": "Human-readable explanation of the verdict; not for parsing.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requirement",
+        "tool",
+        "spec",
+        "passed",
+        "outcome",
+        "version",
+        "path",
+        "message"
+      ],
+      "title": "RequirementResult",
+      "type": "object"
+    },
+    "ScanResult": {
+      "additionalProperties": false,
+      "description": "The result of one live scan: what `list --json` and `show --json` print.\n\n`platform` and `status` may gain values without a schema_version bump; handle\nunknown ones (for example with a default branch).",
+      "properties": {
+        "schema_version": {
+          "default": 1,
+          "description": "Changes only on breaking changes to this format.",
+          "type": "integer"
+        },
+        "scanned_at": {
+          "description": "When the scan ran, RFC 3339 in UTC.",
+          "format": "date-time",
+          "type": "string"
+        },
+        "platform": {
+          "$ref": "#/$defs/OsName"
+        },
+        "tools": {
+          "description": "`list`: every tool known on this OS, missing ones included, except those the user config\nhides; its pinned and ordered tools come first. `show`: the requested ones, in request order.",
+          "items": {
+            "$ref": "#/$defs/Tool"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "scanned_at",
+        "platform",
+        "tools"
+      ],
+      "title": "ScanResult",
+      "type": "object"
+    },
+    "Tool": {
+      "additionalProperties": false,
+      "description": "One tool and every install of it that was found.",
+      "properties": {
+        "id": {
+          "description": "Stable tool id, as used on the command line (e.g. `git`).",
+          "type": "string"
+        },
+        "name": {
+          "description": "Display name.",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/ToolStatus"
+        },
+        "active": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Install"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The install that runs when you type the command, or null when there is none."
+        },
+        "installs": {
+          "description": "Every install found: the active one first, then the other PATH installs, then those\nproviders report (which are never active, so a tool with no active install may still have\nsome).",
+          "items": {
+            "$ref": "#/$defs/Install"
+          },
+          "type": "array"
+        },
+        "notes": {
+          "default": [],
+          "description": "Human-readable explanations for the status (why missing, what failed); not for parsing.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "status",
+        "active",
+        "installs",
+        "notes"
+      ],
+      "title": "Tool",
+      "type": "object"
+    },
+    "ToolStatus": {
+      "description": "More values may be added without a schema_version bump; handle unknown ones.",
+      "enum": [
+        "found",
+        "missing",
+        "error",
+        "timeout"
+      ],
+      "type": "string"
+    },
+    "ToolsResult": {
+      "additionalProperties": false,
+      "description": "The result of `tools --json`: every tool and provider this VersionBar knows, on every\noperating system. Read live from the built-ins and the user config file; nothing is run.",
+      "properties": {
+        "schema_version": {
+          "default": 1,
+          "description": "Changes only on breaking changes to this format; the same counter as ScanResult's.",
+          "type": "integer"
+        },
+        "platform": {
+          "$ref": "#/$defs/OsName",
+          "description": "The operating system this ran on."
+        },
+        "tools": {
+          "description": "Built-in tools by file name, then custom tools in config file order; a custom tool\nwith a built-in's id takes that built-in's place. Hidden tools are included.",
+          "items": {
+            "$ref": "#/$defs/CatalogTool"
+          },
+          "type": "array"
+        },
+        "providers": {
+          "description": "Every provider, in the order its installs are reported.",
+          "items": {
+            "$ref": "#/$defs/CatalogProvider"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "platform",
+        "tools",
+        "providers"
+      ],
+      "title": "ToolsResult",
+      "type": "object"
+    }
+  }
+}

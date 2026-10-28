@@ -1,0 +1,9 @@
+#:schema ../../../../schema/definition.schema.json
+id = "npm"
+name = "npm"
+os = ["windows", "linux"]
+binaries = ["npm"]
+version_args = ["--version"]
+# npm prints the bare version (`11.19.0`) on one line. Anchored so a warning
+# line before it cannot supply the number.
+version_regex = '^(?P<version>\d+\.\d+\.\d+\S*)'

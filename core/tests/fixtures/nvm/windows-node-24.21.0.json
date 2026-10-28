@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "tool": "node",
+  "args": [
+    "--version"
+  ],
+  "exit_code": 0,
+  "stdout_b64": "djI0LjIxLjANCg==",
+  "stderr_b64": "",
+  "encoding": "utf-8",
+  "stdout_text": "v24.21.0\r\n",
+  "stderr_text": "",
+  "provenance": {
+    "method": "versionbar debug capture",
+    "versionbar_version": "0.1.0",
+    "os_id": "windows",
+    "os_description": "Windows-11-10.0.26200-SP0",
+    "resolved_path": "%USERPROFILE%\\AppData\\Local\\Author Software\\nvm\\installs\\v24.21.0\\node.exe",
+    "command": [
+      "%USERPROFILE%\\AppData\\Local\\Author Software\\nvm\\installs\\v24.21.0\\node.exe",
+      "--version"
+    ],
+    "captured_at": "2026-10-25T16:40:47.134034Z",
+    "runner": null,
+    "notes": "reported by the nvm-windows provider (source nvm), not from PATH"
+  }
+}
