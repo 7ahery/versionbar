@@ -26,9 +26,9 @@ on:
         description: Create and sign the updater artifact. Only the release workflow sets this.
         type: boolean
         default: false
-    # The values live in the `release` environment, not the repository. A reusable workflow
-    # only receives environment secrets the caller passes by name, and only in a job that
-    # sets `environment`.
+    # The values live in the `release` environment, not the repository. The caller passes
+    # empty values under these names; the job that sets `environment: release` reads the
+    # environment's values instead, and every other job sees nothing.
     secrets:
       TAURI_SIGNING_PRIVATE_KEY:
         required: false
