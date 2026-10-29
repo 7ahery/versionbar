@@ -43,8 +43,9 @@ replaces the file.
 Restored results come back as `current` and `previous` with `outcome: null`, because nothing
 has finished in this session yet. Because there is a `current`, the popup shows the list (with
 its age) rather than a recovery or setup screen, even while a one-time setup runs. The
-first-run rules (180-second timeout, `setting_up`) depend only on `core-env`, never on saved
-results.
+first-run rules (180-second timeout, `setting_up`) depend only on `core-env` and the app version
+recorded next to it after the last successful scan ([updates.md](updates.md#installing)), never
+on saved results.
 
 ## When it refreshes
 
@@ -59,6 +60,8 @@ results.
 
 Every one of these jobs first reruns the preferences query, so a config edit reaches the
 popup's ordering and the updater on the same refresh ([preferences.md](preferences.md#when-it-runs)).
+App updates have their own state, schedule and IPC contract: [updates.md](updates.md). An update
+or a failed one never changes the scan state.
 
 All of these go through the same rule: scans never overlap. A request made while a scan runs
 does not start a second core process. Instead the running scan is followed by exactly one more

@@ -287,3 +287,47 @@ synthetic mouse clicks and screenshotted.
   window transparent so the backdrop shows through the page. Mica follows the system light or
   dark theme by itself. No Rust code changed for it.
 - **Copying** stays in the popup's web clipboard, as before: no clipboard plugin or command.
+
+## Ticket 30 (2026-10-29)
+
+App updates ([updates.md](updates.md)). Covered by tests on the controlled seams: the Rust
+updater with a fake update source (`tests/update.rs`), the version marker (`tests/scan.rs`),
+the capability guard (`tests/capabilities.rs`) and the banner through the IPC mock
+(`app/src/Update.test.tsx`).
+
+### Not yet checked
+
+- The real update (DEV-11): install a CI-built prerelease, update it through the banner to the
+  next CI-built full release on `releases/latest`, and record the versions, that app and core
+  report the new version after the restart, and that the first scan afterwards ran as a setup
+  run and succeeded. Needs a full release and an anonymously downloadable feed
+  ([install-proof.md](install-proof.md) steps 3 and 8).
+- A real signature failure and an offline check against the shipped plugin.
+
+## Rust: what and why (ticket 30)
+
+- **New dependency.** `tauri-plugin-updater` (official Tauri plugin, MIT/Apache-2.0), pinned
+  exactly at `=2.14.1` like autostart, because it downloads and starts installers. Its TLS
+  stack brings three crates under the ISC licence (`ring`, `rustls-webpki`, `untrusted`); ISC
+  is a short permissive licence equivalent to MIT, so it was added to the allowed list in
+  `deny.toml`.
+- **Who decides.** All update work happens in Rust. The popup gets two new commands, both
+  without arguments: `get_update` (what is on offer) and `install_update` (the user clicked the
+  banner). It holds no permission of the updater plugin itself, so a page cannot check,
+  download or install on its own; `tests/capabilities.rs` fails if one is ever granted.
+- **When it goes online.** Only while the config's `update_check` is on, as last reported by
+  the core's preferences query. Before the first answer at launch it counts as off, so nothing
+  is requested until the user's setting is known. It then checks at once and every 24 hours.
+  It looks again after every preferences query, so switching the setting off or on in the
+  config file takes effect on the next refresh, without restart.
+- **Failures.** A failed check (offline, the feed missing while a release is being built, a
+  broken feed) shows nothing and waits for the next daily check. A failure after the user
+  confirmed (download, signature, installer) is shown in the banner with Retry. The scan
+  results are never touched.
+- **Installing.** The plugin downloads the installer, checks its signature against the public
+  key in `tauri.conf.json`, starts it and closes the app; the installer reopens the new
+  version. On other systems the app restarts itself.
+- **After an update.** The app now writes its version to `core-env-version.txt` (next to the
+  core's environment) after each successful scan. When the version differs, the next scan gets
+  the long first-run allowance (180 seconds, "setting up"), because uv may need to download
+  the new version's dependencies.
