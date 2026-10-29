@@ -1086,7 +1086,14 @@ fn relative_from_cwd(target: &Path) -> PathBuf {
 fn relative_or_empty_lookup_folders_are_ignored() {
     // They would depend on the app's working directory, which nobody chose; PATH entries are
     // treated the same way.
-    let root = scratch("lookup-relative");
+    // Under the working directory, not the temp dir: on Windows they can sit on different
+    // drives, and a path cannot be written relative across drives.
+    let root = std::env::current_dir()
+        .unwrap()
+        .join("target")
+        .join(format!("lookup-relative-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).unwrap();
     let install = root.join("install");
     let home = root.join("home");
     place_uv(&install);
