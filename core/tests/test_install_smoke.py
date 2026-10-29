@@ -212,7 +212,7 @@ def test_installed_config_custom_and_hidden_tools_take_effect(
     folder.mkdir()
     (folder / "config.toml").write_text(
         'hidden = ["uv"]\n\n[[tools]]\nid = "mygit"\nname = "My git"\n'
-        'binaries = ["git"]\nversion_args = ["--version"]\n'
+        'os = ["windows", "linux"]\nbinaries = ["git"]\nversion_args = ["--version"]\n'
         "version_regex = 'git version (?P<version>\\d+(?:\\.\\d+)*)'\n",
         encoding="utf-8",
     )
