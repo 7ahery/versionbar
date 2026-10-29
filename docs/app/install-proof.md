@@ -81,7 +81,8 @@ The release run also builds the wheel and sdist once (`build-dist`), installs th
 Retrying a failed PyPI side. Use **Re-run failed jobs** on the same release-please run, never a new version or tag.
 - The PyPI jobs and the installer jobs are independent, so one side can fail and be re-run while the other stays green. Each failure shows in the run.
 - A re-run of `publish-pypi` uploads the identical files built by the first attempt, and `skip-existing` makes it finish a partial upload instead of failing on files PyPI already has. PyPI never accepts a different file under a version number it has seen, so do not bump the version to "fix" a half-published release; fix the cause and re-run.
-- If `build-dist` or `verify-dist` failed, nothing was published. Fix on `main`; the release PR then proposes the next version, or use a `Release-As:` footer for a prerelease.
+- If `build-dist`, `verify-dist` or `publish-pypi` failed, first use **Re-run failed jobs** on the same run. `verify-dist` resolves dependencies from PyPI on two runners, so a transient failure is likely, and nothing was published by a failed `build-dist` or `verify-dist`.
+- Only if the failure is a real defect that re-running cannot fix: fix it on `main` and let the next patch release ship the app and the PyPI package together. Then add a note to the broken version's GitHub release that it has no PyPI package (`gh release edit <tag> --notes-file`, keeping the existing notes), so nobody waits for it.
 - If PyPI rejected the upload with an identity error, the Trusted Publisher does not match: it must be owner `7ahery`, repository `versionbar`, workflow `release-please.yml`, environment `pypi`. Fix it on pypi.org and re-run.
 
 One-time setup by the maintainer (before the first release)

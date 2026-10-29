@@ -1,6 +1,7 @@
-"""Smoke test at the real install seam: build the checkout the way a user would
-(`uv tool install`) and run the installed command, so packaging, the entry point
-and import-time dependencies are all exercised."""
+"""Smoke test at the real install seam: install the built wheel and sdist (a fresh `uv build`,
+or the release artifacts named by VERSIONBAR_DIST_DIR) with `uv tool install` from outside the
+checkout and run the installed command, so packaging, shipped resources, the entry point and
+import-time dependencies are all exercised."""
 
 import json
 import os
@@ -8,7 +9,6 @@ import shutil
 import subprocess
 import sys
 import tarfile
-import tomllib
 from pathlib import Path
 
 import pytest
@@ -83,9 +83,7 @@ def _run(command: Path, *args: str, env: dict[str, str] | None = None):
 
 
 def test_installed_help_works(installed_command: Path) -> None:
-    result = subprocess.run(
-        [str(installed_command), "--help"], capture_output=True, encoding="utf-8", check=False
-    )
+    result = _run(installed_command, "--help")
     assert result.returncode == 0
     assert "versionbar" in result.stdout.lower()
 
@@ -94,14 +92,7 @@ def test_installed_list_json_finds_git_on_the_real_machine(installed_command: Pa
     # git is preinstalled on contributor machines and both CI runner images.
     # Python reports every import on stderr, so the real `--json` path can be
     # checked for staying clear of Rich.
-    env = {**os.environ, "PYTHONPROFILEIMPORTTIME": "1"}
-    result = subprocess.run(
-        [str(installed_command), "list", "--json"],
-        capture_output=True,
-        encoding="utf-8",
-        env=env,
-        check=False,
-    )
+    result = _run(installed_command, "list", "--json", env={"PYTHONPROFILEIMPORTTIME": "1"})
     assert result.returncode == 0, result.stderr
     imported = [line.rsplit("|", 1)[-1].strip() for line in result.stderr.splitlines()]
     assert "versionbar.cli" in imported
@@ -117,18 +108,19 @@ def test_installed_list_json_finds_git_on_the_real_machine(installed_command: Pa
 
 
 def test_installed_bare_command_prints_a_table(installed_command: Path) -> None:
-    result = subprocess.run(
-        [str(installed_command)], capture_output=True, encoding="utf-8", check=False
-    )
+    result = _run(installed_command)
     assert result.returncode == 0, result.stderr
     assert any(line.startswith("git") for line in result.stdout.splitlines())
 
 
-def test_installed_version_matches_package_metadata(installed_command: Path) -> None:
-    expected = tomllib.loads((CORE_DIR / "pyproject.toml").read_text("utf-8"))["project"]["version"]
-    result = subprocess.run(
-        [str(installed_command), "--version"], capture_output=True, encoding="utf-8", check=False
-    )
+def test_installed_version_matches_the_built_artifact(
+    installed_command: Path, artifacts: dict[str, Path]
+) -> None:
+    # The wheel filename carries the PEP 440 version (0.1.0rc1), which is what the installed
+    # metadata reports; pyproject holds release-please's semver spelling (0.1.0-rc.1) for
+    # prereleases, so comparing with it would fail every prerelease.
+    expected = artifacts["wheel"].name.split("-")[1]
+    result = _run(installed_command, "--version")
     assert result.returncode == 0
     assert result.stdout.strip() == expected
 
@@ -145,12 +137,7 @@ def test_installed_package_ships_the_starter_config(installed_command: Path) -> 
 
 
 def test_installed_config_query_answers_as_json(installed_command: Path) -> None:
-    result = subprocess.run(
-        [str(installed_command), "config", "--json"],
-        capture_output=True,
-        encoding="utf-8",
-        check=False,
-    )
+    result = _run(installed_command, "config", "--json")
     # This machine's own config decides 0 or 3; either way the document is JSON.
     assert result.returncode in (0, 3), result.stderr
     assert json.loads(result.stdout)["config_path"].endswith("config.toml")
@@ -182,7 +169,7 @@ def test_sdist_carries_the_licence(artifacts: dict[str, Path]) -> None:
 def test_installed_tools_and_schema_commands(installed_command: Path) -> None:
     tools = _run(installed_command, "tools", "--json")
     assert tools.returncode == 0, tools.stderr
-    assert "git" in tools.stdout
+    assert "git" in [tool["id"] for tool in json.loads(tools.stdout)["tools"]]
 
     schema = _run(installed_command, "schema")
     assert schema.returncode == 0, schema.stderr
