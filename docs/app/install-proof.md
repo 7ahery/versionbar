@@ -117,3 +117,17 @@ Not yet run: human items for the maintainer
 - [ ] Confirmed signed in-app update from a CI-built prerelease to the next CI-built full release through `releases/latest` (DEV-11).
 - [ ] Anonymous access to production release metadata and artifacts. The repository is private as of 2026-10-29 (`gh repo view`), so this cannot pass until it is public.
 - [ ] Merge the v0.1.0 release PR once the above are recorded. **Release blocker found 2026-10-29:** the open release PR (#55) was titled `chore(main): release 1.0.0` and bumps every version file to 1.0.0, because with no earlier release tag release-please ignored the `0.0.0` manifest and used its default initial version. Fixed by `"initial-version": "0.1.0"` in `release-please-config.json` (ticket branch `ticket/31-qualification`; it takes effect once that is on `main`, when release-please rewrites the PR). Evidence: `release-please release-pr --dry-run` (17.x, read-only, against `7ahery/versionbar` main) proposed `chore(main): release 1.0.0`; computing the pull request with the new config (the library's `buildPullRequests`, which writes nothing; the CLI dry run reads the config from GitHub, so it cannot see an unmerged change) proposed `chore(main): release 0.1.0`. After the fix merges, re-check that PR #55's title says the expected version; never merge it showing 1.0.0. The PR's `CI` run shows `action_required` because it is opened with `GITHUB_TOKEN` (DEV-9); the release workflow's own version checks stand in for it.
+
+## v0.1.1 release results
+
+Recorded 2026-10-30. The human items above were settled on the released builds, not on an rc.
+
+- **No rc:** v0.1.0 was released directly, without the `0.1.0-rc.1` rehearsal (DEV-12).
+- **v0.1.0 defect:** the installed app failed every scan. Its bundled core lacked `core/LICENSE`, which `license-files` in `core/pyproject.toml` requires (#33). The PyPI package was not affected. The v0.1.0 release notes carry a warning. v0.1.1 bundles the file, and `scripts/bundled-core.test.mjs` now builds the core from exactly the bundled resource set in CI.
+- [x] Release runs for v0.1.0 and v0.1.1 were green. Both GitHub releases carry the setup.exe, its `.sig`, `SHA256SUMS.txt` and `latest.json`, and v0.1.1 is `Latest`. PyPI lists 0.1.0 and 0.1.1, both published by Trusted Publishing.
+- [x] The repository is public, so release metadata and artifacts are anonymous.
+- [x] The maintainer installed v0.1.1 from the official installer over v0.1.0. It scans, and Programs and Features shows the publisher "Michael Tahery" (DEC-29).
+- [x] Real Windows QA (the checklist in "v0.1.0 qualification results") passed on v0.1.1, as reported by the maintainer.
+- [x] Catalog (25 tools) and scan timing (about 1.1 s) accepted by the maintainer for v0.1.0, recorded on #35.
+- [ ] Confirmed in-app update: moved to #60 (0.1.1 → 0.1.2). v0.1.0 never checks for updates (DEV-12).
+- [ ] PyPI isolated install, `uvx` and upgrade evidence in [pypi-evidence.md](../pypi-evidence.md): not recorded here. The upgrade check is part of #60.
