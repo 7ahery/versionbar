@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.1](https://github.com/7ahery/versionbar/compare/v0.1.0...v0.1.1) (2026-10-29)
+
+
+### Bug Fixes
+
+* **app:** bundle core/LICENSE so the installed app can build its core ([8ec5a31](https://github.com/7ahery/versionbar/commit/8ec5a31418128bec878e1924eab95660f7081e02))
+* **app:** bundle core/LICENSE so uv can build the installed core ([35bf555](https://github.com/7ahery/versionbar/commit/35bf555e3137733690362a532ab2ecbc240a38be))
+
 ## 0.1.0 (2026-10-29)
 
 
