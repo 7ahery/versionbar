@@ -34,7 +34,7 @@ the feed and its signature are produced is in [install-proof.md](install-proof.m
 | What failed | What the user sees | Then |
 |---|---|---|
 | A check: offline, DNS, a malformed feed, or the 404 the feed returns while a release builds or after a failed release run | Nothing. An offer from an earlier check stays. | The next scheduled check, 24 hours later (DEV-10). |
-| After the user confirmed: download, signature verification, starting the installer | The banner shows the error and a Retry button; the offer stays. | Retry tries the same release again. |
+| After the user confirmed: download, signature verification, starting the installer | The banner shows the error and a Retry button; the offer stays. | Retry tries the same release again. If a later check finds nothing on offer (the release was withdrawn), the error goes with the offer. |
 
 The Tauri updater counts every answer but a 204 or a valid feed as an error, which is why failed
 checks are quiet: every release has a window in which the feed is missing. The scan state, the

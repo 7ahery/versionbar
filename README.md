@@ -147,9 +147,12 @@ Install the CLI from PyPI. uv is the only supported way: it also provides the Py
 uv tool install versionbar     # install the `versionbar` command
 uvx versionbar list            # or run it once without installing
 uv tool upgrade versionbar     # upgrade
-uv tool install versionbar==0.1.0rc1       # a prerelease must be named exactly
-uv tool upgrade versionbar --prerelease allow   # move from one prerelease to the next
+uv tool install "versionbar>=0.1.0rc1" --prerelease allow   # a prerelease: name a floor, not an exact pin
+uvx --from "versionbar==0.1.0rc1" versionbar --version      # run one prerelease once
+uv tool upgrade versionbar --prerelease allow               # move to the next prerelease
 ```
+
+An exact pin (`uv tool install versionbar==0.1.0rc1`) cannot be upgraded: uv answers "Nothing to upgrade" and says to reinstall with `uv tool install versionbar@latest`. Install with a floor, as above, to be able to upgrade. A floor installs the newest version at install time, so install it while the prerelease you want is the newest one.
 
 Install the CLI from a checkout:
 
@@ -176,14 +179,15 @@ The `Release` workflow (`.github/workflows/release-please.yml`) keeps a release 
 
 Merging the release PR tags the release, and the same run then builds and publishes it (a tag pushed with `GITHUB_TOKEN` triggers no other workflow, so nothing builds from a tag on its own):
 
-1. If the version has a semver prerelease part (`0.2.0-rc.1`), the `release-please` job marks the GitHub release as a prerelease straight away. Full versions (`0.2.0`) stay normal releases and become `latest`.
-2. `verify-release` checks that every version file matches the tag and that the generated schema and TS types are current (`npm run lint:gen`).
+1. If the version has a semver prerelease part (`0.2.0-rc.1`), the `mark-prerelease` job marks the GitHub release as a prerelease straight away. Full versions (`0.2.0`) stay normal releases and become `latest`. It is a job of its own so that Re-run failed jobs repeats only it, and everything below needs it.
+2. `verify-release` (needs `mark-prerelease`) checks that every version file matches the tag and that the generated schema and TS types are current (`npm run lint:gen`).
 3. `build-installer` calls the `Installer` workflow with `sign-updater: true`. Its `release-installer` job merges in `app/src-tauri/tauri.updater.conf.json`, which turns on `bundle.createUpdaterArtifacts`, and signs the update with `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. The build fails if that key does not match `plugins.updater.pubkey` in `tauri.conf.json`.
 4. `attach-release` writes `latest.json`, the Tauri static update feed (`scripts/updater-feed.mjs`), and attaches the installer, its `.sig` and `SHA256SUMS.txt`, then `latest.json`, to the GitHub release.
+5. In parallel with 3 and 4, the PyPI jobs (#33): `build-dist` builds the wheel and sdist once, `verify-dist` installs those exact files outside the checkout on Windows and Ubuntu, and `publish-pypi` uploads them with PyPI Trusted Publishing from the GitHub environment `pypi` (no token stored; `skip-existing` so a re-run finishes a partial upload).
 
 The signing secrets live in a GitHub environment named **`release`** (Settings, Environments), with the deployment branch rule set to `main` only, and nowhere else (no repository secrets of the same name). Only the signed `release-installer` job names that environment, so push and dispatch runs of `Installer`, and any work branch that edits the workflow, cannot read the key; they build unsigned. The private key is never in the repository; the app holds only the public key in `tauri.conf.json`.
 
-A failed step stops the run before anything is attached. The installer itself stays unsigned; only the update is signed. The app reads the feed from `https://github.com/7ahery/versionbar/releases/latest/download/latest.json`, which GitHub serves from the newest release that is not a prerelease, so prereleases never reach installed apps through the updater. release-please publishes the release before the build starts, so that URL returns 404 while a full release is building (about 15 minutes), and keeps returning 404 after a failed build until the failed jobs are re-run (Re-run failed jobs on the workflow run; the uploads overwrite any partial attempt). During that time the app's update check fails with an error: the Tauri updater counts only a 204 response as "no update", so a 404 is a failed check. The app must handle a failed check quietly, without an error message (#34).
+A failed step stops only what depends on it: a failure before `verify-release` publishes nothing, but the installer side (steps 3 and 4) and the PyPI side (step 5) are independent, so one can fail and be re-run while the other succeeds. Use Re-run failed jobs on the same run, never a new version; the rules for each side are in [docs/app/install-proof.md](docs/app/install-proof.md#pypi-publication-and-retry-33). The installer itself stays unsigned; only the update is signed. The app reads the feed from `https://github.com/7ahery/versionbar/releases/latest/download/latest.json`, which GitHub serves from the newest release that is not a prerelease, so prereleases never reach installed apps through the updater. release-please publishes the release before the build starts, so that URL returns 404 while a full release is building (about 15 minutes), and keeps returning 404 after a failed build until the failed jobs are re-run (Re-run failed jobs on the workflow run; the uploads overwrite any partial attempt). During that time the app's update check fails with an error: the Tauri updater counts only a 204 response as "no update", so a 404 is a failed check. The app treats a failed check quietly: no message, an earlier offer stays and the next daily check tries again ([docs/app/updates.md](docs/app/updates.md#failures)).
 
 ## Commands
 
