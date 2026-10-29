@@ -73,3 +73,20 @@ Prerelease rehearsal
 If a release run fails after release-please has published the release, the release has no assets and `releases/latest/download/latest.json` returns 404 (for a full release) until the failed jobs are re-run with Re-run failed jobs on that workflow run. The same 404 is normal while a full release is still building. While it lasts, installed apps' update checks fail with an error (the Tauri updater counts only 204 as "no update"); the app handles a failed check quietly (#34).
 
 Record the date, versions, checksums and results in [native-observations.md](native-observations.md).
+
+## PyPI publication and retry (#33)
+
+The release run also builds the wheel and sdist once (`build-dist`), installs those exact files into throwaway uv tool folders on Windows and Ubuntu (`verify-dist`), and only then uploads them (`publish-pypi`, PyPI Trusted Publishing: no token, environment `pypi`). The published version is the release tag as PEP 440 (`v0.1.0-rc.1` becomes `0.1.0rc1`); the run stops before building if the version files disagree with the tag.
+
+Retrying a failed PyPI side. Use **Re-run failed jobs** on the same release-please run, never a new version or tag.
+- The PyPI jobs and the installer jobs are independent, so one side can fail and be re-run while the other stays green. Each failure shows in the run.
+- A re-run of `publish-pypi` uploads the identical files built by the first attempt, and `skip-existing` makes it finish a partial upload instead of failing on files PyPI already has. PyPI never accepts a different file under a version number it has seen, so do not bump the version to "fix" a half-published release; fix the cause and re-run.
+- If `build-dist` or `verify-dist` failed, nothing was published. Fix on `main`; the release PR then proposes the next version, or use a `Release-As:` footer for a prerelease.
+- If PyPI rejected the upload with an identity error, the Trusted Publisher does not match: it must be owner `7ahery`, repository `versionbar`, workflow `release-please.yml`, environment `pypi`. Fix it on pypi.org and re-run.
+
+One-time setup by the maintainer (before the first release)
+
+1. Check that the name `versionbar` is free on PyPI. If someone else holds it, stop and decide the new name explicitly (names are defined in few places, see AGENTS.md).
+2. On pypi.org, Your account, Publishing, add a pending publisher: project `versionbar`, owner `7ahery`, repository `versionbar`, workflow `release-please.yml`, environment `pypi`. A pending publisher does not reserve the name until the first publish.
+3. Create the environment `pypi` (Settings, Environments), limited to the `main` branch. It needs no secrets.
+4. After two published prereleases, record the isolated-environment proof in [pypi-evidence.md](../pypi-evidence.md).
