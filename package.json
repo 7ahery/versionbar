@@ -19,7 +19,7 @@
     "doctor": "node scripts/doctor.mjs",
     "gen": "node scripts/gen.mjs",
     "test": "npm run test:core && npm run test:repo && npm run test:ui && npm run test:rust",
-    "test:repo": "node --test scripts/check-versions.test.mjs scripts/updater-feed.test.mjs scripts/tauri-config.test.mjs",
+    "test:repo": "node --test scripts/check-versions.test.mjs scripts/updater-feed.test.mjs scripts/tauri-config.test.mjs scripts/bundled-core.test.mjs",
     "test:core": "uv run --project core --group dev pytest core",
     "test:ui": "npm test -w app",
     "test:rust": "cargo test --manifest-path app/src-tauri/Cargo.toml --locked",
