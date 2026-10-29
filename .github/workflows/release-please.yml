@@ -203,7 +203,7 @@ jobs:
           ls dist
           test -f "dist/versionbar-$expected-py3-none-any.whl"
           test -f "dist/versionbar-$expected.tar.gz"
-          test "$(ls dist | wc -l)" -eq 2
+          test "$(find dist -mindepth 1 -maxdepth 1 ! -name '.*' | wc -l)" -eq 2
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: pypi-dist
