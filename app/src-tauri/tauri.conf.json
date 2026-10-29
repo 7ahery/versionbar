@@ -35,6 +35,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "publisher": "Michael Tahery",
     "resources": {
       "../../core/pyproject.toml": "core/pyproject.toml",
       "../../core/uv.lock": "core/uv.lock",
