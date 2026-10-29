@@ -1,7 +1,7 @@
 {
   "name": "versionbar-workspace",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Root task runner for the VersionBar monorepo. The product name and version live in core/pyproject.toml.",
   "license": "MIT",
   "packageManager": "npm@11.19.0",

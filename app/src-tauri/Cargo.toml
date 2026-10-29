@@ -4,7 +4,7 @@
 # name is defined, and tests/product_identity.rs keeps them in sync.
 name = "tray-shell"
 # The app version. tauri.conf.json has no version of its own, so Tauri reads this one.
-version = "0.1.0"
+version = "0.1.1"
 description = "VersionBar tray shell: app lifecycle and narrowly scoped commands only"
 authors = ["Michael Tahery"]
 license = "MIT"
