@@ -40,6 +40,7 @@
       "../../core/pyproject.toml": "core/pyproject.toml",
       "../../core/uv.lock": "core/uv.lock",
       "../../core/.python-version": "core/.python-version",
+      "../../core/LICENSE": "core/LICENSE",
       "../../core/README.md": "core/README.md",
       "../../core/src/": "core/src/"
     },
