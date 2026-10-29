@@ -2,7 +2,28 @@
 
 Inventories the dev tools installed on a machine. The `versionbar` CLI (Python core) is the product; a Windows tray app is one consumer of it.
 
-**Status: M1.** The CLI detects the core four live: git, node, python and uv. It also lists the Node.js versions nvm-windows holds off PATH, and `versionbar tools` lists every tool and provider it knows. More tools and providers arrive in later slices. The tray app launches and opens its popup, which does not show scan results yet.
+**Status: release candidate for v0.1.0.** The CLI detects the 25 built-in tools and five providers (nvm-windows, uv, the py launcher, rustup, dotnet) live; the Windows tray app shows the scan in a popup and offers signed updates. What has been verified for v0.1.0, and what is still pending, is in [docs/app/install-proof.md](docs/app/install-proof.md#v010-qualification-results).
+
+## Install
+
+VersionBar needs [uv](https://docs.astral.sh/uv/) and never installs it (or anything else) for you. If uv is missing, the app shows the install command and you run it yourself.
+
+**CLI.** uv also provides the Python the CLI runs on, so the Python it reports on is never the one it runs on:
+
+```sh
+uv tool install versionbar    # install the `versionbar` command
+uvx versionbar list           # or run it once without installing
+uv tool upgrade versionbar    # upgrade
+```
+
+**Windows tray app.** Download `VersionBar_<version>_x64-setup.exe` and `SHA256SUMS.txt` from the [latest GitHub release](https://github.com/7ahery/versionbar/releases/latest), then check the download before running it:
+
+```powershell
+(Get-FileHash -Algorithm SHA256 .\VersionBar_<version>_x64-setup.exe).Hash.ToLower()
+Get-Content .\SHA256SUMS.txt
+```
+
+The two hashes must be identical; do not run the installer if they differ. The installer and the Windows executables are **unsigned** in v1 (code signing comes later), so Chrome may block the download (open `chrome://downloads` and choose **Keep**) and SmartScreen shows "Windows protected your PC": after verifying the checksum, choose **More info**, then **Run anyway**. It installs for the current user only, with no administrator prompt. Updates **are** cryptographically signed with the project's updater key, and the app verifies the signature before installing. The update check is the only network access the app makes and can be turned off in the [config](docs/config.md).
 
 ## Usage
 
@@ -114,7 +135,7 @@ If the data of a `python.exe` or `python3.exe` alias cannot be read, VersionBar 
 
 ### Scan timing
 
-The target is a full scan in about a second. Typical timing on the development machine (Windows 11, 2026-10-24), scanning 15 real tools (18 version commands, including `npm.cmd` and `code.cmd`) in-process, median of five runs: **0.35 s** in parallel versus 0.90 s one at a time. Python and uv start-up add to this for a CLI invocation.
+The target is a full scan in about a second. Typical timing for the full catalog (25 tools, 13 found) on the development machine (Windows 11, 2026-10-29), seven runs of a whole `versionbar list --json` invocation: **1.09 to 1.11 s** from the installed console script (`uv run` adds about 0.03 s). About 0.65 s of that is interpreter and import start-up (`versionbar --version` alone takes as long); the scan, with its version commands overlapped, is the remaining 0.4 s or so. Earlier in-process figure for 15 tools (2026-10-24): 0.35 s in parallel versus 0.90 s one at a time.
 
 The first full scan of the built-in core four (git, node, python and uv; four version commands, two git installs among them; the two Store placeholders are not run), same machine, 2026-10-24, median of five runs: **0.07 s** in-process and **0.65 s** for a whole `versionbar list --json` invocation, which is mostly interpreter start-up. This is a measurement, not a test: the suite proves parallelism with synchronisation in the fake system rather than with wall-clock thresholds.
 
