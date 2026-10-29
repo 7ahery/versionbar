@@ -1116,4 +1116,5 @@ fn relative_or_empty_lookup_folders_are_ignored() {
         ]),
         None
     );
+    let _ = fs::remove_dir_all(&root);
 }
