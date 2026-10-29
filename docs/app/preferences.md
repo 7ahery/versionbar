@@ -87,7 +87,10 @@ between launches: the launch job's query decides it afresh.
 
 The updater therefore treats a `false` before the launch job's query has finished as "not yet
 allowed", not as a final answer: it looks again after every query, so the startup check runs
-as soon as the first answer allows it ([updates.md](updates.md#what-goes-online-and-when)).
+as soon as the first answer allows it. A later "off" stops requests and hides an offer already
+shown; turning it back on shows an offer the app had already found again, with no new request,
+and otherwise keeps the 24-hour schedule from the last check
+([updates.md](updates.md#what-goes-online-and-when)).
 
 ## IPC contract with the popup
 

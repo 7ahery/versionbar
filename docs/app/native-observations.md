@@ -318,8 +318,13 @@ the capability guard (`tests/capabilities.rs`) and the banner through the IPC mo
 - **When it goes online.** Only while the config's `update_check` is on, as last reported by
   the core's preferences query. Before the first answer at launch it counts as off, so nothing
   is requested until the user's setting is known. It then checks at once and every 24 hours.
-  It looks again after every preferences query, so switching the setting off or on in the
-  config file takes effect on the next refresh, without restart.
+  It looks again after every preferences query, so a change in the config file applies on the
+  next refresh, without restart. Off: no more requests, and an offer already shown is hidden.
+  On again: an offer the app had already found shows again at once, with no new request; the
+  next request still waits until 24 hours after the last check.
+- **Time limits.** One feed request may take 30 seconds and the installer download 15 minutes.
+  A stalled request therefore ends as a failure instead of hanging, and a slow check never
+  holds up an install the user confirmed.
 - **Failures.** A failed check (offline, the feed missing while a release is being built, a
   broken feed) shows nothing and waits for the next daily check. A failure after the user
   confirmed (download, signature, installer) is shown in the banner with Retry. The scan

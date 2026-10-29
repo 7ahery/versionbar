@@ -18,6 +18,16 @@ use crate::preferences::Preferences;
 /// How often the feed is asked while the app runs (spec story 69).
 pub const CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 
+/// How long one feed request may take. Without a limit a request that stalls (say, the laptop
+/// slept mid-request) would never fail, and no later check would run.
+#[cfg(desktop)]
+const CHECK_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// How long the installer download may take in all. Generous, for slow connections, but
+/// finite so a stalled download ends in an error with Retry instead of "Installing…" forever.
+#[cfg(desktop)]
+const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(15 * 60);
+
 /// How long the schedule sleeps when nothing wakes it. Being woken after every preferences
 /// query is what normally drives it; this only bounds the wait if those stop.
 pub const SCHEDULE_POLL: Duration = Duration::from_secs(60 * 60);
@@ -52,10 +62,9 @@ pub struct Updater {
     source: Box<dyn UpdateSource>,
     preferences: Arc<Preferences>,
     interval: Duration,
+    // No lock is held while the source works: a slow check must never hold up a confirmed
+    // install, nor the other way round. The source's own timeouts bound each call.
     known: Mutex<Known>,
-    /// Held across every call into the source, so a check never replaces the offer while it
-    /// is being installed.
-    busy: Mutex<()>,
     notify: Notify,
     wake: Arc<Wake>,
 }
@@ -63,8 +72,13 @@ pub struct Updater {
 #[derive(Default)]
 struct Known {
     state: UpdateState,
+    /// What the last successful check found, kept while checks are off so turning them back
+    /// on shows it again without a request.
+    offer: Option<String>,
     /// When the feed was last asked, whatever it answered; None until the first check.
     last_check: Option<Instant>,
+    /// A check is running, so a second caller does not start another.
+    checking: bool,
 }
 
 impl Updater {
@@ -79,7 +93,6 @@ impl Updater {
             preferences,
             interval,
             known: Mutex::default(),
-            busy: Mutex::new(()),
             notify,
             wake: Arc::default(),
         }
@@ -93,38 +106,36 @@ impl Updater {
     /// Preferences that are not known yet count as off (DEC-22), so the first check waits for
     /// the launch job's query. A failed check is quiet: it keeps what was known and counts as
     /// a check, so it is retried at the next scheduled one.
+    ///
+    /// While checks are off the offer is hidden (an install the user already confirmed keeps
+    /// it). Turning them back on shows an offer the app already found again without a request;
+    /// the next request still waits for the interval since the last check.
     pub fn check_if_due(&self) {
-        let _busy = self.busy.lock().unwrap();
-        if !self.preferences.update_check() {
-            // An offer the user can no longer act on without going online stays hidden while
-            // checks are off; the next allowed check brings it back. An install the user already
-            // confirmed keeps its offer.
-            self.change(|known| !known.state.installing && known.state.version.take().is_some());
-            return;
-        }
-        {
-            let known = self.known.lock().unwrap();
+        let enabled = self.preferences.update_check();
+        let mut ask = false;
+        self.change(|known| {
+            let changed = show_offer(known, enabled);
             let due = known
                 .last_check
                 .is_none_or(|at| at.elapsed() >= self.interval);
-            if known.state.installing || !due {
-                return;
-            }
+            ask = enabled && due && !known.checking && !known.state.installing;
+            known.checking |= ask;
+            changed
+        });
+        if !ask {
+            return;
         }
         let answer = self.source.check();
+        // Read again: the setting may have been turned off while the request ran.
+        let enabled = self.preferences.update_check();
         self.change(|known| {
+            known.checking = false;
             known.last_check = Some(Instant::now());
             match answer {
-                Ok(version) if version != known.state.version => {
-                    known.state.version = version;
-                    true
-                }
-                Ok(_) => false,
-                Err(message) => {
-                    eprintln!("Update check failed: {message}");
-                    false
-                }
+                Ok(version) => known.offer = version,
+                Err(message) => eprintln!("Update check failed: {message}"),
             }
+            show_offer(known, enabled)
         });
     }
 
@@ -143,7 +154,6 @@ impl Updater {
         if !started {
             return false;
         }
-        let _busy = self.busy.lock().unwrap();
         match self.source.install() {
             Ok(()) => true,
             Err(message) => {
@@ -172,6 +182,27 @@ impl Updater {
         }
         changed
     }
+}
+
+/// Sets the shown version from the kept offer: the offer while checks are on, nothing while
+/// they are off. Leaves it alone during a confirmed install, so a check that finishes meanwhile
+/// cannot take away the version the banner is installing. A failed install stays on screen
+/// with its Retry until checks are turned off or a different version is offered (the banner
+/// shows nothing without a version). Returns whether the state changed.
+fn show_offer(known: &mut Known, enabled: bool) -> bool {
+    if known.state.installing {
+        return false;
+    }
+    let shown = if enabled { known.offer.clone() } else { None };
+    if enabled && shown.is_none() && known.state.error.is_some() {
+        return false;
+    }
+    if shown == known.state.version {
+        return false;
+    }
+    known.state.version = shown;
+    known.state.error = None;
+    true
 }
 
 impl Drop for Updater {
@@ -229,7 +260,12 @@ impl<R: tauri::Runtime> UpdateSource for PluginSource<R> {
         use tauri_plugin_updater::UpdaterExt;
         // Anything but a 204 or a valid feed is an error here, including the 404 while a
         // release is still building (DEV-10); the caller keeps those quiet.
-        let updater = self.app.updater().map_err(|error| error.to_string())?;
+        let updater = self
+            .app
+            .updater_builder()
+            .timeout(CHECK_TIMEOUT)
+            .build()
+            .map_err(|error| error.to_string())?;
         let update =
             tauri::async_runtime::block_on(updater.check()).map_err(|error| error.to_string())?;
         let version = update.as_ref().map(|update| update.version.clone());
@@ -238,10 +274,14 @@ impl<R: tauri::Runtime> UpdateSource for PluginSource<R> {
     }
 
     fn install(&self) -> Result<(), String> {
-        let found = self.found.lock().unwrap();
-        let update = found
-            .as_ref()
+        // A copy, so a check finishing meanwhile never waits for the download.
+        let mut update = self
+            .found
+            .lock()
+            .unwrap()
+            .clone()
             .ok_or_else(|| "The update is no longer available.".to_owned())?;
+        update.timeout = Some(DOWNLOAD_TIMEOUT);
         // On Windows this exits the app once the installer has started; the installer restarts
         // it when done.
         tauri::async_runtime::block_on(update.download_and_install(|_, _| {}, || {}))

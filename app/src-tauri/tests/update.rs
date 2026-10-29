@@ -7,7 +7,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -72,6 +72,8 @@ struct Feed {
     install_result: Mutex<Result<(), String>>,
     checks: AtomicUsize,
     installs: AtomicUsize,
+    /// While true, a check waits (a stalled request) before answering.
+    held: AtomicBool,
 }
 
 impl Feed {
@@ -81,6 +83,7 @@ impl Feed {
             install_result: Mutex::new(Ok(())),
             checks: AtomicUsize::new(0),
             installs: AtomicUsize::new(0),
+            held: AtomicBool::new(false),
         })
     }
 
@@ -94,6 +97,14 @@ impl Feed {
 
     fn fails_installs(&self, message: &str) {
         *self.install_result.lock().unwrap() = Err(message.to_owned());
+    }
+
+    fn hold_checks(&self) {
+        self.held.store(true, Ordering::SeqCst);
+    }
+
+    fn release_checks(&self) {
+        self.held.store(false, Ordering::SeqCst);
     }
 
     fn checks(&self) -> usize {
@@ -110,6 +121,9 @@ struct FakeSource(Arc<Feed>);
 impl UpdateSource for FakeSource {
     fn check(&self) -> Result<Option<String>, String> {
         self.0.checks.fetch_add(1, Ordering::SeqCst);
+        while self.0.held.load(Ordering::SeqCst) {
+            std::thread::sleep(Duration::from_millis(10));
+        }
         self.0.offer.lock().unwrap().clone()
     }
 
@@ -302,6 +316,115 @@ fn turning_update_checks_off_stops_checks_and_turning_them_on_resumes_them() {
     app.updater.check_if_due();
     assert_eq!(app.feed.checks(), 2);
     assert_eq!(app.state(), offered("0.2.0"));
+}
+
+#[test]
+fn turning_update_checks_back_on_shows_the_known_offer_without_asking_again() {
+    let app = app("toggle-daily", DAY);
+    app.feed.offers("0.2.0");
+    app.update_on();
+    app.updater.check_if_due();
+
+    app.update_off();
+    app.updater.check_if_due();
+    assert_eq!(app.state(), nothing_offered());
+
+    app.update_on();
+    app.updater.check_if_due();
+    assert_eq!(app.state(), offered("0.2.0"));
+    assert_eq!(
+        app.feed.checks(),
+        1,
+        "still within the 24 h since the last check"
+    );
+}
+
+#[test]
+fn a_failed_check_counts_as_a_check_until_the_interval_has_passed() {
+    let app = app("check-fails-daily", DAY);
+    app.feed
+        .fails_checks("Could not fetch a valid release JSON from the remote");
+    app.update_on();
+
+    app.updater.check_if_due();
+    app.updater.check_if_due();
+
+    assert_eq!(app.feed.checks(), 1);
+}
+
+/// Runs `check_if_due` on its own thread and waits until the fake feed has been asked, so the
+/// check is stalled inside the request when this returns.
+fn stalled_check(app: &App) -> std::thread::JoinHandle<()> {
+    let before = app.feed.checks();
+    app.feed.hold_checks();
+    let updater = app.updater.clone();
+    let check = std::thread::spawn(move || updater.check_if_due());
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while app.feed.checks() == before && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(app.feed.checks(), before + 1, "the check never started");
+    check
+}
+
+#[test]
+fn a_stalled_check_never_holds_up_a_confirmed_install_nor_takes_its_offer() {
+    let app = app("stalled-install", Duration::ZERO);
+    app.feed.offers("0.2.0");
+    app.update_on();
+    app.updater.check_if_due();
+    let check = stalled_check(&app);
+
+    let message = "The update could not be installed: error sending request";
+    app.feed.fails_installs(message);
+    assert!(
+        !app.updater.install(),
+        "install ran and failed while the check was stalled"
+    );
+    assert_eq!(app.feed.installs(), 1);
+
+    // The stalled check now finds nothing; the failed install's version and error stay.
+    *app.feed.offer.lock().unwrap() = Ok(None);
+    app.feed.release_checks();
+    check.join().unwrap();
+    assert_eq!(
+        app.state(),
+        json!({"version": "0.2.0", "installing": false, "error": message})
+    );
+}
+
+#[test]
+fn a_check_that_finishes_while_installing_leaves_the_banner_alone() {
+    let app = app("stalled-during-install", Duration::ZERO);
+    app.feed.offers("0.2.0");
+    app.update_on();
+    app.updater.check_if_due();
+    let check = stalled_check(&app);
+    // A successful install leaves `installing` set until the app restarts.
+    assert!(app.updater.install());
+
+    *app.feed.offer.lock().unwrap() = Ok(None);
+    app.feed.release_checks();
+    check.join().unwrap();
+
+    assert_eq!(
+        app.state(),
+        json!({"version": "0.2.0", "installing": true, "error": null})
+    );
+}
+
+#[test]
+fn an_answer_that_arrives_after_checks_were_turned_off_is_not_shown() {
+    let app = app("stalled-disable", Duration::ZERO);
+    app.update_on();
+    let check = stalled_check(&app);
+
+    app.update_off();
+    app.feed.offers("0.2.0");
+    app.feed.release_checks();
+    check.join().unwrap();
+
+    assert_eq!(app.state(), nothing_offered());
 }
 
 #[test]

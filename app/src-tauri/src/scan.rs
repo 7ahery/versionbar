@@ -290,7 +290,8 @@ impl Scanner {
                 // results, which stay in memory; the next successful scan tries again.
                 let _ = saved::save(&self.config.state_file, scan, previous.as_deref());
                 if let Some(marker) = &self.version_marker {
-                    // Best effort too: an unwritten marker only costs one more long timeout.
+                    // Best effort too: the cost of a marker that cannot be written is that every
+                    // scan runs as a first run (180 s timeout, `setting_up`) until it can be.
                     let _ = std::fs::write(&marker.file, &marker.version);
                 }
             }

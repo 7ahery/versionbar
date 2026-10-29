@@ -18,9 +18,14 @@ the feed and its signature are produced is in [install-proof.md](install-proof.m
   (`CHECK_INTERVAL`). The schedule looks again after every preferences query (every scan job,
   so at least every 30 minutes) and at least hourly; the feed is asked only when 24 hours have
   passed since the last check.
-- A config change applies without restart: the next refresh rereads the preferences, turning
-  checks off stops them (and hides an offer already shown), and turning them back on resumes
-  the 24-hour schedule from the last check.
+- A config change applies without restart: the next refresh rereads the preferences. Turning
+  checks off stops requests and hides an offer already shown. Turning them back on shows an
+  offer the app had already found again at once, with no new request, and otherwise keeps the
+  24-hour schedule from the last check.
+- An answer that arrives after checks were turned off is not shown.
+- Each feed request times out after 30 seconds (`CHECK_TIMEOUT`) and the installer download
+  after 15 minutes (`DOWNLOAD_TIMEOUT`), so a stalled request ends as a failure. No lock is
+  held while a request runs, so a slow check never holds up a confirmed install.
 - The release on `releases/latest` is never a prerelease, so installed apps are only offered
   full releases.
 
