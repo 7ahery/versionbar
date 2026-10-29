@@ -4,7 +4,7 @@ The tray app never reads the config file. It asks the core with the second of it
 invocations, `versionbar config --json` ([ADR 0011](../adr/0011-preferences-query.md)), and
 hands the answer to whoever needs it. This page is the transport contract for the popup's
 pinning and ordering (ticket 26), the native "Open config file" action (ticket 27) and the
-updater (ticket 30). Code: `app/src-tauri/src/preferences.rs`; the invocation itself is shared
+updater ([updates.md](updates.md)). Code: `app/src-tauri/src/preferences.rs`; the invocation itself is shared
 with the scan in `app/src-tauri/src/scan.rs`. The config file's keys are in
 [../config.md](../config.md).
 
@@ -45,7 +45,7 @@ reads exactly two fields beyond that:
 | Field | Used for |
 |---|---|
 | `config_path` | The file "Open config file" opens (ticket 27), whether or not it exists. |
-| `preferences.update_check` | Whether the updater may go online (ticket 30). |
+| `preferences.update_check` | Whether the updater may go online ([updates.md](updates.md)). |
 
 This is a deliberate, narrow exception to hard rule 2 ("Rust treats scan JSON as opaque"),
 accepted with ADR 0011 (DEC-13): these two values steer Rust's own behaviour, which the UI
@@ -85,9 +85,12 @@ setting never means "enabled" (ADR 0011), so a user who turned update checks off
 checked for updates because their file broke or uv went missing. The value is not saved
 between launches: the launch job's query decides it afresh.
 
-The updater (ticket 30) must therefore read `update_check()` only after the launch job's query
-has finished, for example on the first `preferences-updated` notification, and must treat a
-`false` before then as "not yet allowed", not as a final answer.
+The updater therefore treats a `false` before the launch job's query has finished as "not yet
+allowed", not as a final answer: it looks again after every query, so the startup check runs
+as soon as the first answer allows it. A later "off" stops requests and hides an offer already
+shown; turning it back on shows an offer the app had already found again, with no new request,
+and otherwise keeps the 24-hour schedule from the last check
+([updates.md](updates.md#what-goes-online-and-when)).
 
 ## IPC contract with the popup
 

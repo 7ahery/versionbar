@@ -1,0 +1,257 @@
+name: Release
+
+# Keeps a release PR open from Conventional Commits on main; merging it creates the tag and
+# GitHub release (ADR 0010). Releases come from CI only.
+#
+# This file is the single top-level release workflow on purpose: PyPI Trusted Publishing
+# cannot run inside a reusable workflow, so the publish job (#33) must be a job here, and the
+# installer build (#53) is called from here too. A tag created with GITHUB_TOKEN triggers no
+# other workflow, which is why those jobs hang off `release_created` in this same run.
+#
+# The repo setting "Allow GitHub Actions to create and approve pull requests" must be on.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Release PR and tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+      sha: ${{ steps.release.outputs.sha }}
+      body: ${{ steps.release.outputs.body }}
+      pr: ${{ steps.release.outputs.pr }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # Its own job, not a step above, on purpose: if marking fails the release already exists, and
+  # "Re-run failed jobs" re-runs only this job with the original release-please outputs. Inside
+  # the release-please job a re-run would run release-please again, which finds nothing new to
+  # release and builds nothing. Idempotent, so a re-run is safe. verify-release needs it, so
+  # nothing is built, signed or published while a prerelease could still be `latest`.
+  mark-prerelease:
+    name: Mark a prerelease as a GitHub prerelease
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # release-please's own `prerelease` option would also flag every 0.x release, so no
+      # release would ever be `latest` and the updater feed URL would never resolve. Flag
+      # only versions with a semver prerelease part (0.2.0-rc.1). The job still succeeds for a
+      # full version, so the jobs that need it run.
+      - name: Mark the release
+        if: contains(needs.release-please.outputs.version, '-')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          REPO: ${{ github.repository }}
+        run: gh release edit "$TAG" --repo "$REPO" --prerelease --latest=false
+
+  # GITHUB_TOKEN pushes do not trigger CI on the release PR, so the checks that matter for a
+  # version bump run here against the PR branch instead.
+  verify-release-pr:
+    name: Check the release PR
+    needs: release-please
+    if: needs.release-please.outputs.pr != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+      - uses: astral-sh/setup-uv@v10.3.2
+      - run: node scripts/check-versions.mjs
+      # The lockfile must already hold the bumped version, or `uv sync --locked` breaks later.
+      - run: uv lock --check --project core
+
+  # Last gate before anything is built or published from the tag. Every job that builds or
+  # publishes (the installer below, PyPI in #33) needs this one, so a failure ships nothing.
+  verify-release:
+    name: Check the release commit
+    needs: [release-please, mark-prerelease]
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - uses: astral-sh/setup-uv@v10.3.2
+      - run: node scripts/check-versions.mjs --tag "$TAG"
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+      # ci.yml never ran on this commit, so stale schema or TS types would otherwise ship.
+      - run: npm ci
+      - run: npm run lint:gen
+
+  build-installer:
+    name: Build the signed release
+    needs: [release-please, verify-release]
+    uses: ./.github/workflows/installer.yml
+    with:
+      ref: ${{ needs.release-please.outputs.sha }}
+      sign-updater: true
+    # This job has no environment, so these expressions are empty here: the key exists only in
+    # the `release` environment. The mapping declares which names the called workflow may use;
+    # its job that sets `environment: release` then gets the environment's values instead
+    # (GitHub resolves an environment secret the caller does not name to an empty string).
+    # Named one by one, not `secrets: inherit`, so the build can see nothing else.
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+  # The only job with write access to releases. It writes the feed before uploading anything,
+  # and uploads latest.json last, so a failure never leaves a feed pointing at a missing file.
+  attach-release:
+    name: Attach installer, checksums and update feed
+    needs: [release-please, build-installer]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: ${{ needs.build-installer.outputs.artifact }}
+          path: dist
+      - name: Write latest.json
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          NOTES: ${{ needs.release-please.outputs.body }}
+          REPO: ${{ github.repository }}
+        run: |
+          shopt -s nullglob
+          installers=(dist/*-setup.exe)
+          if [ "${#installers[@]}" -ne 1 ]; then
+            echo "::error::expected exactly one installer in dist, found ${#installers[@]}"
+            exit 1
+          fi
+          printf '%s' "$NOTES" > "$RUNNER_TEMP/notes.md"
+          node scripts/updater-feed.mjs --installer "${installers[0]}" --tag "$TAG" --repo "$REPO" \
+            --notes-file "$RUNNER_TEMP/notes.md" --out dist/latest.json
+          echo "INSTALLER=${installers[0]}" >> "$GITHUB_ENV"
+      # --clobber makes a re-run of a failed attach replace what an earlier attempt uploaded.
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh release upload "$TAG" "$INSTALLER" "$INSTALLER.sig" dist/SHA256SUMS.txt --repo "$REPO" --clobber
+          gh release upload "$TAG" dist/latest.json --repo "$REPO" --clobber
+
+  # PyPI side (#33). Independent of the installer jobs above: either side can fail and be
+  # re-run alone with "Re-run failed jobs" on this same run, never with a new version. The
+  # files are built once here, so a re-run of the publish job uploads the identical files.
+  build-dist:
+    name: Build the PyPI packages
+    needs: [release-please, verify-release]
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+      - uses: astral-sh/setup-uv@v10.3.2
+      - run: uv build core --out-dir dist
+      # verify-release already proved the package metadata equals the tag; this proves the
+      # files themselves carry that PEP 440 version, so PyPI gets exactly the released version.
+      - name: Check the built files against the tag
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          expected=$(node -e 'import("./scripts/check-versions.mjs").then((m) => console.log(m.normalise(process.env.TAG)))')
+          ls dist
+          test -f "dist/versionbar-$expected-py3-none-any.whl"
+          test -f "dist/versionbar-$expected.tar.gz"
+          test "$(find dist -mindepth 1 -maxdepth 1 ! -name '.*' | wc -l)" -eq 2
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: pypi-dist
+          path: dist/
+          if-no-files-found: error
+
+  # Installs the exact files that will be published (not ./core) outside the checkout and
+  # runs the install-seam tests against them, on both OS families, before anything is uploaded.
+  verify-dist:
+    name: Install the packages (${{ matrix.os }})
+    needs: [release-please, build-dist]
+    if: needs.release-please.outputs.release_created == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.sha }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.2
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: pypi-dist
+          path: dist
+      - run: uv run --project core pytest core/tests/test_install_smoke.py
+        env:
+          VERSIONBAR_DIST_DIR: ${{ github.workspace }}/dist
+
+  # Trusted Publishing: PyPI trusts this workflow file and the `pypi` environment, so no token
+  # is stored anywhere. `id-token: write` is on this job only. skip-existing makes a re-run
+  # after a partial upload finish the upload instead of failing on files already there.
+  publish-pypi:
+    name: Publish to PyPI
+    needs: [release-please, verify-release, build-dist, verify-dist]
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: pypi-dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          packages-dir: dist/
+          skip-existing: true

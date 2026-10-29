@@ -28,7 +28,14 @@ const REVIEWED: &[&str] = &[
     // existing file at a drive-letter path in plain form (src/reveal.rs); Explorer selects it and
     // never runs it.
     "allow-open-containing-folder",
-    // Subscribe to and drop the `scan-updated` and `preferences-updated` events. Listening
+    // The update on offer, whether it is installing and why a confirmed install failed; read
+    // only, takes no arguments.
+    "allow-get-update",
+    // The user confirmed the update banner: installs whatever the last Rust-side check offered
+    // (signature checked by the updater plugin) and restarts. Takes no arguments, so the page
+    // cannot choose what is downloaded or run; does nothing without an offer.
+    "allow-install-update",
+    // Subscribe to and drop the `scan-updated`, `preferences-updated` and `update-updated` events. Listening
     // only: the webview cannot emit events.
     "core:event:allow-listen",
     "core:event:allow-unlisten",
@@ -85,6 +92,33 @@ fn webview_cannot_control_autostart() {
             !granted.contains("autostart:"),
             "{file}: the webview must not hold autostart permissions"
         );
+    }
+}
+
+#[test]
+fn webview_cannot_drive_the_updater_plugin() {
+    // Rust checks, downloads and installs (spec "The updater is owned by Rust"); the popup only
+    // confirms through `install_update`. The plugin's own commands would let a page fetch and
+    // run an installer on its own schedule.
+    for (file, capability) in capabilities() {
+        let granted = capability["permissions"].to_string();
+        assert!(
+            !granted.contains("updater:"),
+            "{file}: the webview must not hold updater permissions"
+        );
+    }
+}
+
+#[test]
+fn the_popup_can_see_and_confirm_an_update() {
+    for (file, capability) in capabilities() {
+        let granted = capability["permissions"].to_string();
+        for permission in ["allow-get-update", "allow-install-update"] {
+            assert!(
+                granted.contains(&format!("\"{permission}\"")),
+                "{file}: the popup needs `{permission}` for the update banner"
+            );
+        }
     }
 }
 

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "include-component-in-tag": false,
+  "bump-minor-pre-major": true,
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "package-name": "versionbar",
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        { "type": "toml", "path": "core/pyproject.toml", "jsonpath": "$.project.version" },
+        { "type": "toml", "path": "app/src-tauri/Cargo.toml", "jsonpath": "$.package.version" },
+        {
+          "type": "toml",
+          "path": "app/src-tauri/Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value=='tray-shell')].version"
+        },
+        {
+          "type": "toml",
+          "path": "core/uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='versionbar')].version"
+        },
+        { "type": "json", "path": "package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "package-lock.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "package-lock.json", "jsonpath": "$.packages[\"\"].version" }
+      ]
+    }
+  }
+}

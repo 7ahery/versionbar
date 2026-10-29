@@ -30,6 +30,11 @@ tauri-plugin-autostart = "=2.7.0"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["raw_value"] }
 
+# App updates (desktop only, as the plugin supports nothing else). Pinned exactly like autostart:
+# it downloads and launches installers, so a version change should be a reviewed change.
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-updater = "=2.14.1"
+
 [dev-dependencies]
 # The mock runtime, for testing popup and second-launch handling without a real window.
 tauri = { version = "2.12.5", features = ["tray-icon", "test"] }

@@ -109,7 +109,8 @@ pub struct ScanConfig {
     /// folder, so it survives updates and needs no write access there (spec story 66).
     pub environment: PathBuf,
     pub timeout: Duration,
-    /// Used instead of `timeout` while `environment` does not exist yet.
+    /// Used instead of `timeout` while `environment` does not exist yet, and for the first scan
+    /// after an app update (`Scanner::with_version_marker`).
     pub first_run_timeout: Duration,
     /// Where the last two successful results are saved, so they survive a restart.
     pub state_file: PathBuf,
@@ -119,9 +120,10 @@ pub struct ScanConfig {
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct ShellState {
     scanning: bool,
-    /// True while a scan is the first run, which creates the core's environment and may
-    /// download Python and packages. Only ever true together with `scanning`. A separate
-    /// flag rather than an outcome: it describes work in progress, not how an attempt ended.
+    /// True while a scan is the first run, which creates the core's environment (or re-syncs
+    /// it after an app update) and may download Python and packages. Only ever true together
+    /// with `scanning`. A separate flag rather than an outcome: it describes work in progress,
+    /// not how an attempt ended.
     setting_up: bool,
     /// The latest successful scan result, exactly as the core printed it.
     current: Option<Box<RawValue>>,
@@ -176,7 +178,7 @@ pub struct Scanner {
     config: ScanConfig,
     state: Mutex<ShellState>,
     notify: Notify,
-    /// True from the moment the environment folder is found missing until a scan succeeds.
+    /// True from the moment a scan starts as a first run until a scan succeeds.
     /// A first run that times out can leave a half-built folder behind; without this the
     /// retry would count as an ordinary scan and get 30 seconds for the rest of the download.
     unsettled: AtomicBool,
@@ -185,6 +187,24 @@ pub struct Scanner {
     /// Reread before every scan, so every refresh (popup, tray menu, schedule) also picks up
     /// config changes, and never runs a second uv process alongside the scan.
     preferences: Option<Arc<Preferences>>,
+    /// The app version the environment was last synced for; see `with_version_marker`.
+    version_marker: Option<VersionMarker>,
+}
+
+/// A file holding the app version that last scanned successfully. An update replaces the
+/// bundled core and its lock file, and the next `uv run --frozen` re-syncs the environment to
+/// it, which may download packages or a new Python: that scan needs the first-run allowance.
+struct VersionMarker {
+    file: PathBuf,
+    version: String,
+}
+
+impl VersionMarker {
+    /// A missing or unreadable file counts as another version: the environment may come from a
+    /// build that wrote no marker.
+    fn matches(&self) -> bool {
+        std::fs::read_to_string(&self.file).is_ok_and(|text| text.trim() == self.version)
+    }
 }
 
 /// What one scan was started with, fixed before it is announced.
@@ -209,7 +229,15 @@ impl Scanner {
             unsettled: AtomicBool::new(false),
             queued: AtomicBool::new(false),
             preferences: None,
+            version_marker: None,
         }
+    }
+
+    /// Treats the first scan after the app version changed as a first run (180 s timeout,
+    /// `setting_up`), and records `version` in `file` after each successful scan.
+    pub fn with_version_marker(mut self, file: PathBuf, version: String) -> Self {
+        self.version_marker = Some(VersionMarker { file, version });
+        self
     }
 
     /// Makes every scan job query the preferences first. Before the scan, so the very first
@@ -261,6 +289,11 @@ impl Scanner {
                 // Best effort: a disk that cannot be written must not cost the user the fresh
                 // results, which stay in memory; the next successful scan tries again.
                 let _ = saved::save(&self.config.state_file, scan, previous.as_deref());
+                if let Some(marker) = &self.version_marker {
+                    // Best effort too: the cost of a marker that cannot be written is that every
+                    // scan runs as a first run (180 s timeout, `setting_up`) until it can be.
+                    let _ = std::fs::write(&marker.file, &marker.version);
+                }
             }
             // The extra scan's uv is looked up outside the lock like the first one's. Only a
             // request that lands in the instant between this check and the lock below pays
@@ -304,7 +337,12 @@ impl Scanner {
     /// runs may start the unsettled period. The timeout is fixed here too, so a folder that
     /// appears while the scan runs does not change it.
     fn start(&self, state: &mut ShellState, uv: Option<PathBuf>) -> Job {
-        let first_run = self.unsettled.load(Ordering::SeqCst) || !self.config.environment.exists();
+        let first_run = self.unsettled.load(Ordering::SeqCst)
+            || !self.config.environment.exists()
+            || self
+                .version_marker
+                .as_ref()
+                .is_some_and(|marker| !marker.matches());
         if first_run {
             self.unsettled.store(true, Ordering::SeqCst);
         }

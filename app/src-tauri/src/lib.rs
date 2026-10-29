@@ -1,5 +1,5 @@
 //! The tray app's Rust shell: app lifecycle (tray, popup window, single instance, autostart)
-//! plus the scoped scan, state and preferences commands.
+//! plus the scoped scan, state, preferences and update commands.
 //!
 //! Everything about tools and versions lives in the core and the React UI (ADR-0006/0007).
 //! The tray is built here at launch and never depends on the webview (ADR-0009).
@@ -27,15 +27,21 @@ pub mod preferences;
 pub mod reveal;
 mod saved;
 pub mod scan;
+pub mod update;
 
 use preferences::{Preferences, PreferencesState};
 use scan::{FIRST_RUN_TIMEOUT, REFRESH_INTERVAL, SCAN_TIMEOUT, ScanConfig, Scanner, ShellState};
+use update::{UpdateState, Updater};
 
 /// Sent to the popup with the full `ShellState` whenever it changes.
 const SCAN_UPDATED: &str = "scan-updated";
 
 /// Sent to the popup with the full `PreferencesState` after every preferences query.
 const PREFERENCES_UPDATED: &str = "preferences-updated";
+
+/// Sent to the popup with the full `UpdateState` whenever it changes.
+#[cfg(desktop)]
+const UPDATE_UPDATED: &str = "update-updated";
 
 /// Where the installer puts the core project, inside the app's resource folder. Must match
 /// `bundle.resources` in tauri.conf.json.
@@ -46,6 +52,10 @@ const CORE_ENVIRONMENT: &str = "core-env";
 
 /// The saved current and previous scan results, next to the environment.
 const SAVED_STATE: &str = "scan-state.json";
+
+/// The app version the environment was last synced for, next to it (not inside: uv owns that
+/// folder).
+const ENVIRONMENT_VERSION: &str = "core-env-version.txt";
 
 /// Window label of the popup, as declared in tauri.conf.json and the capabilities file.
 const POPUP: &str = "popup";
@@ -102,17 +112,25 @@ pub fn run() {
             get_preferences,
             refresh,
             open_uv_docs,
-            open_containing_folder
+            open_containing_folder,
+            get_update,
+            install_update
         ])
         .setup(|app| {
             create_tray(app.handle())?;
             let preferences = Arc::new(Preferences::new(announce_preferences(app.handle())));
             app.manage(preferences.clone());
+            #[cfg(desktop)]
+            start_updater(app.handle(), preferences.clone())?;
             // Every scan job queries the preferences first, so each refresh (popup, tray menu,
             // schedule) rereads them, and the launch job learns the update setting early.
             let scanner = Arc::new(
                 Scanner::new(scan_config(app.handle())?, announce(app.handle()))
-                    .with_preferences(preferences),
+                    .with_preferences(preferences)
+                    .with_version_marker(
+                        app.path().app_local_data_dir()?.join(ENVIRONMENT_VERSION),
+                        app.package_info().version.to_string(),
+                    ),
             );
             app.manage(scanner.clone());
             // Scans at launch, so the results restored from disk are soon replaced by live
@@ -173,7 +191,36 @@ fn announce_preferences<R: Runtime>(app: &AppHandle<R>) -> preferences::Notify {
     Box::new(move |state: &PreferencesState| {
         // As with scans: a popup that is not listening asks with `get_preferences`.
         let _ = app.emit(PREFERENCES_UPDATED, state);
+        // The update schedule rereads the flag now, so the launch check waits only for the
+        // first answer and a changed setting applies without restart. Missing only before
+        // setup has registered it, when there is nothing to wake yet.
+        if let Some(updater) = app.try_state::<Arc<Updater>>() {
+            updater.wake();
+        }
     })
+}
+
+/// Registers the updater plugin (endpoint and public key from tauri.conf.json) and starts the
+/// update schedule. Nothing goes online until the preferences allow it (`Updater`).
+#[cfg(desktop)]
+fn start_updater<R: Runtime>(
+    app: &AppHandle<R>,
+    preferences: Arc<Preferences>,
+) -> tauri::Result<()> {
+    app.plugin(tauri_plugin_updater::Builder::new().build())?;
+    let announcer = app.clone();
+    let updater = Arc::new(Updater::new(
+        Box::new(update::PluginSource::new(app.clone())),
+        preferences,
+        update::CHECK_INTERVAL,
+        Box::new(move |state: &UpdateState| {
+            // As with scans: a popup that is not listening asks with `get_update`.
+            let _ = announcer.emit(UPDATE_UPDATED, state);
+        }),
+    ));
+    app.manage(updater.clone());
+    update::check_on_schedule(&updater, update::SCHEDULE_POLL);
+    Ok(())
 }
 
 /// Scans on a background thread so neither IPC nor the tray waits for the core. The tray is
@@ -262,6 +309,28 @@ fn open_containing_folder(path: String) -> Result<(), String> {
 #[tauri::command]
 fn get_state(scanner: tauri::State<'_, Arc<Scanner>>) -> ShellState {
     scanner.state()
+}
+
+/// The popup's view of the update: the version on offer, whether it is being installed and why
+/// the last confirmed install failed.
+#[tauri::command]
+fn get_update(updater: tauri::State<'_, Arc<Updater>>) -> UpdateState {
+    updater.state()
+}
+
+/// The user confirmed `Update to vX → Install & restart`. Takes no arguments: it installs
+/// whatever the last check offered, and does nothing without an offer. Returns at once;
+/// progress and failures arrive as `update-updated` events. On Windows the plugin closes the
+/// app once the installer has started, and the installer starts the new version when done;
+/// elsewhere the app restarts here.
+#[tauri::command]
+fn install_update<R: Runtime>(app: AppHandle<R>, updater: tauri::State<'_, Arc<Updater>>) {
+    let updater = updater.inner().clone();
+    thread::spawn(move || {
+        if updater.install() {
+            app.restart();
+        }
+    });
 }
 
 /// The popup's view of the preferences: the core's latest `config --json` answer and how the

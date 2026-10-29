@@ -13,6 +13,7 @@ import {
 } from "@/Recovery";
 import { type ShellState, usePreferences, useShellState } from "@/shell";
 import { ToolList } from "@/ToolList";
+import { UpdateBanner } from "@/UpdateBanner";
 
 // Without usable preferences (not answered yet, or an invalid config) nothing is pinned.
 const NO_ARRANGEMENT = { pinned: [], order: [] };
@@ -44,6 +45,7 @@ export default function App() {
           Refresh
         </button>
       </header>
+      <UpdateBanner />
       {state?.current ? (
         <>
           <StatusLine state={state} />

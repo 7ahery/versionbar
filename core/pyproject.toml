@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Inventory the dev tools installed on a machine."
 readme = "README.md"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Michael Tahery" }]
 requires-python = ">=3.14"
 dependencies = ["typer>=0.12", "rich>=13", "pydantic>=2.11", "platformdirs>=4"]
