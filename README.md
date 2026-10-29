@@ -141,6 +141,16 @@ npm run doctor                             # confirm the toolchain meets the rep
 cargo install cargo-deny@0.20.2 --locked   # once, for `npm run lint` (same version as CI)
 ```
 
+Install the CLI from PyPI. uv is the only supported way: it also provides the Python the CLI runs on, so the Python it reports on is never the one it runs on.
+
+```sh
+uv tool install versionbar     # install the `versionbar` command
+uvx versionbar list            # or run it once without installing
+uv tool upgrade versionbar     # upgrade
+uv tool install versionbar==0.1.0rc1       # a prerelease must be named exactly
+uv tool upgrade versionbar --prerelease allow   # move from one prerelease to the next
+```
+
 Install the CLI from a checkout:
 
 ```sh
@@ -184,7 +194,7 @@ All work goes through root npm scripts. `lint` and `test` run every part; the `:
 | `npm run cli -- <args>` | Run the `versionbar` CLI from the checkout |
 | `npm run dev` | Run the tray app with hot reload |
 | `npm run build` | Local test build of the installer (releases come from CI) |
-| `npm test` | `test:core`: pytest, CLI tests over the fake system plus an install smoke test (`uv tool install` of `core/`, then run the installed command, including a live `list --json` that must find git, validate against the committed schema and never import Rich). `test:ui`: Vitest, the popup rendered with Tauri's IPC mock. `test:rust`: `cargo test` for the shell |
+| `npm test` | `test:core`: pytest, CLI tests over the fake system plus an install smoke test (`uv build`, then `uv tool install` of the wheel and the sdist into a throwaway folder and run the installed command, including a live `list --json` that must find git, validate against the committed schema and never import Rich). `test:ui`: Vitest, the popup rendered with Tauri's IPC mock. `test:rust`: `cargo test` for the shell |
 | `npm run gen` | Regenerate `schema/` (JSON Schemas and TS types) and the UI's product-name constant from their sources; see [schema/README.md](schema/README.md) |
 | `npm run doctor` | Check that node, npm, uv, rustc and cargo meet the repo pins, using `versionbar check` live on this machine with your normal VersionBar config (an invalid config file is reported as such). Failures name the tool and print the fix; exits 1 if anything is unmet. It checks only the contributor toolchain, not the tray app or installers |
 | `npm run lint` | `lint:core`: ruff check and format check, ty. `lint:repo`: taplo (check and format, including the built-in tool definitions against their schema), actionlint. `lint:gen`: fails if any generated file is stale. `lint:ui`: `tsc --noEmit`, ESLint (typescript-eslint, react-hooks), Prettier. `lint:rust`: rustfmt, clippy `-D warnings`, cargo-deny |
