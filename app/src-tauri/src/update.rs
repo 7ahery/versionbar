@@ -187,16 +187,14 @@ impl Updater {
 /// Sets the shown version from the kept offer: the offer while checks are on, nothing while
 /// they are off. Leaves it alone during a confirmed install, so a check that finishes meanwhile
 /// cannot take away the version the banner is installing. A failed install stays on screen
-/// with its Retry until checks are turned off or a different version is offered (the banner
-/// shows nothing without a version). Returns whether the state changed.
+/// with its Retry only while the same release is still on offer: once a check finds nothing,
+/// or checks are turned off, the error goes with the version (Retry would only fail with "no
+/// longer available"). Returns whether the state changed.
 fn show_offer(known: &mut Known, enabled: bool) -> bool {
     if known.state.installing {
         return false;
     }
     let shown = if enabled { known.offer.clone() } else { None };
-    if enabled && shown.is_none() && known.state.error.is_some() {
-        return false;
-    }
     if shown == known.state.version {
         return false;
     }

@@ -43,15 +43,29 @@ jobs:
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+  # Its own job, not a step above, on purpose: if marking fails the release already exists, and
+  # "Re-run failed jobs" re-runs only this job with the original release-please outputs. Inside
+  # the release-please job a re-run would run release-please again, which finds nothing new to
+  # release and builds nothing. Idempotent, so a re-run is safe. verify-release needs it, so
+  # nothing is built, signed or published while a prerelease could still be `latest`.
+  mark-prerelease:
+    name: Mark a prerelease as a GitHub prerelease
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
       # release-please's own `prerelease` option would also flag every 0.x release, so no
       # release would ever be `latest` and the updater feed URL would never resolve. Flag
-      # only versions with a semver prerelease part (0.2.0-rc.1), before anything is built,
-      # so `releases/latest` never moves to a prerelease for longer than this step takes.
-      - name: Mark a prerelease version as a GitHub prerelease
-        if: steps.release.outputs.release_created == 'true' && contains(steps.release.outputs.version, '-')
+      # only versions with a semver prerelease part (0.2.0-rc.1). The job still succeeds for a
+      # full version, so the jobs that need it run.
+      - name: Mark the release
+        if: contains(needs.release-please.outputs.version, '-')
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.release.outputs.tag_name }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
           REPO: ${{ github.repository }}
         run: gh release edit "$TAG" --repo "$REPO" --prerelease --latest=false
 
@@ -79,7 +93,7 @@ jobs:
   # publishes (the installer below, PyPI in #33) needs this one, so a failure ships nothing.
   verify-release:
     name: Check the release commit
-    needs: release-please
+    needs: [release-please, mark-prerelease]
     if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-latest
     steps:

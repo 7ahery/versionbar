@@ -383,14 +383,17 @@ fn a_stalled_check_never_holds_up_a_confirmed_install_nor_takes_its_offer() {
     );
     assert_eq!(app.feed.installs(), 1);
 
-    // The stalled check now finds nothing; the failed install's version and error stay.
-    *app.feed.offer.lock().unwrap() = Ok(None);
-    app.feed.release_checks();
-    check.join().unwrap();
+    // The install failed while the check was stalled and the offer was still shown.
     assert_eq!(
         app.state(),
         json!({"version": "0.2.0", "installing": false, "error": message})
     );
+
+    // The stalled check then finds nothing: the offer is gone, and so is the failed install.
+    *app.feed.offer.lock().unwrap() = Ok(None);
+    app.feed.release_checks();
+    check.join().unwrap();
+    assert_eq!(app.state(), nothing_offered());
 }
 
 #[test]
@@ -486,6 +489,27 @@ fn a_signature_failure_shows_the_error_and_keeps_the_offer_and_the_scan() {
     assert!(app.updater.install());
     assert_eq!(app.feed.installs(), 2);
     assert_eq!(app.state()["error"], Value::Null);
+}
+
+#[test]
+fn a_failed_install_is_cleared_once_a_later_check_finds_nothing_on_offer() {
+    let app = app("offer-withdrawn", Duration::ZERO);
+    app.feed.offers("0.2.0");
+    app.update_on();
+    app.updater.check_if_due();
+    app.feed
+        .fails_installs("The update could not be installed.");
+    assert!(!app.updater.install());
+    assert_eq!(
+        app.state()["error"],
+        json!("The update could not be installed.")
+    );
+
+    // The release is gone, so Retry would only fail with "no longer available".
+    *app.feed.offer.lock().unwrap() = Ok(None);
+    app.updater.check_if_due();
+
+    assert_eq!(app.state(), nothing_offered());
 }
 
 #[test]
