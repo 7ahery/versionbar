@@ -10,6 +10,8 @@
     "allow-refresh",
     "allow-open-uv-docs",
     "allow-open-containing-folder",
+    "allow-get-update",
+    "allow-install-update",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

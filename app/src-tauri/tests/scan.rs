@@ -647,6 +647,78 @@ fn the_state_says_setting_up_only_for_a_first_run_and_clears_afterwards() {
     }
 }
 
+/// Whether each of `scans` consecutive scans over an existing environment started as a first
+/// run, for a scanner that marks the environment with `version`. `marker` is what an earlier
+/// app version left in the marker file (None: no file).
+fn first_runs_after_marker(
+    name: &str,
+    marker: Option<&str>,
+    version: &str,
+    scans: usize,
+) -> Vec<bool> {
+    let rig = printing(name, &real_scan());
+    fs::create_dir_all(rig.dir.join("core-env")).unwrap();
+    let marker_file = rig.dir.join("core-env-version.txt");
+    if let Some(marker) = marker {
+        fs::write(&marker_file, marker).unwrap();
+    }
+    let announced: Arc<Mutex<Vec<Value>>> = Arc::default();
+    let sink = announced.clone();
+    let scanner = Scanner::new(
+        rig.config(TIMEOUT),
+        Box::new(move |state: &ShellState| sink.lock().unwrap().push(wire(state))),
+    )
+    .with_version_marker(marker_file, version.to_owned());
+    for _ in 0..scans {
+        scanner.refresh();
+    }
+    let announced = announced.lock().unwrap();
+    announced
+        .iter()
+        .filter(|state| state["scanning"] == json!(true))
+        .map(|state| state["setting_up"] == json!(true))
+        .collect()
+}
+
+#[test]
+fn the_first_scan_after_the_app_version_changes_is_a_first_run() {
+    assert_eq!(
+        first_runs_after_marker("marker-older", Some("0.1.0"), "0.2.0", 2),
+        [true, false],
+        "an update: one first run, then ordinary scans"
+    );
+    assert_eq!(
+        first_runs_after_marker("marker-same", Some("0.2.0"), "0.2.0", 1),
+        [false]
+    );
+    assert_eq!(
+        first_runs_after_marker("marker-missing", None, "0.2.0", 2),
+        [true, false],
+        "an environment from a build before the marker existed"
+    );
+}
+
+#[test]
+fn a_version_change_gets_the_first_run_timeout() {
+    let rig = Rig::new("marker-timeout", Fake::Hang);
+    fs::create_dir_all(rig.dir.join("core-env")).unwrap();
+    fs::write(rig.dir.join("core-env-version.txt"), "0.1.0").unwrap();
+    let mut config = rig.config(Duration::from_millis(300));
+    config.first_run_timeout = Duration::from_millis(1_500);
+    let scanner =
+        scanner(config).with_version_marker(rig.dir.join("core-env-version.txt"), "0.2.0".into());
+
+    let started = Instant::now();
+    scanner.refresh();
+
+    assert!(started.elapsed() >= Duration::from_millis(1_500));
+    // Only a successful scan settles the new version.
+    assert_eq!(
+        fs::read_to_string(rig.dir.join("core-env-version.txt")).unwrap(),
+        "0.1.0"
+    );
+}
+
 #[test]
 fn a_failed_first_run_reports_stderr_and_a_retry_with_uv_working_succeeds() {
     let bad = Rig::new("retry-bad", Fake::Fail("error: network unreachable", 2));

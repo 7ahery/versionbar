@@ -47,6 +47,22 @@ export interface PreferencesState {
   outcome: Outcome | null;
 }
 
+export const UPDATE_UPDATED = "update-updated";
+
+/**
+ * What `get_update` returns and `update-updated` carries (docs/app/updates.md). Mirrors
+ * `UpdateState` in app/src-tauri/src/update.rs. Rust checks the signed feed on its own; the
+ * popup only shows the offer and confirms it.
+ */
+export interface UpdateState {
+  /** The newer version on offer; null when there is none or update checks are off. */
+  version: string | null;
+  /** True from the confirmation until the install fails or the app restarts. */
+  installing: boolean;
+  /** Why the last confirmed install failed, as a sentence for the user. */
+  error: string | null;
+}
+
 /**
  * Follows one piece of shell state: takes every `event`, and asks `command` for the current
  * value once the subscription is in place.
@@ -118,6 +134,24 @@ export function useShellState(): {
   }, []);
 
   return { state, refresh };
+}
+
+/**
+ * Follows the update the shell found; null until the shell first answers. `install` is the
+ * user's confirmation: the shell installs what it offered and restarts the app.
+ */
+export function useUpdate(): {
+  update: UpdateState | null;
+  install: () => void;
+} {
+  const update = useShellValue<UpdateState>(UPDATE_UPDATED, "get_update");
+
+  const install = useCallback(() => {
+    // Failures surface through the state the shell announces, not through this call.
+    invoke("install_update").catch(() => {});
+  }, []);
+
+  return { update, install };
 }
 
 /** Opens the official uv installation guide in the browser; the shell knows the address. */

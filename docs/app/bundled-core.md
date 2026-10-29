@@ -28,9 +28,12 @@ Nothing is written to the install folder.
 | The core's virtual environment | `%LOCALAPPDATA%\io.github.7ahery.versionbar\core-env` (Tauri's `app_local_data_dir()`, local rather than roaming because it is large and machine specific) |
 | Python bytecode for the bundled sources | `core-env\pycache` (`PYTHONPYCACHEPREFIX`), instead of `__pycache__` next to the sources |
 | The managed Python and package downloads | uv's own folders (uv's cache and managed-Python directory), as for any uv project |
+| The app version the environment was last synced for | `core-env-version.txt`, next to `core-env` (not inside: uv owns that folder) |
 
 The environment survives app updates. After an update uv re-syncs it against the new
-`uv.lock` on the next scan.
+`uv.lock` on the next scan, which therefore runs as a first run (below): the shell writes the
+app version to `core-env-version.txt` after every successful scan and treats a different or
+missing version as a first run ([updates.md](updates.md#installing)).
 
 ## The two invocations
 
@@ -89,7 +92,8 @@ environment.
 On the first run uv creates the environment, which can need a Python download. VersionBar
 installs nothing itself, but this run makes uv download and install VersionBar's own Python
 and dependencies into the folders above. That run is the "first run": the shell decides it by
-whether the environment folder (`core-env`) exists before it starts uv, and gives it a 180-second
+whether the environment folder (`core-env`) exists before it starts uv (and, after an app update,
+by `core-env-version.txt`), and gives it a 180-second
 timeout instead of 30 seconds. While it runs, the state says `setting_up: true`. The first-run
 rules (180 seconds, `setting_up`) last until one scan succeeds, so a first run that timed out
 after creating the folder is retried with the same allowance. The preferences query runs first
@@ -158,11 +162,13 @@ matches what the core does for the tools it runs (`_DRAIN_SECONDS` in
 | `open_containing_folder` | command | `{ path: string }`; opens Explorer on the folder holding that file, with it selected. Rejects with a sentence for the user when the path is refused or Explorer cannot start ([actions.md](actions.md)) |
 | `scan-updated` | event, Rust to webview | the state below, sent when a scan starts and when it ends |
 | `preferences-updated` | event, Rust to webview | the preferences state, sent after every preferences query ([preferences.md](preferences.md)) |
+| `get_update`, `install_update`, `update-updated` | commands and event | the app update on offer and the user's confirmation ([updates.md](updates.md#ipc-contract-with-the-popup)) |
 
 ```ts
 {
   scanning: boolean;
-  setting_up: boolean;          // true only while a first run (no core-env yet) is scanning
+  setting_up: boolean;          // true only while a first run (no core-env yet, or the first
+                                // scan after an app update) is scanning
   current: ScanResult | null;   // latest successful scan, as printed by the core
   previous: ScanResult | null;  // the successful scan before it
   outcome: null                 // nothing has finished in this session yet (current and
