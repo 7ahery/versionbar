@@ -93,7 +93,7 @@ Built-in definitions shipped: `gh`, `pwsh`, `code` (Windows and Linux) and `wsl`
 
 ### Coverage checklist
 
-The v1 catalog is 32 tools: spec #1's 34 minus `pnpm` and `yarn` (DEV-6). Status is "shipped" when a definition and a real capture exist.
+The v1 catalog as shipped is 25 tools: spec #1's 34 minus `pnpm` and `yarn` (DEV-6) and minus seven deferred to #45 for lack of real captures (`poetry`, `pyenv`, `scoop`, `bun`, `deno`, `fnm`, `volta`; DEV-7). Status is "shipped" when a definition and a real capture exist.
 
 | Group | Tool | Definition | Real capture |
 |---|---|---|---|
@@ -103,13 +103,13 @@ The v1 catalog is 32 tools: spec #1's 34 minus `pnpm` and `yarn` (DEV-6). Status
 | | pip, pipx | shipped (09) | yes |
 | | poetry | deferred to #45 (DEV-7) | n/a |
 | JS | node, npm | shipped (13) | yes |
-| | bun, deno | ticket 13 | pending |
+| | bun, deno | deferred to #45 (DEV-7) | n/a |
 | PHP | php, composer | shipped (14) | yes |
 | Other languages | java, go, rustc, cargo, dotnet, ruby | shipped (14) | yes |
 | Containers | docker | shipped (15) | yes (`windows-latest` runner via the capture workflow) |
 | | kubectl | shipped (15) | yes (`windows-latest` runner via the capture workflow) |
 | Managers | nvm | shipped (13) | yes |
-| | fnm, volta | ticket 13 | pending |
+| | fnm, volta | deferred to #45 (DEV-7) | n/a |
 | | pyenv | deferred to #45 (DEV-7); python attribution shipped (09) | n/a |
 | | rustup | shipped (14) | yes |
 | | winget | shipped (15) | yes |
@@ -119,7 +119,7 @@ The v1 catalog is 32 tools: spec #1's 34 minus `pnpm` and `yarn` (DEV-6). Status
 
 ### JS tools and managers (ticket 13)
 
-Built-in so far: `npm` and `nvm`, with real Windows captures from the maintainer's machine (npm 11.19.0 under nvm's `.nodejs` folder, nvm-windows 2.0.1). `bun`, `deno`, `fnm` and `volta` (with volta attribution for node/npm) are pending real captures: none is installed on the capture machine and the capture workflow cannot take an unmerged definition without a pushed branch. A manager's own version detection is a tool, not a provider; only nvm has a provider ([docs/providers.md](providers.md)).
+Built-in so far: `npm` and `nvm`, with real Windows captures from the maintainer's machine (npm 11.19.0 under nvm's `.nodejs` folder, nvm-windows 2.0.1). `bun`, `deno`, `fnm` and `volta` (with volta attribution for node/npm) are deferred to #45 (DEV-7) until real captures exist: none is installed on the capture machine and the capture workflow cannot take an unmerged definition without a pushed branch. A manager's own version detection is a tool, not a provider; only nvm has a provider ([docs/providers.md](providers.md)).
 
 ### Python ecosystem (ticket 09): coverage and provenance
 
